@@ -1,26 +1,167 @@
 @import "tailwindcss";
+@import "tw-animate-css";
+@import "shadcn/tailwind.css";
 
-:root {
-  --background: #ffffff;
-  --foreground: #171717;
-}
+@custom-variant dark (&:is(.dark *));
 
 @theme inline {
   --color-background: var(--background);
   --color-foreground: var(--foreground);
-  --font-sans: var(--font-geist-sans);
+  --font-sans: var(--font-sans);
   --font-mono: var(--font-geist-mono);
+  --font-heading: var(--font-heading);
+  --color-sidebar-ring: var(--sidebar-ring);
+  --color-sidebar-border: var(--sidebar-border);
+  --color-sidebar-accent-foreground: var(--sidebar-accent-foreground);
+  --color-sidebar-accent: var(--sidebar-accent);
+  --color-sidebar-primary-foreground: var(--sidebar-primary-foreground);
+  --color-sidebar-primary: var(--sidebar-primary);
+  --color-sidebar-foreground: var(--sidebar-foreground);
+  --color-sidebar: var(--sidebar);
+  --color-chart-5: var(--chart-5);
+  --color-chart-4: var(--chart-4);
+  --color-chart-3: var(--chart-3);
+  --color-chart-2: var(--chart-2);
+  --color-chart-1: var(--chart-1);
+  --color-ring: var(--ring);
+  --color-input: var(--input);
+  --color-border: var(--border);
+  --color-destructive: var(--destructive);
+  --color-accent-foreground: var(--accent-foreground);
+  --color-accent: var(--accent);
+  --color-muted-foreground: var(--muted-foreground);
+  --color-muted: var(--muted);
+  --color-secondary-foreground: var(--secondary-foreground);
+  --color-secondary: var(--secondary);
+  --color-primary-foreground: var(--primary-foreground);
+  --color-primary: var(--primary);
+  --color-popover-foreground: var(--popover-foreground);
+  --color-popover: var(--popover);
+  --color-card-foreground: var(--card-foreground);
+  --color-card: var(--card);
+  --color-success: var(--success);
+  --color-success-foreground: var(--success-foreground);
+  --color-warning: var(--warning);
+  --color-warning-foreground: var(--warning-foreground);
+  --color-live: var(--live);
+  --color-champion: var(--champion);
+  --color-champion-foreground: var(--champion-foreground);
+  --radius-sm: calc(var(--radius) * 0.6);
+  --radius-md: calc(var(--radius) * 0.8);
+  --radius-lg: var(--radius);
+  --radius-xl: calc(var(--radius) * 1.4);
+  --radius-2xl: calc(var(--radius) * 1.8);
+  --radius-3xl: calc(var(--radius) * 2.2);
+  --radius-4xl: calc(var(--radius) * 2.6);
 }
 
-@media (prefers-color-scheme: dark) {
-  :root {
-    --background: #0a0a0a;
-    --foreground: #ededed;
+/*
+  Dark-first premium sports theme. This product does not ship a light
+  mode — :root carries the dark palette directly instead of gating it
+  behind .dark, since every surface is designed against it.
+
+  SpinTTRatings arena palette: three navy tiers (base #050A12, elevated
+  #07101A, deepest arena depth #020509 used directly in hero/cinematic
+  surfaces), electric blue primary, competition red for live/destructive,
+  and restrained success green.
+*/
+:root {
+  --background: #050a12;
+  --foreground: #f5f7fa;
+  --card: #07101a;
+  --card-foreground: #f5f7fa;
+  --popover: #0a131f;
+  --popover-foreground: #f5f7fa;
+  --primary: #147dff;
+  --primary-foreground: #f5f7fa;
+  --secondary: #0b121c;
+  --secondary-foreground: #c5cbd5;
+  --muted: #081019;
+  --muted-foreground: #7d8795;
+  --accent: #0c1a2e;
+  --accent-foreground: #0ea5ff;
+  --destructive: #ff3048;
+  --border: oklch(1 0 0 / 8%);
+  --input: oklch(1 0 0 / 10%);
+  --ring: #0ea5ff;
+  --success: #00d084;
+  --success-foreground: #02150e;
+  --warning: #f59e0b;
+  --warning-foreground: #241800;
+  --live: #ff3048;
+  --champion: #d4af37;
+  --champion-foreground: #241a02;
+  --chart-1: #147dff;
+  --chart-2: #0ea5ff;
+  --chart-3: #00d084;
+  --chart-4: #f59e0b;
+  --chart-5: #7d8795;
+  --radius: 0.4rem;
+  --sidebar: #050a12;
+  --sidebar-foreground: #f5f7fa;
+  --sidebar-primary: #147dff;
+  --sidebar-primary-foreground: #f5f7fa;
+  --sidebar-accent: #0b121c;
+  --sidebar-accent-foreground: #f5f7fa;
+  --sidebar-border: oklch(1 0 0 / 8%);
+  --sidebar-ring: #0ea5ff;
+}
+
+.dark {
+  --background: #050a12;
+  --foreground: #f5f7fa;
+  --card: #07101a;
+  --card-foreground: #f5f7fa;
+  --popover: #0a131f;
+  --popover-foreground: #f5f7fa;
+  --primary: #147dff;
+  --primary-foreground: #f5f7fa;
+  --secondary: #0b121c;
+  --secondary-foreground: #c5cbd5;
+  --muted: #081019;
+  --muted-foreground: #7d8795;
+  --accent: #0c1a2e;
+  --accent-foreground: #0ea5ff;
+  --destructive: #ff3048;
+  --border: oklch(1 0 0 / 8%);
+  --input: oklch(1 0 0 / 10%);
+  --ring: #0ea5ff;
+  --success: #00d084;
+  --success-foreground: #02150e;
+  --warning: #f59e0b;
+  --warning-foreground: #241800;
+  --live: #ff3048;
+  --champion: #d4af37;
+  --champion-foreground: #241a02;
+  --chart-1: #147dff;
+  --chart-2: #0ea5ff;
+  --chart-3: #00d084;
+  --chart-4: #f59e0b;
+  --chart-5: #7d8795;
+  --sidebar: #050a12;
+  --sidebar-foreground: #f5f7fa;
+  --sidebar-primary: #147dff;
+  --sidebar-primary-foreground: #f5f7fa;
+  --sidebar-accent: #0b121c;
+  --sidebar-accent-foreground: #f5f7fa;
+  --sidebar-border: oklch(1 0 0 / 8%);
+  --sidebar-ring: #0ea5ff;
+}
+
+@layer utilities {
+  .bg-arena-depth {
+    background-color: #020509;
   }
 }
 
-body {
-  background: var(--background);
-  color: var(--foreground);
-  font-family: Arial, Helvetica, sans-serif;
+@layer base {
+  * {
+    @apply border-border outline-ring/50;
+  }
+  body {
+    @apply bg-background text-foreground;
+  }
+  html {
+    @apply font-sans;
+  }
 }
