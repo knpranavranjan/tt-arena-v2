@@ -49,7 +49,7 @@ export function ArenaHero() {
           >
             Spin
             <br />
-            <span className="bg-gradient-to-r from-[#ffb3ac] to-[#c40019] bg-clip-text text-transparent">
+            <span className="bg-gradient-to-r from-[#ffb3ac] to-[#ff2448] bg-clip-text text-transparent">
               Redefined.
             </span>
           </motion.h1>
@@ -72,7 +72,7 @@ export function ArenaHero() {
           <motion.div variants={fadeUp} className="flex flex-col gap-4 sm:flex-row">
             <Link
               href="/register"
-              className="group inline-flex items-center justify-center gap-2 rounded-[2px] bg-[#c40019] px-8 py-4 text-[12px] font-semibold uppercase tracking-[0.1em] text-[#ffd2cd] transition-all hover:scale-[1.03] hover:shadow-[0_0_20px_-5px_#c40019] active:scale-95"
+              className="group inline-flex items-center justify-center gap-2 rounded-[2px] bg-[#ff2448] px-8 py-4 text-[12px] font-semibold uppercase tracking-[0.1em] text-[#ffd2cd] transition-all hover:scale-[1.03] hover:shadow-[0_0_20px_-5px_#ff2448] active:scale-95"
               style={{ fontFamily: "var(--font-home-mono)" }}
             >
               Get Rated
@@ -92,7 +92,7 @@ export function ArenaHero() {
       <button
         type="button"
         onClick={scrollToRankings}
-        className="absolute bottom-10 left-1/2 z-20 flex -translate-x-1/2 cursor-pointer flex-col items-center gap-2 text-[#c2c6d7] opacity-70 outline-none transition-opacity hover:opacity-100 focus-visible:ring-2 focus-visible:ring-[#c40019]/50"
+        className="absolute bottom-10 left-1/2 z-20 flex -translate-x-1/2 cursor-pointer flex-col items-center gap-2 text-[#c2c6d7] opacity-70 outline-none transition-opacity hover:opacity-100 focus-visible:ring-2 focus-visible:ring-[#ff2448]/50"
       >
         <span className="text-[10px] font-semibold uppercase tracking-[0.2em]" style={{ fontFamily: "var(--font-home-mono)" }}>
           Scroll

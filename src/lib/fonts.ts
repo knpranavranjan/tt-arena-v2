@@ -1,4 +1,4 @@
-import { Anybody, Hanken_Grotesk, JetBrains_Mono } from "next/font/google";
+import { Anton, Anybody, Hanken_Grotesk, JetBrains_Mono } from "next/font/google";
 
 // Shared across every "arena" redesigned public page (home, players, ...) so the
 // typography is declared once instead of re-loaded per route. Scoped via CSS
@@ -13,7 +13,7 @@ export const anybody = Anybody({
 
 export const hankenGrotesk = Hanken_Grotesk({
   variable: "--font-home-body",
-  weight: ["400", "600"],
+  weight: ["400", "600", "700"],
   subsets: ["latin"],
 });
 
@@ -24,3 +24,13 @@ export const jetBrainsMono = JetBrains_Mono({
 });
 
 export const arenaFontVariables = `${anybody.variable} ${hankenGrotesk.variable} ${jetBrainsMono.variable}`;
+
+// Auth pages (login/register) use Anton for display headlines instead of
+// Anybody — reuses the same Hanken Grotesk body font as the rest of the site.
+export const anton = Anton({
+  variable: "--font-auth-display",
+  weight: "400",
+  subsets: ["latin"],
+});
+
+export const authFontVariables = `${anton.variable} ${hankenGrotesk.variable}`;

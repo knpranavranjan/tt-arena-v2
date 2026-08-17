@@ -52,8 +52,8 @@ export function LiveRankingsTicker() {
       <div className="mx-auto flex max-w-[1280px] items-center px-4 sm:px-12">
         <div className="z-10 mr-8 flex shrink-0 items-center gap-2 bg-[#0c0e12]/90 py-2 pr-4">
           <span className="relative flex h-2 w-2">
-            <span className="absolute inset-0 animate-ping rounded-full bg-[#c40019] opacity-75" />
-            <span className="relative h-2 w-2 rounded-full bg-[#c40019]" />
+            <span className="absolute inset-0 animate-ping rounded-full bg-[#ff2448] opacity-75" />
+            <span className="relative h-2 w-2 rounded-full bg-[#ff2448]" />
           </span>
           <span
             className="text-xs font-semibold uppercase tracking-[0.15em] text-[#e2e2e8]"
@@ -89,7 +89,7 @@ export function LiveRankingsTicker() {
 
         <Link
           href="/players"
-          className="z-10 ml-8 hidden shrink-0 items-center gap-1 whitespace-nowrap bg-[#0c0e12]/90 py-2 pl-4 text-sm text-[#ff8f86] transition-colors hover:text-[#c40019] md:flex"
+          className="z-10 ml-8 hidden shrink-0 items-center gap-1 whitespace-nowrap bg-[#0c0e12]/90 py-2 pl-4 text-sm text-[#ff8f86] transition-colors hover:text-[#ff2448] md:flex"
         >
           Full leaderboard
           <ArrowRight className="h-3.5 w-3.5" strokeWidth={2} />

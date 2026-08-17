@@ -42,7 +42,7 @@ export default function PlayersPage() {
       <section className="relative mx-auto flex min-h-[340px] w-full max-w-[1280px] flex-col justify-center overflow-hidden px-4 pb-12 pt-12 sm:px-12">
         <div
           className="pointer-events-none absolute inset-0 z-0"
-          style={{ background: "radial-gradient(circle at 30% 50%, rgba(196,0,25,0.1) 0%, transparent 60%)" }}
+          style={{ background: "radial-gradient(circle at 30% 50%, rgba(255,36,72,0.1) 0%, transparent 60%)" }}
           aria-hidden="true"
         />
         <div className="relative z-10 max-w-[700px]">
@@ -71,7 +71,7 @@ export default function PlayersPage() {
               placeholder="Search players by name…"
               value={search}
               onChange={(e) => setSearch(e.target.value)}
-              className="w-full rounded-[4px] border border-white/10 bg-[#1a1c20] py-3 pl-11 pr-4 text-sm text-[#e2e2e8] placeholder:text-[#c2c6d7]/50 focus:border-[#c40019] focus:outline-none focus:ring-1 focus:ring-[#c40019]"
+              className="w-full rounded-[4px] border border-white/10 bg-[#1a1c20] py-3 pl-11 pr-4 text-sm text-[#e2e2e8] placeholder:text-[#c2c6d7]/50 focus:border-[#ff2448] focus:outline-none focus:ring-1 focus:ring-[#ff2448]"
             />
           </div>
 

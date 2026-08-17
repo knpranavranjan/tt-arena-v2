@@ -34,7 +34,7 @@ export function TournamentsShowcase() {
           </div>
           <Link
             href="/tournaments"
-            className="group inline-flex shrink-0 items-center gap-1.5 text-sm text-[#ff8f86] transition-colors hover:text-[#c40019]"
+            className="group inline-flex shrink-0 items-center gap-1.5 text-sm text-[#ff8f86] transition-colors hover:text-[#ff2448]"
           >
             View all tournaments
             <ArrowRight className="h-4 w-4 transition-transform group-hover:translate-x-1" strokeWidth={2} />
@@ -48,14 +48,14 @@ export function TournamentsShowcase() {
               <RevealItem key={t.id}>
                 <Link
                   href={`/tournaments/${t.id}`}
-                  className="group relative flex h-full min-h-[350px] flex-col overflow-hidden rounded-[8px] border border-white/10 bg-white/[0.03] p-6 backdrop-blur-xl transition-colors hover:border-[#c40019]/50"
+                  className="group relative flex h-full min-h-[350px] flex-col overflow-hidden rounded-[8px] border border-white/10 bg-white/[0.03] p-6 backdrop-blur-xl transition-colors hover:border-[#ff2448]/50"
                 >
                   <ArenaPhotoBackdrop />
                   <div className="mb-auto">
                     <span
                       className={`mb-4 inline-block rounded-[2px] px-2 py-1 text-[10px] font-semibold ${
                         live
-                          ? "bg-[#c40019] text-[#ffd2cd]"
+                          ? "bg-[#ff2448] text-[#ffd2cd]"
                           : "border border-white/20 text-[#e2e2e8]"
                       }`}
                       style={{ fontFamily: "var(--font-home-mono)" }}
@@ -82,7 +82,7 @@ export function TournamentsShowcase() {
                     <div
                       className={`inline-flex w-full items-center justify-center gap-2 rounded-[2px] px-4 py-2 text-[11px] font-semibold uppercase tracking-wide transition-all group-hover:scale-[1.02] ${
                         live
-                          ? "bg-[#c40019] text-[#ffd2cd]"
+                          ? "bg-[#ff2448] text-[#ffd2cd]"
                           : "border border-white/20 text-[#e2e2e8] group-hover:bg-white/5"
                       }`}
                       style={{ fontFamily: "var(--font-home-mono)" }}

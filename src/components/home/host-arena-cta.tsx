@@ -45,7 +45,7 @@ export function HostArenaCta() {
         </p>
         <Link
           href="/register"
-          className="group inline-flex items-center gap-3 rounded-[2px] bg-[#c40019] px-10 py-4 text-[12px] font-semibold uppercase tracking-[0.1em] text-[#ffd2cd] transition-all hover:scale-[1.03] hover:shadow-[0_0_20px_-5px_#c40019] active:scale-95"
+          className="group inline-flex items-center gap-3 rounded-[2px] bg-[#ff2448] px-10 py-4 text-[12px] font-semibold uppercase tracking-[0.1em] text-[#ffd2cd] transition-all hover:scale-[1.03] hover:shadow-[0_0_20px_-5px_#ff2448] active:scale-95"
           style={{ fontFamily: "var(--font-home-mono)" }}
         >
           Host a Tournament

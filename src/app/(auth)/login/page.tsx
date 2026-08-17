@@ -3,33 +3,31 @@
 import { Suspense, useState } from "react";
 import Link from "next/link";
 import { useRouter, useSearchParams } from "next/navigation";
-import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
-import { Label } from "@/components/ui/label";
-import { Input } from "@/components/ui/input";
-import { Button } from "@/components/ui/button";
-import { Tabs, TabsList, TabsTrigger } from "@/components/ui/tabs";
 import { useAuth, dashboardPathForRole } from "@/lib/auth";
 import type { Role } from "@/lib/types";
 
-const roleCopy: Record<Role, { label: string; email: string }> = {
-  PLAYER: { label: "Player", email: "arjun@apexttc.in" },
-  CLUB: { label: "Club", email: "contact@apexttc.in" },
-  HOST: { label: "Host", email: "ops@ktta.in" },
-  ADMIN: { label: "Admin", email: "admin@ttmanagement.app" },
-};
+const roleOptions: { value: Role; label: string; email: string }[] = [
+  { value: "PLAYER", label: "Player", email: "arjun@apexttc.in" },
+  { value: "CLUB", label: "Club", email: "contact@apexttc.in" },
+  { value: "HOST", label: "Host", email: "ops@ktta.in" },
+  { value: "ADMIN", label: "Admin", email: "admin@ttmanagement.app" },
+];
+
+const fieldClass =
+  "w-full rounded-none border border-white/10 bg-[#0a0a0a] px-4 py-3 text-white transition-colors focus:border-[#ff2448] focus:outline-none";
+const labelClass = "block text-xs font-semibold uppercase tracking-widest text-[#8b8b93]";
 
 function LoginForm() {
   const [role, setRole] = useState<Role>("PLAYER");
-  const [email, setEmail] = useState(roleCopy.PLAYER.email);
+  const [email, setEmail] = useState(roleOptions[0].email);
   const [password, setPassword] = useState("");
   const { login } = useAuth();
   const router = useRouter();
   const searchParams = useSearchParams();
 
-  const handleRoleChange = (value: string) => {
-    const nextRole = value as Role;
-    setRole(nextRole);
-    setEmail(roleCopy[nextRole].email);
+  const handleRoleChange = (next: Role) => {
+    setRole(next);
+    setEmail(roleOptions.find((r) => r.value === next)?.email ?? "");
   };
 
   const handleSubmit = (e: React.FormEvent) => {
@@ -40,48 +38,73 @@ function LoginForm() {
   };
 
   return (
-    <Card>
-      <CardHeader>
-        <CardTitle className="font-heading text-xl">Sign in</CardTitle>
-        <CardDescription>Demo mode — pick a role to preview each portal.</CardDescription>
-      </CardHeader>
-      <CardContent>
-        <Tabs value={role} onValueChange={handleRoleChange}>
-          <TabsList className="grid w-full grid-cols-4">
-            {(Object.keys(roleCopy) as Role[]).map((r) => (
-              <TabsTrigger key={r} value={r}>{roleCopy[r].label}</TabsTrigger>
-            ))}
-          </TabsList>
-        </Tabs>
-        <form onSubmit={handleSubmit} className="mt-5 flex flex-col gap-4">
-          <div className="flex flex-col gap-1.5">
-            <Label htmlFor="email">Email</Label>
-            <Input id="email" type="email" required value={email} onChange={(e) => setEmail(e.target.value)} />
+    <div>
+      <div className="mb-8 text-center">
+        <h3 className="mb-4 text-xs font-semibold uppercase tracking-[0.2em] text-[#ff2448]">Sign In</h3>
+        <h1 className="text-4xl uppercase tracking-tight text-white sm:text-5xl" style={{ fontFamily: "var(--font-auth-display)" }}>
+          Welcome Back.
+        </h1>
+      </div>
+
+      <div className="w-full border border-white/10 bg-[#0e0e0e] p-8 shadow-2xl md:p-10">
+        <div className="mb-8 flex border border-white/10 bg-[#0a0a0a]">
+          {roleOptions.map((r, i) => (
+            <button
+              key={r.value}
+              type="button"
+              onClick={() => handleRoleChange(r.value)}
+              className={`flex-1 py-4 text-center text-sm font-bold uppercase tracking-widest transition-colors ${
+                i > 0 ? "border-l border-white/10" : ""
+              } ${role === r.value ? "bg-[#ff2448] text-white" : "text-[#8b8b93] hover:text-white"}`}
+            >
+              {r.label}
+            </button>
+          ))}
+        </div>
+
+        <form onSubmit={handleSubmit} className="space-y-6">
+          <div className="space-y-2">
+            <label htmlFor="email" className={labelClass}>Email</label>
+            <input id="email" required type="email" value={email} onChange={(e) => setEmail(e.target.value)} className={fieldClass} />
           </div>
-          <div className="flex flex-col gap-1.5">
-            <Label htmlFor="password">Password</Label>
-            <Input
+          <div className="space-y-2">
+            <label htmlFor="password" className={labelClass}>Password</label>
+            <input
               id="password"
-              type="password"
               required
+              type="password"
               placeholder="••••••••"
+              autoComplete="current-password"
               value={password}
               onChange={(e) => setPassword(e.target.value)}
-              autoComplete="current-password"
+              className={`${fieldClass} placeholder:text-[#5a5a60]`}
             />
           </div>
-          <Button type="submit" className="mt-1">
-            Sign in as {roleCopy[role].label}
-          </Button>
+
+          <div className="pt-4">
+            <button
+              type="submit"
+              className="flex w-full items-center justify-center gap-2 bg-[#ff2448] py-4 text-sm font-bold uppercase tracking-widest text-white transition-colors hover:bg-[#e01f3f]"
+            >
+              Sign in as {roleOptions.find((r) => r.value === role)?.label}
+            </button>
+          </div>
         </form>
-        <p className="mt-5 text-center text-sm text-muted-foreground">
-          Don&apos;t have an account?{" "}
-          <Link href="/register" className="font-medium text-primary hover:underline">
-            Register
-          </Link>
+
+        <p className="mt-4 text-center text-xs text-[#5a5a60]">
+          Demo mode — pick a role to preview each portal.
         </p>
-      </CardContent>
-    </Card>
+
+        <div className="mt-6 text-center">
+          <p className="text-sm text-[#8b8b93]">
+            Don&apos;t have an account?{" "}
+            <Link href="/register" className="ml-1 text-sm font-bold uppercase tracking-widest text-[#ff2448] transition-colors hover:text-[#ff8f86]">
+              Register
+            </Link>
+          </p>
+        </div>
+      </div>
+    </div>
   );
 }
 

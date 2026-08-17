@@ -59,9 +59,14 @@ export function PublicHeader() {
 
         <div className="hidden items-center gap-2 md:flex">
           {user ? (
-            <Button size="sm" render={<Link href={dashboardPath(user.role)} />}>
-              My Dashboard
-            </Button>
+            <>
+              <Button variant="ghost" size="sm" render={<Link href="/login" />}>
+                Switch Account
+              </Button>
+              <Button size="sm" render={<Link href={dashboardPath(user.role)} />}>
+                My Dashboard
+              </Button>
+            </>
           ) : (
             <>
               <Button variant="ghost" size="sm" render={<Link href="/login" />}>
@@ -97,9 +102,14 @@ export function PublicHeader() {
               ))}
               <div className="mt-3 flex flex-col gap-2 border-t border-border pt-3">
                 {user ? (
-                  <Button size="sm" onClick={() => setOpen(false)} render={<Link href={dashboardPath(user.role)} />}>
-                    My Dashboard
-                  </Button>
+                  <>
+                    <Button size="sm" onClick={() => setOpen(false)} render={<Link href={dashboardPath(user.role)} />}>
+                      My Dashboard
+                    </Button>
+                    <Button variant="outline" size="sm" onClick={() => setOpen(false)} render={<Link href="/login" />}>
+                      Switch Account
+                    </Button>
+                  </>
                 ) : (
                   <>
                     <Button variant="outline" size="sm" onClick={() => setOpen(false)} render={<Link href="/login" />}>

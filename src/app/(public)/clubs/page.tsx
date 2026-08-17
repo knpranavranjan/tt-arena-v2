@@ -48,7 +48,7 @@ export default function ClubsPage() {
     <div className={`relative ${arenaFontVariables}`} style={{ fontFamily: "var(--font-home-body)" }}>
       {/* Atmospheric background glows, fixed behind the whole page. */}
       <div className="pointer-events-none fixed inset-0 z-0 overflow-hidden" aria-hidden="true">
-        <div className="absolute left-[-10%] top-[15%] h-[40%] w-[40%] rounded-full bg-[#c40019]/10 blur-[120px]" />
+        <div className="absolute left-[-10%] top-[15%] h-[40%] w-[40%] rounded-full bg-[#ff2448]/10 blur-[120px]" />
         <div className="absolute bottom-[10%] right-[-10%] h-[45%] w-[45%] rounded-full bg-[#147dff]/8 blur-[140px]" />
       </div>
 
@@ -76,7 +76,7 @@ export default function ClubsPage() {
               style={{ fontFamily: "var(--font-home-display)" }}
             >
               The{" "}
-              <span className="text-[#ff8f86] drop-shadow-[0_0_22px_rgba(196,0,25,0.6)]">
+              <span className="text-[#ff8f86] drop-shadow-[0_0_22px_rgba(255,36,72,0.6)]">
                 Clubs
               </span>
             </h1>
@@ -98,7 +98,7 @@ export default function ClubsPage() {
               placeholder="Search clubs by name…"
               value={search}
               onChange={(e) => setSearch(e.target.value)}
-              className="w-full rounded-[4px] border border-white/10 bg-[#1a1c20] py-4 pl-11 pr-4 text-sm text-[#e2e2e8] placeholder:text-[#c2c6d7]/50 focus:border-[#c40019] focus:outline-none focus:ring-1 focus:ring-[#c40019]"
+              className="w-full rounded-[4px] border border-white/10 bg-[#1a1c20] py-4 pl-11 pr-4 text-sm text-[#e2e2e8] placeholder:text-[#c2c6d7]/50 focus:border-[#ff2448] focus:outline-none focus:ring-1 focus:ring-[#ff2448]"
             />
           </div>
           <Select value={state} onValueChange={(v) => setState(v ?? "all")}>
@@ -130,10 +130,10 @@ export default function ClubsPage() {
             <section className="relative z-10 mx-auto mb-20 w-full max-w-[1280px] px-4 sm:px-12">
               <Link
                 href={`/clubs/${featured.id}`}
-                className="group relative flex flex-col overflow-hidden rounded-[8px] border border-white/10 bg-white/[0.03] shadow-[0_8px_32px_rgba(0,0,0,0.37)] backdrop-blur-xl transition-all duration-300 hover:border-[#c40019]/50 hover:shadow-[0_0_30px_rgba(196,0,25,0.15)] md:flex-row"
+                className="group relative flex flex-col overflow-hidden rounded-[8px] border border-white/10 bg-white/[0.03] shadow-[0_8px_32px_rgba(0,0,0,0.37)] backdrop-blur-xl transition-all duration-300 hover:border-[#ff2448]/50 hover:shadow-[0_0_30px_rgba(255,36,72,0.15)] md:flex-row"
               >
-                <span className="absolute left-4 top-4 z-20 inline-flex items-center gap-2 rounded-[2px] border border-[#c40019]/30 bg-[#111318]/80 px-3 py-1 text-[10px] font-semibold uppercase tracking-wide text-[#ff8f86] backdrop-blur">
-                  <span className="h-1.5 w-1.5 animate-pulse rounded-full bg-[#c40019]" />
+                <span className="absolute left-4 top-4 z-20 inline-flex items-center gap-2 rounded-[2px] border border-[#ff2448]/30 bg-[#111318]/80 px-3 py-1 text-[10px] font-semibold uppercase tracking-wide text-[#ff8f86] backdrop-blur">
+                  <span className="h-1.5 w-1.5 animate-pulse rounded-full bg-[#ff2448]" />
                   Featured
                 </span>
                 <div className="relative h-64 w-full overflow-hidden md:h-auto md:w-3/5">
@@ -167,7 +167,7 @@ export default function ClubsPage() {
                       </div>
                     )}
                   </div>
-                  <span className="inline-flex w-fit items-center gap-2 rounded-[4px] border border-[#c40019] bg-[#c40019]/10 px-6 py-3 text-sm font-semibold text-[#ff8f86] shadow-[0_0_15px_rgba(196,0,25,0.2)] transition-all group-hover:bg-[#c40019] group-hover:text-white group-hover:shadow-[0_0_25px_rgba(196,0,25,0.6)]">
+                  <span className="inline-flex w-fit items-center gap-2 rounded-[4px] border border-[#ff2448] bg-[#ff2448]/10 px-6 py-3 text-sm font-semibold text-[#ff8f86] shadow-[0_0_15px_rgba(255,36,72,0.2)] transition-all group-hover:bg-[#ff2448] group-hover:text-white group-hover:shadow-[0_0_25px_rgba(255,36,72,0.6)]">
                     Enter Arena
                     <Zap className="h-4 w-4 transition-transform group-hover:scale-110" strokeWidth={2} />
                   </span>
@@ -185,14 +185,14 @@ export default function ClubsPage() {
                   <RevealItem key={club.id}>
                     <Link
                       href={`/clubs/${club.id}`}
-                      className="group flex h-full flex-col overflow-hidden rounded-[8px] border border-white/10 bg-white/[0.03] shadow-[0_8px_32px_rgba(0,0,0,0.37)] backdrop-blur-xl transition-all duration-300 hover:-translate-y-1 hover:border-[#c40019]/40 hover:shadow-[0_0_25px_rgba(196,0,25,0.18)]"
+                      className="group flex h-full flex-col overflow-hidden rounded-[8px] border border-white/10 bg-white/[0.03] shadow-[0_8px_32px_rgba(0,0,0,0.37)] backdrop-blur-xl transition-all duration-300 hover:-translate-y-1 hover:border-[#ff2448]/40 hover:shadow-[0_0_25px_rgba(255,36,72,0.18)]"
                     >
                       <div className="relative h-40 overflow-hidden">
                         <ArenaPhotoBackdrop variant="subtle" />
                       </div>
                       <div className="relative flex flex-1 flex-col p-6">
                         <div
-                          className="absolute left-1/2 top-0 h-px w-1/3 -translate-x-1/2 bg-gradient-to-r from-transparent via-[#c40019]/50 to-transparent"
+                          className="absolute left-1/2 top-0 h-px w-1/3 -translate-x-1/2 bg-gradient-to-r from-transparent via-[#ff2448]/50 to-transparent"
                           aria-hidden="true"
                         />
                         <h3 className="mb-1 text-lg font-bold text-[#e2e2e8]">{club.name}</h3>

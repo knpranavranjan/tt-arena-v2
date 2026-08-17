@@ -76,7 +76,7 @@ export default function TournamentsPage() {
               style={{ fontFamily: "var(--font-home-display)" }}
             >
               The{" "}
-              <span className="text-[#ff8f86] drop-shadow-[0_0_18px_rgba(196,0,25,0.5)]">
+              <span className="text-[#ff8f86] drop-shadow-[0_0_18px_rgba(255,36,72,0.5)]">
                 Tournaments
               </span>
             </h1>
@@ -97,7 +97,7 @@ export default function TournamentsPage() {
               placeholder="Search tournaments…"
               value={search}
               onChange={(e) => setSearch(e.target.value)}
-              className="w-full rounded-[4px] border border-white/10 bg-[#1a1c20] py-4 pl-11 pr-4 text-sm text-[#e2e2e8] placeholder:text-[#c2c6d7]/50 focus:border-[#c40019] focus:outline-none focus:ring-1 focus:ring-[#c40019]"
+              className="w-full rounded-[4px] border border-white/10 bg-[#1a1c20] py-4 pl-11 pr-4 text-sm text-[#e2e2e8] placeholder:text-[#c2c6d7]/50 focus:border-[#ff2448] focus:outline-none focus:ring-1 focus:ring-[#ff2448]"
             />
           </div>
           <Select value={status} onValueChange={(v) => setStatus((v as TournamentStatus | "all") ?? "all")}>
@@ -128,12 +128,12 @@ export default function TournamentsPage() {
             <section className="mx-auto mb-20 w-full max-w-[1280px] px-4 sm:px-12">
               <Link
                 href={`/tournaments/${featured.id}`}
-                className="group relative flex flex-col overflow-hidden rounded-[8px] border border-white/10 bg-white/[0.03] backdrop-blur-xl transition-colors hover:border-[#c40019]/50 md:flex-row"
+                className="group relative flex flex-col overflow-hidden rounded-[8px] border border-white/10 bg-white/[0.03] backdrop-blur-xl transition-colors hover:border-[#ff2448]/50 md:flex-row"
               >
                 <span
                   className={`absolute left-4 top-4 z-20 inline-flex items-center gap-2 rounded-[2px] px-3 py-1 text-[10px] font-semibold uppercase tracking-wide backdrop-blur ${
                     isLive(featured.status)
-                      ? "bg-[#c40019] text-[#ffd2cd]"
+                      ? "bg-[#ff2448] text-[#ffd2cd]"
                       : "border border-white/20 bg-[#111318]/80 text-[#e2e2e8]"
                   }`}
                   style={{ fontFamily: "var(--font-home-mono)" }}
@@ -178,7 +178,7 @@ export default function TournamentsPage() {
                   <span
                     className={`inline-flex w-fit items-center gap-2 rounded-[4px] px-6 py-3 text-sm font-semibold transition-all ${
                       isLive(featured.status)
-                        ? "border border-[#c40019] bg-[#c40019]/10 text-[#ff8f86] group-hover:bg-[#c40019] group-hover:text-white"
+                        ? "border border-[#ff2448] bg-[#ff2448]/10 text-[#ff8f86] group-hover:bg-[#ff2448] group-hover:text-white"
                         : "border border-white/20 text-[#e2e2e8] group-hover:bg-white/5"
                     }`}
                   >
@@ -197,14 +197,14 @@ export default function TournamentsPage() {
                 <RevealItem key={t.id}>
                   <Link
                     href={`/tournaments/${t.id}`}
-                    className="group flex h-full flex-col overflow-hidden rounded-[8px] border border-white/10 bg-white/[0.03] backdrop-blur-xl transition-transform duration-300 hover:-translate-y-1 hover:border-[#c40019]/40"
+                    className="group flex h-full flex-col overflow-hidden rounded-[8px] border border-white/10 bg-white/[0.03] backdrop-blur-xl transition-transform duration-300 hover:-translate-y-1 hover:border-[#ff2448]/40"
                   >
                     <div className="relative h-40 overflow-hidden">
                       <ArenaPhotoBackdrop variant="subtle" />
                       <span
                         className={`absolute left-3 top-3 inline-flex items-center gap-1.5 rounded-[2px] px-2 py-1 text-[10px] font-semibold uppercase tracking-wide ${
                           isLive(t.status)
-                            ? "bg-[#c40019] text-[#ffd2cd]"
+                            ? "bg-[#ff2448] text-[#ffd2cd]"
                             : "border border-white/20 bg-[#111318]/80 text-[#e2e2e8]"
                         }`}
                         style={{ fontFamily: "var(--font-home-mono)" }}
