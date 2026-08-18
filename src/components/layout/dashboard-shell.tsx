@@ -1,8 +1,9 @@
 "use client";
 
+import { useState } from "react";
 import Link from "next/link";
 import { usePathname, useRouter } from "next/navigation";
-import { LogOut, Settings, Table2, type LucideIcon } from "lucide-react";
+import { LogOut, Menu, Settings, type LucideIcon } from "lucide-react";
 import {
   DropdownMenu,
   DropdownMenuContent,
@@ -11,6 +12,9 @@ import {
   DropdownMenuTrigger,
 } from "@/components/ui/dropdown-menu";
 import { Avatar, AvatarFallback } from "@/components/ui/avatar";
+import { Button } from "@/components/ui/button";
+import { Sheet, SheetContent, SheetHeader, SheetTitle, SheetTrigger } from "@/components/ui/sheet";
+import { Wordmark } from "@/components/layout/public-header";
 import { useAuth } from "@/lib/auth";
 import { initials } from "@/lib/format";
 import { cn } from "@/lib/utils";
@@ -50,21 +54,20 @@ export function DashboardShell({
   const pathname = usePathname();
   const { user, logout } = useAuth();
   const router = useRouter();
+  const [open, setOpen] = useState(false);
 
   return (
     <div className="flex min-h-full flex-1 flex-col">
-      <header className="sticky top-0 z-30 border-b border-border bg-background/95 backdrop-blur-sm">
-        <div className="flex h-14 items-center gap-2 px-4 sm:px-6">
-          <Link href={navItems[0]?.href ?? "/"} className="flex shrink-0 items-center gap-2">
-            <span className="flex h-7 w-7 items-center justify-center rounded-md bg-primary text-primary-foreground">
-              <Table2 className="h-4 w-4" strokeWidth={2} />
-            </span>
-            <span className="hidden font-heading text-sm font-semibold text-foreground sm:inline">
+      <header className="sticky top-0 z-40 border-b border-border bg-background/80 backdrop-blur-md">
+        <div className="mx-auto flex h-16 max-w-7xl items-center justify-between px-4 sm:px-6">
+          <div className="flex shrink-0 items-center gap-3">
+            <Wordmark />
+            <span className="hidden rounded-full border border-border bg-secondary px-2.5 py-1 text-[10px] font-semibold uppercase tracking-widest text-muted-foreground sm:inline-block">
               {roleLabel[role]}
             </span>
-          </Link>
+          </div>
 
-          <nav className="ml-2 flex items-center gap-1">
+          <nav className="hidden items-center gap-2 md:flex">
             {navItems.map((item) => {
               const active = pathname === item.href || pathname.startsWith(`${item.href}/`);
               return (
@@ -72,19 +75,21 @@ export function DashboardShell({
                   key={item.href}
                   href={item.href}
                   className={cn(
-                    "flex items-center gap-1.5 rounded-sm px-3 py-2 text-sm font-medium tracking-wide transition-colors",
-                    active ? "text-primary" : "text-muted-foreground hover:text-foreground",
+                    "relative rounded-sm px-3 py-2 text-xs font-bold uppercase tracking-widest transition-colors",
+                    active ? "text-[#ff2448]" : "text-muted-foreground hover:text-foreground",
                   )}
                 >
-                  <item.icon className="h-4 w-4" strokeWidth={1.75} />
-                  <span className="hidden sm:inline">{item.label}</span>
+                  {item.label}
+                  {active && (
+                    <span className="absolute inset-x-3 -bottom-[1px] h-0.5 rounded-full bg-[#ff2448]" />
+                  )}
                 </Link>
               );
             })}
           </nav>
 
-          <div className="ml-auto flex items-center gap-3">
-            <span className="hidden text-sm text-muted-foreground md:inline">{pageTitle}</span>
+          <div className="flex items-center gap-3">
+            <span className="hidden text-sm text-muted-foreground lg:inline">{pageTitle}</span>
             {user && (
               <DropdownMenu>
                 <DropdownMenuTrigger
@@ -117,6 +122,37 @@ export function DashboardShell({
                 </DropdownMenuContent>
               </DropdownMenu>
             )}
+
+            <Sheet open={open} onOpenChange={setOpen}>
+              <SheetTrigger
+                render={<Button variant="ghost" size="icon" className="md:hidden" aria-label="Open menu" />}
+              >
+                <Menu className="h-5 w-5" />
+              </SheetTrigger>
+              <SheetContent side="right" className="w-72">
+                <SheetHeader>
+                  <SheetTitle className="font-heading">{roleLabel[role]}</SheetTitle>
+                </SheetHeader>
+                <nav className="flex flex-col gap-1 px-4">
+                  {navItems.map((item) => {
+                    const active = pathname === item.href || pathname.startsWith(`${item.href}/`);
+                    return (
+                      <Link
+                        key={item.href}
+                        href={item.href}
+                        onClick={() => setOpen(false)}
+                        className={cn(
+                          "rounded-sm px-3 py-2.5 text-sm font-bold uppercase tracking-widest",
+                          active ? "text-[#ff2448]" : "text-foreground hover:bg-accent",
+                        )}
+                      >
+                        {item.label}
+                      </Link>
+                    );
+                  })}
+                </nav>
+              </SheetContent>
+            </Sheet>
           </div>
         </div>
       </header>

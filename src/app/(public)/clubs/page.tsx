@@ -26,7 +26,7 @@ function topPlayerOf(club: Club) {
     .sort((a, b) => b.rating - a.rating)[0];
 }
 
-export default function ClubsPage() {
+export default function ClubsPage({ basePath = "/clubs" }: { basePath?: string }) {
   const [search, setSearch] = useState("");
   const [state, setState] = useState("all");
 
@@ -129,7 +129,7 @@ export default function ClubsPage() {
           {featured && (
             <section className="relative z-10 mx-auto mb-20 w-full max-w-[1280px] px-4 sm:px-12">
               <Link
-                href={`/clubs/${featured.id}`}
+                href={`${basePath}/${featured.id}`}
                 className="group relative flex flex-col overflow-hidden rounded-[8px] border border-white/10 bg-white/[0.03] shadow-[0_8px_32px_rgba(0,0,0,0.37)] backdrop-blur-xl transition-all duration-300 hover:border-[#ff2448]/50 hover:shadow-[0_0_30px_rgba(255,36,72,0.15)] md:flex-row"
               >
                 <span className="absolute left-4 top-4 z-20 inline-flex items-center gap-2 rounded-[2px] border border-[#ff2448]/30 bg-[#111318]/80 px-3 py-1 text-[10px] font-semibold uppercase tracking-wide text-[#ff8f86] backdrop-blur">
@@ -184,7 +184,7 @@ export default function ClubsPage() {
                 return (
                   <RevealItem key={club.id}>
                     <Link
-                      href={`/clubs/${club.id}`}
+                      href={`${basePath}/${club.id}`}
                       className="group flex h-full flex-col overflow-hidden rounded-[8px] border border-white/10 bg-white/[0.03] shadow-[0_8px_32px_rgba(0,0,0,0.37)] backdrop-blur-xl transition-all duration-300 hover:-translate-y-1 hover:border-[#ff2448]/40 hover:shadow-[0_0_25px_rgba(255,36,72,0.18)]"
                     >
                       <div className="relative h-40 overflow-hidden">

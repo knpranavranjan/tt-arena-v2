@@ -2,15 +2,50 @@
 
 import Link from "next/link";
 import Image from "next/image";
-import { ArrowUp, ChevronRight, MapPin, TrendingUp, Users } from "lucide-react";
+import {
+  ArrowDown,
+  ArrowUp,
+  ChevronRight,
+  History,
+  MapPin,
+  Ticket,
+  TrendingUp,
+  Users,
+} from "lucide-react";
 import { useCurrentPlayer } from "@/lib/session-data";
 import { arenaFontVariables } from "@/lib/fonts";
-import { players, tournaments, matches, getClub, getTournament, getPlayer, getWeeklyDelta } from "@/lib/mock-data";
+import {
+  players,
+  clubs,
+  tournaments,
+  matches,
+  getClub,
+  getClubPlayers,
+  getTournament,
+  getPlayer,
+  getWeeklyDelta,
+} from "@/lib/mock-data";
+import { ScrollArea } from "@/components/ui/scroll-area";
+import {
+  Dialog,
+  DialogContent,
+  DialogDescription,
+  DialogHeader,
+  DialogTitle,
+  DialogTrigger,
+} from "@/components/ui/dialog";
+import { HostArenaCta } from "@/components/home/host-arena-cta";
 
 function ageFromDob(dob: string) {
   const birth = new Date(dob);
   const diff = Date.now() - birth.getTime();
   return Math.floor(diff / (1000 * 60 * 60 * 24 * 365.25));
+}
+
+function averageClubRating(clubId: string) {
+  const clubPlayers = getClubPlayers(clubId);
+  if (clubPlayers.length === 0) return 0;
+  return clubPlayers.reduce((sum, p) => sum + p.rating, 0) / clubPlayers.length;
 }
 
 export default function PlayerDashboardPage() {
@@ -40,6 +75,11 @@ export default function PlayerDashboardPage() {
 
   const registered = tournaments.filter((t) => t.registeredPlayerIds.includes(player.id));
 
+  const clubRank = club
+    ? [...clubs].sort((a, b) => averageClubRating(b.id) - averageClubRating(a.id)).findIndex((c) => c.id === club.id) + 1
+    : null;
+  const clubMemberCount = club ? getClubPlayers(club.id).length : 0;
+
   return (
     <div className={`-m-4 flex flex-col gap-8 bg-[#0c0c0c] p-4 sm:-m-6 sm:p-6 ${arenaFontVariables}`} style={{ fontFamily: "var(--font-home-body)" }}>
       {/* Hero */}
@@ -52,12 +92,6 @@ export default function PlayerDashboardPage() {
         <div className="relative z-10 flex flex-col items-start justify-between gap-8 p-8 md:flex-row md:items-center md:p-12">
           {/* Identity */}
           <div className="flex-1 space-y-4">
-            <div className="inline-flex items-center gap-2 rounded-full border border-white/10 bg-[#1a1c20] px-3 py-1">
-              <span className="h-2 w-2 animate-pulse rounded-full bg-[#ff2448] shadow-[0_0_8px_rgba(255,36,72,0.8)]" />
-              <span className="text-xs font-semibold uppercase tracking-widest text-[#c2c6d7]" style={{ fontFamily: "var(--font-home-mono)" }}>
-                Active Player
-              </span>
-            </div>
             <h1
               className="m-0 text-3xl font-bold text-[#e2e2e8] drop-shadow-[0_0_15px_rgba(255,36,72,0.25)] sm:text-[40px]"
               style={{ fontFamily: "var(--font-home-display)" }}
@@ -142,126 +176,214 @@ export default function PlayerDashboardPage() {
         </div>
       </section>
 
-      <div className="grid grid-cols-1 gap-8 lg:grid-cols-3">
-        {/* Match history */}
-        <div className="flex flex-col gap-6 lg:col-span-2">
-          <div className="flex items-center justify-between border-b border-white/10 pb-4">
-            <div className="flex items-center gap-3">
-              <h2 className="text-lg font-semibold uppercase tracking-wide text-[#e2e2e8]" style={{ fontFamily: "var(--font-home-display)" }}>
+      <div className="grid grid-cols-1 gap-8 lg:grid-cols-2">
+        {/* Left column */}
+        <div className="flex flex-col gap-8">
+          {/* Match history */}
+          <div className="flex flex-col overflow-hidden rounded-2xl border border-white/5 bg-[#0c0e12]">
+            <div className="flex items-center gap-3 p-5">
+              <History className="h-5 w-5 text-[#c2c6d7]" strokeWidth={1.5} />
+              <h2 className="text-sm font-semibold uppercase tracking-widest text-[#e2e2e8]" style={{ fontFamily: "var(--font-home-mono)" }}>
                 Match History
               </h2>
               <span className="rounded bg-[#1a1c20] px-2 py-0.5 text-xs text-[#c2c6d7]" style={{ fontFamily: "var(--font-home-mono)" }}>
                 {history.length}
               </span>
             </div>
-            <Link href="/player/results" className="flex items-center gap-1 text-xs font-semibold uppercase tracking-wide text-[#ff8f86] hover:text-[#ff2448]" style={{ fontFamily: "var(--font-home-mono)" }}>
-              View All <ChevronRight className="h-4 w-4" strokeWidth={2} />
+
+            {history.length === 0 ? (
+              <div className="border-t border-white/5 p-8 text-center text-sm text-[#c2c6d7]">
+                No completed matches yet — results will show up here once you play.
+              </div>
+            ) : (
+              <ScrollArea className="max-h-[760px] border-t border-white/5">
+                <div className="flex flex-col">
+                  {history.map(({ match, opponent, tournament, won, myScore, theirScore }, i) => {
+                    const dateLabel = tournament
+                      ? new Date(tournament.date).toLocaleDateString("en-IN", { day: "numeric", month: "short", year: "numeric" })
+                      : "";
+                    return (
+                      <Dialog key={match.id}>
+                        <DialogTrigger
+                          render={
+                            <button
+                              type="button"
+                              className={`flex w-full cursor-pointer items-center gap-4 p-4 text-left transition-colors hover:bg-white/[0.02] ${
+                                i !== history.length - 1 ? "border-b border-white/5" : ""
+                              }`}
+                            />
+                          }
+                        >
+                          <div
+                            className={`flex h-9 w-9 shrink-0 items-center justify-center rounded-full ${
+                              won ? "bg-emerald-500/15 text-emerald-400" : "bg-[#ff2448]/15 text-[#ff2448]"
+                            }`}
+                          >
+                            {won ? <ArrowUp className="h-4 w-4" strokeWidth={2.5} /> : <ArrowDown className="h-4 w-4" strokeWidth={2.5} />}
+                          </div>
+                          <span className="min-w-0 flex-1 truncate text-lg font-semibold text-[#e2e2e8]">
+                            {opponent?.name ?? "Unknown Player"}
+                          </span>
+                          <span
+                            className={`shrink-0 rounded-full border px-2.5 py-0.5 text-xs font-bold uppercase tracking-wide ${
+                              won
+                                ? "border-emerald-500/30 bg-emerald-500/15 text-emerald-400"
+                                : "border-[#ff2448]/30 bg-[#ff2448]/15 text-[#ff2448]"
+                            }`}
+                            style={{ fontFamily: "var(--font-home-mono)" }}
+                          >
+                            {won ? "Win" : "Loss"}
+                          </span>
+                          <span className="w-28 shrink-0 text-right text-sm text-[#7d8795]" style={{ fontFamily: "var(--font-home-mono)" }}>
+                            {dateLabel}
+                          </span>
+                        </DialogTrigger>
+                        <DialogContent className="max-w-[calc(100%-2rem)] gap-6 border border-white/10 bg-[#0c0e12] p-6 text-[#e2e2e8] sm:max-w-2xl" showCloseButton>
+                          <DialogHeader>
+                            <DialogTitle className="text-2xl font-bold text-[#e2e2e8]" style={{ fontFamily: "var(--font-home-display)" }}>
+                              {opponent?.name ?? "Unknown Player"}
+                            </DialogTitle>
+                            <DialogDescription className="text-base text-[#c2c6d7]">
+                              {match.round} • {tournament?.name ?? "Tournament"}
+                            </DialogDescription>
+                          </DialogHeader>
+                          <div className="grid grid-cols-2 gap-6">
+                            <div>
+                              <div className="text-sm uppercase tracking-widest text-[#7d8795]" style={{ fontFamily: "var(--font-home-mono)" }}>
+                                Result
+                              </div>
+                              <div className={`mt-1.5 text-xl font-bold ${won ? "text-emerald-400" : "text-[#ff2448]"}`}>{won ? "Win" : "Loss"}</div>
+                            </div>
+                            <div>
+                              <div className="text-sm uppercase tracking-widest text-[#7d8795]" style={{ fontFamily: "var(--font-home-mono)" }}>
+                                Score
+                              </div>
+                              <div className="mt-1.5 text-xl font-bold text-[#e2e2e8]">{myScore}-{theirScore} sets</div>
+                            </div>
+                            <div>
+                              <div className="text-sm uppercase tracking-widest text-[#7d8795]" style={{ fontFamily: "var(--font-home-mono)" }}>
+                                Opponent Rating
+                              </div>
+                              <div className="mt-1.5 text-xl font-bold text-[#e2e2e8]">{opponent?.rating ?? "—"}</div>
+                            </div>
+                            <div>
+                              <div className="text-sm uppercase tracking-widest text-[#7d8795]" style={{ fontFamily: "var(--font-home-mono)" }}>
+                                Date
+                              </div>
+                              <div className="mt-1.5 text-xl font-bold text-[#e2e2e8]">{dateLabel || "—"}</div>
+                            </div>
+                            <div className="col-span-2">
+                              <div className="text-sm uppercase tracking-widest text-[#7d8795]" style={{ fontFamily: "var(--font-home-mono)" }}>
+                                Venue
+                              </div>
+                              <div className="mt-1.5 text-xl font-bold text-[#e2e2e8]">{tournament?.venue ?? "—"}</div>
+                            </div>
+                          </div>
+                          {tournament && (
+                            <Link
+                              href={`/tournaments/${tournament.id}`}
+                              className="text-center text-sm font-semibold uppercase tracking-widest text-[#ff8f86] hover:text-[#ff2448]"
+                              style={{ fontFamily: "var(--font-home-mono)" }}
+                            >
+                              View Tournament
+                            </Link>
+                          )}
+                        </DialogContent>
+                      </Dialog>
+                    );
+                  })}
+                </div>
+              </ScrollArea>
+            )}
+          </div>
+        </div>
+
+        {/* Right column */}
+        <div className="flex flex-col gap-8">
+          {/* My club */}
+          <div className="flex flex-col overflow-hidden rounded-2xl border border-white/5 bg-[#0c0e12]">
+            <div className="flex items-center gap-3 p-5">
+              <Users className="h-5 w-5 text-[#c2c6d7]" strokeWidth={1.5} />
+              <h2 className="text-sm font-semibold uppercase tracking-widest text-[#e2e2e8]" style={{ fontFamily: "var(--font-home-mono)" }}>
+                My Club
+              </h2>
+            </div>
+
+            {club ? (
+              <Link href={`/clubs/${club.id}`} className="group flex items-center gap-4 border-t border-white/5 p-5 transition-colors hover:bg-white/[0.02]">
+                <div className="flex h-12 w-12 shrink-0 items-center justify-center rounded-full bg-[#ff2448]/15 text-base font-bold text-[#ff8f86]">
+                  {club.name.slice(0, 1)}
+                </div>
+                <div className="min-w-0 flex-1">
+                  <span className="text-lg font-semibold text-[#e2e2e8] group-hover:text-[#ff8f86]">{club.name}</span>
+                  <p className="mt-1 text-sm text-[#c2c6d7]" style={{ fontFamily: "var(--font-home-mono)" }}>
+                    {club.location}, {club.state} • {clubMemberCount} members • Est. {club.founded}
+                  </p>
+                  {clubRank && (
+                    <p className="mt-1 text-sm font-semibold text-[#0ea5ff]" style={{ fontFamily: "var(--font-home-mono)" }}>
+                      Club Rank #{clubRank}
+                    </p>
+                  )}
+                </div>
+                <ChevronRight className="h-5 w-5 shrink-0 text-[#c2c6d7] transition-transform group-hover:translate-x-1 group-hover:text-[#ff8f86]" strokeWidth={1.5} />
+              </Link>
+            ) : (
+              <div className="border-t border-white/5 p-5 text-sm text-[#c2c6d7]">Not affiliated with a club yet.</div>
+            )}
+
+            <Link
+              href="/clubs"
+              className="border-t border-white/5 py-3 text-center text-xs font-semibold uppercase tracking-widest text-[#c2c6d7] transition-colors hover:bg-white/[0.02] hover:text-[#e2e2e8]"
+              style={{ fontFamily: "var(--font-home-mono)" }}
+            >
+              Browse Clubs
             </Link>
           </div>
 
-          {history.length === 0 ? (
-            <div className="rounded-xl border border-white/5 bg-[#0c0e12] p-8 text-center text-sm text-[#c2c6d7]">
-              No completed matches yet — results will show up here once you play.
+          {/* Registrations */}
+          <div className="flex flex-col overflow-hidden rounded-2xl border border-white/5 bg-[#0c0e12]">
+            <div className="flex items-center gap-3 p-5">
+              <Ticket className="h-5 w-5 text-[#c2c6d7]" strokeWidth={1.5} />
+              <h2 className="text-sm font-semibold uppercase tracking-widest text-[#e2e2e8]" style={{ fontFamily: "var(--font-home-mono)" }}>
+                My Registrations
+              </h2>
+              <span className="rounded bg-[#1a1c20] px-2 py-0.5 text-xs text-[#c2c6d7]" style={{ fontFamily: "var(--font-home-mono)" }}>
+                {registered.length}
+              </span>
             </div>
-          ) : (
-            <div className="flex flex-col overflow-hidden rounded-xl border border-white/5 bg-[#0c0e12]">
-              {history.map(({ match, opponent, tournament, won, myScore, theirScore }, i) => (
-                <div
-                  key={match.id}
-                  className={`flex flex-col gap-2 p-4 transition-colors hover:bg-white/[0.02] sm:flex-row sm:items-center ${
-                    i !== history.length - 1 ? "border-b border-white/5" : ""
-                  }`}
-                >
-                  <div className="w-16 shrink-0">
-                    <span className={`text-xs font-bold uppercase tracking-wide ${won ? "text-[#0ea5ff]" : "text-[#ff2448]"}`} style={{ fontFamily: "var(--font-home-mono)" }}>
-                      {won ? "Win" : "Loss"}
-                    </span>
-                  </div>
-                  <div className="flex-1">
-                    <span className="font-semibold text-[#e2e2e8]">{opponent?.name ?? "Unknown Player"}</span>
-                    <div className="mt-1 text-xs text-[#c2c6d7]" style={{ fontFamily: "var(--font-home-mono)" }}>
-                      {match.round} • {tournament?.name ?? "Tournament"}
-                    </div>
-                  </div>
-                  <div className="text-sm text-[#c2c6d7] sm:flex-1 sm:text-center" style={{ fontFamily: "var(--font-home-mono)" }}>
-                    {myScore}-{theirScore} sets
-                  </div>
-                  <div className="text-xs text-[#c2c6d7] sm:w-32 sm:text-right" style={{ fontFamily: "var(--font-home-mono)" }}>
-                    {tournament ? new Date(tournament.date).toLocaleDateString("en-IN", { day: "numeric", month: "short", year: "numeric" }) : ""}
-                  </div>
-                </div>
-              ))}
-            </div>
-          )}
-        </div>
 
-        {/* Club + registrations */}
-        <div className="flex flex-col gap-8">
-          <div className="flex flex-col gap-4">
-            <h2 className="border-b border-white/10 pb-4 text-lg font-semibold uppercase tracking-wide text-[#e2e2e8]" style={{ fontFamily: "var(--font-home-display)" }}>
-              My Club
-            </h2>
-            <div className="flex flex-col overflow-hidden rounded-xl border border-white/5 bg-[#0c0e12]">
-              {club ? (
-                <Link href={`/clubs/${club.id}`} className="group flex items-center justify-between border-b border-white/5 p-5 transition-colors hover:bg-white/[0.02]">
-                  <div>
-                    <span className="text-[#e2e2e8] group-hover:text-[#ff8f86]">{club.name}</span>
-                    <p className="mt-1 text-xs text-[#c2c6d7]">{club.location}, {club.state}</p>
-                  </div>
-                  <ChevronRight className="h-5 w-5 text-[#c2c6d7] transition-transform group-hover:translate-x-1 group-hover:text-[#ff8f86]" strokeWidth={1.5} />
-                </Link>
-              ) : (
-                <div className="border-b border-white/5 p-5 text-sm text-[#c2c6d7]">Not affiliated with a club yet.</div>
-              )}
-              <div className="flex justify-center p-4">
-                <Link
-                  href="/clubs"
-                  className="flex w-full items-center justify-center gap-2 rounded-lg bg-[#ff2448]/10 py-3 text-xs font-semibold uppercase tracking-widest text-[#ff8f86] shadow-[0_0_15px_-5px_rgba(255,36,72,0.4)] transition-colors hover:bg-[#ff2448]/20"
-                  style={{ fontFamily: "var(--font-home-mono)" }}
-                >
-                  Browse Clubs <ChevronRight className="h-4 w-4" strokeWidth={2} />
-                </Link>
-              </div>
-            </div>
-          </div>
-
-          <div className="flex flex-col gap-4">
-            <h2 className="border-b border-white/10 pb-4 text-lg font-semibold uppercase tracking-wide text-[#e2e2e8]" style={{ fontFamily: "var(--font-home-display)" }}>
-              My Registrations
-            </h2>
-            <div className="flex flex-col overflow-hidden rounded-xl border border-white/5 bg-[#0c0e12]">
-              {registered.length === 0 ? (
-                <div className="p-5 text-sm text-[#c2c6d7]">No tournament registrations yet.</div>
-              ) : (
-                registered.map((t, i) => (
-                  <div key={t.id} className={`flex flex-col gap-3 p-5 ${i !== registered.length - 1 ? "border-b border-white/5" : ""}`}>
-                    <div className="flex items-start justify-between gap-3">
-                      <div>
-                        <h3 className="font-semibold text-[#e2e2e8]">{t.name}</h3>
-                        <p className="mt-1 text-xs text-[#c2c6d7]" style={{ fontFamily: "var(--font-home-mono)" }}>
+            {registered.length === 0 ? (
+              <div className="border-t border-white/5 p-5 text-sm text-[#c2c6d7]">No tournament registrations yet.</div>
+            ) : (
+              <ScrollArea className="max-h-[300px] border-t border-white/5">
+                <div className="flex flex-col">
+                  {registered.map((t, i) => (
+                    <div
+                      key={t.id}
+                      className={`flex items-center gap-4 p-4 ${i !== registered.length - 1 ? "border-b border-white/5" : ""}`}
+                    >
+                      <div className="flex h-9 w-9 shrink-0 items-center justify-center rounded-full bg-[#ff2448]/15 text-[#ff2448]">
+                        <MapPin className="h-4 w-4" strokeWidth={1.75} />
+                      </div>
+                      <div className="min-w-0 flex-1">
+                        <h3 className="text-lg font-semibold text-[#e2e2e8]">{t.name}</h3>
+                        <p className="mt-1 text-sm text-[#c2c6d7]" style={{ fontFamily: "var(--font-home-mono)" }}>
                           {new Date(t.date).toLocaleDateString("en-IN", { day: "numeric", month: "short", year: "numeric" })} • {t.venue}
                         </p>
                       </div>
-                      <span className="shrink-0 rounded-full border border-[#0ea5ff]/20 bg-[#0ea5ff]/10 px-3 py-1 text-[10px] font-semibold uppercase tracking-wide text-[#0ea5ff]" style={{ fontFamily: "var(--font-home-mono)" }}>
+                      <span className="shrink-0 rounded-full border border-[#0ea5ff]/20 bg-[#0ea5ff]/10 px-3 py-1 text-xs font-semibold uppercase tracking-wide text-[#0ea5ff]" style={{ fontFamily: "var(--font-home-mono)" }}>
                         Registered
                       </span>
                     </div>
-                  </div>
-                ))
-              )}
-              <div className="flex justify-center border-t border-white/5 p-4">
-                <Link
-                  href="/player/registrations"
-                  className="flex w-full items-center justify-center gap-2 rounded-lg bg-[#ff2448]/10 py-3 text-xs font-semibold uppercase tracking-widest text-[#ff8f86] shadow-[0_0_15px_-5px_rgba(255,36,72,0.4)] transition-colors hover:bg-[#ff2448]/20"
-                  style={{ fontFamily: "var(--font-home-mono)" }}
-                >
-                  View All Registrations <ChevronRight className="h-4 w-4" strokeWidth={2} />
-                </Link>
-              </div>
-            </div>
+                  ))}
+                </div>
+              </ScrollArea>
+            )}
           </div>
         </div>
       </div>
+
+      <HostArenaCta />
     </div>
   );
 }

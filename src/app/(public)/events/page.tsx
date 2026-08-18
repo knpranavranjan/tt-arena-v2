@@ -27,7 +27,7 @@ const counts = {
   COMPLETED: events.filter((e) => e.status === "COMPLETED").length,
 };
 
-export default function EventsPage() {
+export default function EventsPage({ basePath = "/events" }: { basePath?: string }) {
   const [search, setSearch] = useState("");
   const [status, setStatus] = useState<EventStatus | "all">("all");
 
@@ -52,10 +52,10 @@ export default function EventsPage() {
   return (
     <div className={`relative flex min-h-screen flex-col ${arenaFontVariables}`} style={{ fontFamily: "var(--font-home-body)" }}>
       {/* Hero */}
-      <section className="relative flex min-h-[70vh] items-center overflow-hidden bg-[#0c0c0c] py-12">
+      <section className="relative flex min-h-[42vh] items-center overflow-hidden bg-[#0c0c0c] py-8">
         <div className="absolute inset-0 z-0" aria-hidden="true">
           <Image
-            src="/events/event.png"
+            src="/events/events.png"
             alt="Two players mid-rally at a live broadcast table tennis match, lit by red and blue LED light rigs with a camera operator and crowd visible courtside."
             fill
             priority
@@ -69,25 +69,25 @@ export default function EventsPage() {
         <div className="relative z-10 mx-auto w-full max-w-[1280px] px-4 sm:px-12">
           <div className="max-w-2xl">
             <span
-              className="mb-4 block text-xs font-semibold uppercase tracking-[0.2em] text-[#ff2448]"
+              className="mb-3 block text-xs font-semibold uppercase tracking-[0.2em] text-[#ff2448]"
               style={{ fontFamily: "var(--font-home-mono)" }}
             >
               The Competition Hub
             </span>
             <h1
-              className="mb-6 text-[48px] font-extrabold uppercase leading-tight tracking-tighter text-[#e2e2e8] sm:text-[64px]"
+              className="mb-4 text-[36px] font-extrabold uppercase leading-tight tracking-tighter text-[#e2e2e8] sm:text-[48px]"
               style={{ fontFamily: "var(--font-home-display)" }}
             >
               Where the game happens.
             </h1>
-            <p className="mb-10 max-w-xl text-lg text-[#c2c6d7]">
+            <p className="mb-6 max-w-xl text-base text-[#c2c6d7]">
               Find your next tournament, challenge your ranking, and compete against the best
               around you.
             </p>
-            <div className="flex flex-col gap-4 sm:flex-row">
+            <div className="flex flex-col gap-3 sm:flex-row">
               <Link
                 href="/tournaments"
-                className="inline-flex items-center justify-center gap-2 rounded-full bg-[#ff2448] px-8 py-4 text-xs font-semibold uppercase tracking-[0.1em] text-white transition-all hover:scale-[1.02] hover:shadow-[0_0_20px_-5px_#ff2448] active:scale-95"
+                className="inline-flex items-center justify-center gap-2 rounded-full bg-[#ff2448] px-6 py-3 text-xs font-semibold uppercase tracking-[0.1em] text-white transition-all hover:scale-[1.02] hover:shadow-[0_0_20px_-5px_#ff2448] active:scale-95"
                 style={{ fontFamily: "var(--font-home-mono)" }}
               >
                 Find a Tournament
@@ -95,7 +95,7 @@ export default function EventsPage() {
               </Link>
               <Link
                 href="/register"
-                className="inline-flex items-center justify-center gap-2 rounded-full border border-white/30 px-8 py-4 text-xs font-semibold uppercase tracking-[0.1em] text-[#e2e2e8] transition-all hover:bg-white/10"
+                className="inline-flex items-center justify-center gap-2 rounded-full border border-white/30 px-6 py-3 text-xs font-semibold uppercase tracking-[0.1em] text-[#e2e2e8] transition-all hover:bg-white/10"
                 style={{ fontFamily: "var(--font-home-mono)" }}
               >
                 Host a Tournament
@@ -186,7 +186,7 @@ export default function EventsPage() {
             {filtered.map((event) => (
               <RevealItem key={event.id}>
                 <Link
-                  href={`/events/${event.id}`}
+                  href={`${basePath}/${event.id}`}
                   className="group relative flex h-[400px] flex-col justify-end overflow-hidden rounded-2xl transition-all duration-300 hover:shadow-[0_0_15px_-5px_rgba(255,36,72,0.5)]"
                 >
                   <ArenaPhotoBackdrop variant="subtle" />
