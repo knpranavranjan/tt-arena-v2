@@ -3,7 +3,7 @@
 import { useState } from "react";
 import Link from "next/link";
 import { usePathname, useRouter } from "next/navigation";
-import { LogOut, Menu, Settings, type LucideIcon } from "lucide-react";
+import { Bell, LogOut, Menu, Settings, type LucideIcon } from "lucide-react";
 import {
   DropdownMenu,
   DropdownMenuContent,
@@ -16,6 +16,8 @@ import { Button } from "@/components/ui/button";
 import { Sheet, SheetContent, SheetHeader, SheetTitle, SheetTrigger } from "@/components/ui/sheet";
 import { Wordmark } from "@/components/layout/public-header";
 import { useAuth } from "@/lib/auth";
+import { useCurrentClub } from "@/lib/session-data";
+import { useJoinRequests } from "@/lib/join-requests";
 import { initials } from "@/lib/format";
 import { cn } from "@/lib/utils";
 import type { Role } from "@/lib/types";
@@ -90,6 +92,7 @@ export function DashboardShell({
 
           <div className="flex items-center gap-3">
             <span className="hidden text-sm text-muted-foreground lg:inline">{pageTitle}</span>
+            {role === "CLUB" && <JoinRequestsBell />}
             {user && (
               <DropdownMenu>
                 <DropdownMenuTrigger
@@ -158,5 +161,26 @@ export function DashboardShell({
       </header>
       <main className="flex flex-1 flex-col gap-6 p-4 sm:p-6">{children}</main>
     </div>
+  );
+}
+
+function JoinRequestsBell() {
+  const club = useCurrentClub();
+  const { pendingForClub } = useJoinRequests();
+  const count = club ? pendingForClub(club.id).length : 0;
+
+  return (
+    <Link
+      href="/club/dashboard#join-requests"
+      className="relative inline-flex h-9 w-9 items-center justify-center rounded-full text-muted-foreground transition-colors hover:bg-accent hover:text-foreground"
+      aria-label={count > 0 ? `${count} pending join requests` : "Join requests"}
+    >
+      <Bell className="h-4 w-4" strokeWidth={1.75} />
+      {count > 0 && (
+        <span className="absolute right-0.5 top-0.5 flex h-4 min-w-4 items-center justify-center rounded-full bg-[#ff2448] px-1 text-[10px] font-bold leading-none text-white">
+          {count}
+        </span>
+      )}
+    </Link>
   );
 }

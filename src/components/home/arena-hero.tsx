@@ -14,7 +14,7 @@ export function ArenaHero() {
   }
 
   return (
-    <section className="relative flex min-h-[90vh] items-center overflow-hidden bg-[#111318] pb-32 pt-20">
+    <section className="relative flex min-h-[80vh] items-center overflow-hidden bg-[#111318] pb-20 pt-16">
       <div className="absolute inset-0 z-0" aria-hidden="true">
         <Image
           src="/hero/hero.png"
@@ -28,11 +28,11 @@ export function ArenaHero() {
         <div className="absolute inset-0 bg-[linear-gradient(to_right,#111318_0%,rgba(17,19,24,0.75)_40%,transparent_75%)]" />
       </div>
 
-      <div className="relative z-10 mx-auto w-full max-w-[1280px] px-4 sm:px-12">
-        <motion.div initial="hidden" animate="show" variants={staggerChildren(90)} className="max-w-2xl">
+      <div className="relative z-10 w-full px-6 sm:px-10 lg:px-16 xl:px-20">
+        <motion.div initial="hidden" animate="show" variants={staggerChildren(90)} className="max-w-3xl">
           <motion.span
             variants={fadeUp}
-            className="mb-6 inline-flex items-center gap-2 rounded-full border border-white/15 bg-[#1e2024]/50 px-3 py-1 backdrop-blur-md"
+            className="mb-5 inline-flex items-center gap-2 rounded-full border border-white/15 bg-[#1e2024]/50 px-3 py-1 backdrop-blur-md"
           >
             <span
               className="text-[12px] font-semibold uppercase tracking-[0.1em] text-[#ff8f86]"
@@ -44,7 +44,7 @@ export function ArenaHero() {
 
           <motion.h1
             variants={fadeUp}
-            className="mb-2 text-[44px] font-extrabold uppercase leading-[1.1] tracking-[-0.03em] text-[#e2e2e8] sm:text-[64px] lg:text-[72px] lg:tracking-[-0.04em]"
+            className="mb-1 text-[48px] font-extrabold uppercase leading-[1.0] tracking-[-0.03em] text-[#e2e2e8] sm:text-[64px] lg:text-[80px] lg:tracking-[-0.04em]"
             style={{ fontFamily: "var(--font-home-display)" }}
           >
             Spin
@@ -56,7 +56,7 @@ export function ArenaHero() {
 
           <motion.h2
             variants={fadeUp}
-            className="mb-4 mt-6 text-2xl font-bold leading-tight text-[#e2e2e8] sm:text-[32px]"
+            className="mb-4 mt-6 text-[24px] font-bold leading-tight text-[#e2e2e8] sm:text-[30px] lg:text-[34px]"
             style={{ fontFamily: "var(--font-home-display)" }}
           >
             Rated on talent.
@@ -64,15 +64,15 @@ export function ArenaHero() {
             Not age or gender.
           </motion.h2>
 
-          <motion.p variants={fadeUp} className="mb-10 max-w-lg text-lg leading-relaxed text-[#c2c6d7]">
+          <motion.p variants={fadeUp} className="mb-8 max-w-xl text-base leading-relaxed text-[#c2c6d7] sm:text-lg">
             A live competitive rating for every player — built on real match performance, not
             seniority or category.
           </motion.p>
 
-          <motion.div variants={fadeUp} className="flex flex-col gap-4 sm:flex-row">
+          <motion.div variants={fadeUp} className="flex flex-col gap-3 sm:flex-row">
             <Link
               href="/register"
-              className="group inline-flex items-center justify-center gap-2 rounded-[2px] bg-[#ff2448] px-8 py-4 text-[12px] font-semibold uppercase tracking-[0.1em] text-[#ffd2cd] transition-all hover:scale-[1.03] hover:shadow-[0_0_20px_-5px_#ff2448] active:scale-95"
+              className="group inline-flex items-center justify-center gap-2 rounded-[2px] bg-[#ff2448] px-8 py-3.5 text-[13px] font-semibold uppercase tracking-[0.1em] text-[#ffd2cd] transition-all hover:scale-[1.03] hover:shadow-[0_0_20px_-5px_#ff2448] active:scale-95"
               style={{ fontFamily: "var(--font-home-mono)" }}
             >
               Get Rated
@@ -80,7 +80,7 @@ export function ArenaHero() {
             </Link>
             <Link
               href="/tournaments"
-              className="inline-flex items-center justify-center rounded-[2px] border border-white/20 px-8 py-4 text-[12px] font-semibold uppercase tracking-[0.1em] text-[#e2e2e8] transition-all hover:border-white/40 hover:bg-white/5"
+              className="inline-flex items-center justify-center rounded-[2px] border border-white/20 px-8 py-3.5 text-[13px] font-semibold uppercase tracking-[0.1em] text-[#e2e2e8] transition-all hover:border-white/40 hover:bg-white/5"
               style={{ fontFamily: "var(--font-home-mono)" }}
             >
               Explore Arena
@@ -92,7 +92,7 @@ export function ArenaHero() {
       <button
         type="button"
         onClick={scrollToRankings}
-        className="absolute bottom-10 left-1/2 z-20 flex -translate-x-1/2 cursor-pointer flex-col items-center gap-2 text-[#c2c6d7] opacity-70 outline-none transition-opacity hover:opacity-100 focus-visible:ring-2 focus-visible:ring-[#ff2448]/50"
+        className="absolute bottom-6 left-1/2 z-20 flex -translate-x-1/2 cursor-pointer flex-col items-center gap-2 text-[#c2c6d7] opacity-70 outline-none transition-opacity hover:opacity-100 focus-visible:ring-2 focus-visible:ring-[#ff2448]/50"
       >
         <span className="text-[10px] font-semibold uppercase tracking-[0.2em]" style={{ fontFamily: "var(--font-home-mono)" }}>
           Scroll

@@ -18,6 +18,20 @@ export interface Player {
   wins: number;
   losses: number;
   recentForm: ("W" | "L")[];
+  playStyle?: string;
+}
+
+export interface ClubFacilities {
+  tableCount: number;
+  tableVarieties: string;
+  floorType: string;
+  floorGrade: string;
+  lighting: string;
+  isAirConditioned: boolean;
+  hasWashroom: boolean;
+  hasParking: boolean;
+  hasROWater: boolean;
+  seatingCapacity: number;
 }
 
 export interface Club {
@@ -25,13 +39,20 @@ export interface Club {
   name: string;
   location: string;
   state: string;
+  address: string;
   description: string;
+  aboutHighlights: string[];
   logoUrl?: string;
   playerIds: string[];
   founded: number;
+  phone: string;
+  email: string;
+  verified: boolean;
+  rating: number;
+  facilities: ClubFacilities;
 }
 
-export type TournamentFormat = "SINGLE_ELIMINATION" | "POOL_KNOCKOUT";
+export type TournamentFormat = "SINGLE_ELIMINATION" | "POOL_KNOCKOUT" | "ROUND_ROBIN_LEAGUE";
 
 export type TournamentStatus =
   | "DRAFT"
@@ -61,10 +82,16 @@ export interface Tournament {
   maxPlayers: number;
   registeredPlayerIds: string[];
   format: TournamentFormat;
-  category: Category;
+  // Freeform, unlike Player.category — hosts can name a division anything
+  // ("Under 15", "Open", "Veterans 45+"), not just the fixed player brackets.
+  category: string;
   entryFee: number;
   description: string;
   status: TournamentStatus;
+  matchFormat: string;
+  ballType: string;
+  umpireStatus: string;
+  prizePool: number;
   poolSize?: number;
   champion?: string;
   runnerUp?: string;

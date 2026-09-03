@@ -14,7 +14,7 @@ function formatCompactCurrency(amount: number) {
   return formatCurrency(amount);
 }
 
-export default function ManageHostTournamentOverviewPage() {
+export default function ManageTournamentOverviewPage() {
   const params = useParams<{ tournamentId: string }>();
   const tournamentId = Array.isArray(params.tournamentId) ? params.tournamentId[0] : params.tournamentId;
   const tournament = tournamentId ? getTournament(tournamentId) : undefined;

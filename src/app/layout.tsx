@@ -4,6 +4,8 @@ import { MotionConfig } from "framer-motion";
 import { TooltipProvider } from "@/components/ui/tooltip";
 import { Toaster } from "@/components/ui/sonner";
 import { AuthProvider } from "@/lib/auth";
+import { JoinRequestsProvider } from "@/lib/join-requests";
+import { RegistrationsProvider } from "@/lib/registrations";
 import "./globals.css";
 
 const inter = Inter({
@@ -36,10 +38,14 @@ export default function RootLayout({ children }: LayoutProps<"/">) {
       <body className="min-h-full flex flex-col">
         <MotionConfig reducedMotion="user">
           <AuthProvider>
-            <TooltipProvider delay={200}>
-              {children}
-              <Toaster />
-            </TooltipProvider>
+            <JoinRequestsProvider>
+              <RegistrationsProvider>
+                <TooltipProvider delay={200}>
+                  {children}
+                  <Toaster />
+                </TooltipProvider>
+              </RegistrationsProvider>
+            </JoinRequestsProvider>
           </AuthProvider>
         </MotionConfig>
       </body>

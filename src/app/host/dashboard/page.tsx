@@ -1,51 +1,148 @@
 "use client";
 
 import Link from "next/link";
-import { Plus, Trophy, Users, Zap } from "lucide-react";
-import { StatCard } from "@/components/cards/stat-card";
-import { TournamentCard } from "@/components/cards/tournament-card";
-import { EmptyState } from "@/components/feedback/empty-state";
-import { Button } from "@/components/ui/button";
+import { CheckCircle2, Plus, Trophy, Users, Zap, type LucideIcon } from "lucide-react";
+import { arenaFontVariables } from "@/lib/fonts";
 import { tournaments } from "@/lib/mock-data";
+import { formatDate } from "@/lib/format";
+import type { Tournament, TournamentStatus } from "@/lib/types";
+
+const mono = { fontFamily: "var(--font-home-mono)" };
+const display = { fontFamily: "var(--font-home-display)" };
+
+function tournamentStatusMeta(status: TournamentStatus): { label: string; textClass: string; accent: string } {
+  switch (status) {
+    case "REGISTRATION_OPEN":
+      return { label: "Registration Open", textClass: "text-[#ff8f86]", accent: "#ff2448" };
+    case "POOLS":
+      return { label: "Pools In Progress", textClass: "text-[#ff8f86]", accent: "#ff2448" };
+    case "KNOCKOUT":
+      return { label: "Knockout In Progress", textClass: "text-[#ff8f86]", accent: "#ff2448" };
+    case "SEEDING":
+      return { label: "Seeding", textClass: "text-amber-300", accent: "#fbbf24" };
+    case "REGISTRATION_CLOSED":
+      return { label: "Registration Closed", textClass: "text-amber-300", accent: "#fbbf24" };
+    case "DRAFT":
+      return { label: "Draft", textClass: "text-[#8b8b93]", accent: "rgba(255,255,255,0.25)" };
+    case "COMPLETED":
+      return { label: "Completed", textClass: "text-[#8b8b93]", accent: "rgba(255,255,255,0.25)" };
+  }
+}
+
+function TournamentHostingCard({ tournament }: { tournament: Tournament }) {
+  const meta = tournamentStatusMeta(tournament.status);
+  return (
+    <Link
+      href={`/tournaments/${tournament.id}`}
+      className="block rounded-[6px] border border-white/10 bg-white/[0.03] p-3.5 transition-colors hover:border-white/20"
+      style={{ borderLeftWidth: 3, borderLeftColor: meta.accent }}
+    >
+      <p className={`text-[10px] font-bold uppercase tracking-wide ${meta.textClass}`} style={mono}>
+        {meta.label}
+      </p>
+      <p className="mt-1.5 text-sm font-semibold text-[#e2e2e8]">{tournament.name}</p>
+      <p className="mt-1 text-xs text-[#8b8b93]">
+        {formatDate(tournament.date)} &middot; {tournament.venue}
+      </p>
+    </Link>
+  );
+}
+
+function StatCard({ icon: Icon, label, value, accent }: { icon: LucideIcon; label: string; value: string; accent?: boolean }) {
+  return (
+    <div className="rounded-[8px] border border-white/10 bg-white/[0.03] p-5">
+      <div className="mb-3 flex items-center justify-between">
+        <p className="text-[11px] font-semibold uppercase tracking-wide text-[#8b8b93]" style={mono}>
+          {label}
+        </p>
+        <Icon className={`h-4 w-4 ${accent ? "text-[#ff8f86]" : "text-[#5a5a60]"}`} strokeWidth={1.75} />
+      </div>
+      <p className={`text-2xl font-extrabold ${accent ? "text-[#ff8f86]" : "text-[#e2e2e8]"}`} style={display}>
+        {value}
+      </p>
+    </div>
+  );
+}
 
 export default function HostDashboardPage() {
-  const active = tournaments.filter((t) => !["DRAFT", "COMPLETED"].includes(t.status));
-  const completed = tournaments.filter((t) => t.status === "COMPLETED");
+  const activeTournaments = [...tournaments]
+    .filter((t) => t.status !== "DRAFT" && t.status !== "COMPLETED")
+    .sort((a, b) => new Date(a.date).getTime() - new Date(b.date).getTime());
+  const completedTournaments = tournaments.filter((t) => t.status === "COMPLETED");
   const totalRegistrations = tournaments.reduce((sum, t) => sum + t.registeredPlayerIds.length, 0);
 
   return (
-    <div className="flex flex-col gap-6">
-      <div className="flex flex-wrap items-center justify-between gap-3">
+    <div className={arenaFontVariables} style={{ fontFamily: "var(--font-home-body)" }}>
+      <div className="mb-8 flex flex-col gap-4 sm:flex-row sm:items-end sm:justify-between">
         <div>
-          <h2 className="font-heading text-2xl font-semibold text-foreground">Host Dashboard</h2>
-          <p className="mt-1 text-sm text-muted-foreground">Manage your tournament operations from here.</p>
+          <h1 className="text-2xl font-extrabold uppercase tracking-tight text-[#e2e2e8] sm:text-[28px]" style={display}>
+            Host Dashboard
+          </h1>
+          <p className="mt-1 text-sm text-[#8b8b93]">Manage every tournament running on the platform.</p>
         </div>
-        <Button render={<Link href="/host/tournaments/new" />}>
-          <Plus className="h-4 w-4" strokeWidth={2} />
-          Create Tournament
-        </Button>
+        <div className="flex shrink-0 gap-2">
+          <Link
+            href="/host-tournament"
+            className="flex items-center gap-1.5 rounded-[2px] border border-white/15 px-4 py-2.5 text-xs font-semibold uppercase tracking-wide text-[#c2c6d7] transition-colors hover:border-white/30 hover:bg-white/5"
+            style={mono}
+          >
+            <Plus className="h-3.5 w-3.5" strokeWidth={2} />
+            Create Tournament
+          </Link>
+          <Link
+            href="/host/tournaments"
+            className="flex items-center gap-1.5 rounded-[2px] bg-[#ff2448] px-4 py-2.5 text-xs font-semibold uppercase tracking-wide text-white transition-all hover:scale-[1.02] hover:shadow-[0_0_16px_-4px_#ff2448] active:scale-95"
+            style={mono}
+          >
+            <Trophy className="h-3.5 w-3.5" strokeWidth={2} />
+            Manage Tournaments
+          </Link>
+        </div>
       </div>
 
-      <div className="grid gap-4 sm:grid-cols-2 lg:grid-cols-4">
-        <StatCard label="Total Tournaments" value={tournaments.length} icon={<Trophy />} />
-        <StatCard label="Active Tournaments" value={active.length} icon={<Zap />} />
-        <StatCard label="Total Registered Players" value={totalRegistrations} icon={<Users />} />
-        <StatCard label="Completed" value={completed.length} icon={<Trophy />} />
+      <div className="mb-10 grid grid-cols-2 gap-4 lg:grid-cols-4">
+        <StatCard icon={Trophy} label="Total Tournaments" value={String(tournaments.length)} />
+        <StatCard icon={Zap} label="Active Tournaments" value={String(activeTournaments.length)} accent />
+        <StatCard icon={Users} label="Total Registered Players" value={String(totalRegistrations)} />
+        <StatCard icon={CheckCircle2} label="Completed" value={String(completedTournaments.length)} />
       </div>
 
-      <div>
-        <div className="mb-3 flex items-center justify-between">
-          <h3 className="font-heading text-lg font-medium text-foreground">Active Tournaments</h3>
-          <Link href="/host/tournaments" className="text-sm font-medium text-primary hover:underline">View all</Link>
-        </div>
-        {active.length === 0 ? (
-          <EmptyState title="No active tournaments" description="Create a tournament to get started." />
+      <section className="mb-10">
+        <h2 className="mb-4 text-xs font-bold uppercase tracking-widest text-[#ff2448]" style={mono}>
+          Tournaments You&apos;re Hosting
+        </h2>
+        {activeTournaments.length === 0 ? (
+          <p className="text-sm text-[#8b8b93]">
+            No active tournaments right now. Get started from{" "}
+            <Link href="/host-tournament" className="text-[#ff8f86] hover:text-[#ff2448]">
+              Create Tournament
+            </Link>
+            .
+          </p>
         ) : (
-          <div className="grid gap-4 sm:grid-cols-2 lg:grid-cols-3">
-            {active.map((t) => <TournamentCard key={t.id} tournament={t} />)}
+          <div className="max-h-[420px] space-y-2 overflow-y-auto pr-1">
+            {activeTournaments.map((t) => (
+              <TournamentHostingCard key={t.id} tournament={t} />
+            ))}
           </div>
         )}
-      </div>
+        <div className="mt-4 flex flex-col gap-2 sm:flex-row">
+          <Link
+            href="/host/tournaments"
+            className="flex flex-1 items-center justify-center rounded-[2px] bg-[#ff2448] py-3 text-xs font-semibold uppercase tracking-wide text-white transition-all hover:scale-[1.02] hover:shadow-[0_0_16px_-4px_#ff2448] active:scale-95"
+            style={mono}
+          >
+            Manage Tournaments
+          </Link>
+          <Link
+            href="/host/events"
+            className="flex flex-1 items-center justify-center rounded-[2px] border border-[#ff2448]/40 bg-[#ff2448]/10 py-3 text-xs font-semibold uppercase tracking-wide text-[#ff8f86] transition-colors hover:border-[#ff2448] hover:bg-[#ff2448]/15"
+            style={mono}
+          >
+            View All Events
+          </Link>
+        </div>
+      </section>
     </div>
   );
 }

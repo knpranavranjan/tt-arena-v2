@@ -1,50 +1,173 @@
 "use client";
 
-import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
-import { TournamentCard } from "@/components/cards/tournament-card";
-import { EmptyState } from "@/components/feedback/empty-state";
+import { useMemo, useState } from "react";
+import Link from "next/link";
+import { Calendar, ChevronRight, MapPin, Search, Trophy } from "lucide-react";
 import { useCurrentPlayer } from "@/lib/session-data";
-import { tournaments } from "@/lib/mock-data";
+import { tournaments, tournamentCode } from "@/lib/mock-data";
+import { formatDate } from "@/lib/format";
+import type { TournamentStatus } from "@/lib/types";
+
+const mono = { fontFamily: "var(--font-home-mono)" };
+const display = { fontFamily: "var(--font-home-display)" };
+
+const statuses: { value: TournamentStatus | "all"; label: string }[] = [
+  { value: "all", label: "All Statuses" },
+  { value: "DRAFT", label: "Draft" },
+  { value: "REGISTRATION_OPEN", label: "Registration Open" },
+  { value: "REGISTRATION_CLOSED", label: "Registration Closed" },
+  { value: "SEEDING", label: "Seeding" },
+  { value: "POOLS", label: "Pools In Progress" },
+  { value: "KNOCKOUT", label: "Knockout In Progress" },
+  { value: "COMPLETED", label: "Completed" },
+];
+
+function statusMeta(status: TournamentStatus): { label: string; className: string; live: boolean } {
+  switch (status) {
+    case "REGISTRATION_OPEN":
+      return { label: "Registration Open", className: "bg-[#ff2448] text-white", live: false };
+    case "POOLS":
+      return { label: "Pools In Progress", className: "bg-[#ff2448] text-white", live: true };
+    case "KNOCKOUT":
+      return { label: "Live", className: "bg-[#ff2448] text-white", live: true };
+    case "SEEDING":
+      return { label: "Seeding", className: "border border-amber-400/40 bg-amber-400/10 text-amber-300", live: false };
+    case "REGISTRATION_CLOSED":
+      return { label: "Registration Closed", className: "border border-amber-400/40 bg-amber-400/10 text-amber-300", live: false };
+    case "DRAFT":
+      return { label: "Draft", className: "border border-white/20 bg-[#111318]/80 text-[#8b8b93]", live: false };
+    case "COMPLETED":
+      return { label: "Completed", className: "border border-white/20 bg-[#111318]/80 text-[#e2e2e8]", live: false };
+  }
+}
 
 export default function PlayerTournamentsPage() {
   const player = useCurrentPlayer();
+  const [search, setSearch] = useState("");
+  const [status, setStatus] = useState<TournamentStatus | "all">("all");
+
+  // Tournaments this player created via "Host a Tournament" — the form
+  // stamps `organizer` with the hosting player's own name, so that's the
+  // real ownership signal (distinct from tournaments they merely registered
+  // to play in).
+  const hostedTournaments = useMemo(() => {
+    if (!player) return [];
+    return tournaments
+      .filter((t) => t.organizer === player.name)
+      .sort((a, b) => new Date(b.date).getTime() - new Date(a.date).getTime());
+  }, [player]);
+
+  const filtered = hostedTournaments.filter((t) => {
+    if (search && !t.name.toLowerCase().includes(search.toLowerCase())) return false;
+    if (status !== "all" && t.status !== status) return false;
+    return true;
+  });
+
   if (!player) return null;
 
-  const available = tournaments.filter(
-    (t) => t.status === "REGISTRATION_OPEN" && !t.registeredPlayerIds.includes(player.id),
-  );
-  const registered = tournaments.filter(
-    (t) => t.registeredPlayerIds.includes(player.id) && t.status !== "COMPLETED",
-  );
-  const completed = tournaments.filter(
-    (t) => t.registeredPlayerIds.includes(player.id) && t.status === "COMPLETED",
-  );
-
   return (
-    <Tabs defaultValue="available">
-      <TabsList>
-        <TabsTrigger value="available">Available ({available.length})</TabsTrigger>
-        <TabsTrigger value="registered">Registered ({registered.length})</TabsTrigger>
-        <TabsTrigger value="completed">Completed ({completed.length})</TabsTrigger>
-      </TabsList>
-      <TabsContent value="available" className="mt-4">
-        <Grid items={available} empty="No tournaments open for registration right now." />
-      </TabsContent>
-      <TabsContent value="registered" className="mt-4">
-        <Grid items={registered} empty="You haven't registered for any upcoming tournaments." />
-      </TabsContent>
-      <TabsContent value="completed" className="mt-4">
-        <Grid items={completed} empty="No completed tournaments yet." />
-      </TabsContent>
-    </Tabs>
-  );
-}
+    <div style={{ fontFamily: "var(--font-home-body)" }} className="mx-auto w-full max-w-6xl">
+      <div className="mb-8 flex flex-col gap-1">
+        <h1 className="text-2xl font-extrabold uppercase tracking-tight text-[#e2e2e8] sm:text-[28px]" style={display}>
+          Manage Tournaments
+        </h1>
+        <p className="text-sm text-[#8b8b93]">
+          Every tournament you&apos;ve submitted through &ldquo;Host a Tournament&rdquo;. Open one to see
+          registrations, fees collected, and category breakdowns.
+        </p>
+      </div>
 
-function Grid({ items, empty }: { items: typeof tournaments; empty: string }) {
-  if (items.length === 0) return <EmptyState title="Nothing here yet" description={empty} />;
-  return (
-    <div className="grid gap-4 sm:grid-cols-2 lg:grid-cols-3">
-      {items.map((t) => <TournamentCard key={t.id} tournament={t} />)}
+      <div className="mb-6 flex flex-col gap-3 sm:flex-row">
+        <div className="relative flex-grow">
+          <Search className="pointer-events-none absolute left-4 top-1/2 h-4 w-4 -translate-y-1/2 text-[#8b8b93]" />
+          <input
+            type="text"
+            placeholder="Search tournaments…"
+            value={search}
+            onChange={(e) => setSearch(e.target.value)}
+            className="w-full rounded-[4px] border border-white/10 bg-[#1a1c20] py-3 pl-11 pr-4 text-sm text-[#e2e2e8] placeholder:text-[#5a5a60] focus:border-[#ff2448] focus:outline-none focus:ring-1 focus:ring-[#ff2448]"
+          />
+        </div>
+        <select
+          value={status}
+          onChange={(e) => setStatus(e.target.value as TournamentStatus | "all")}
+          className="rounded-[4px] border border-white/10 bg-[#1a1c20] px-4 py-3 text-sm text-[#e2e2e8] focus:border-[#ff2448] focus:outline-none focus:ring-1 focus:ring-[#ff2448] sm:w-56"
+        >
+          {statuses.map((s) => (
+            <option key={s.value} value={s.value} className="bg-[#1a1c20]">
+              {s.label}
+            </option>
+          ))}
+        </select>
+      </div>
+
+      {filtered.length === 0 ? (
+        <div className="rounded-[8px] border border-dashed border-white/15 p-12 text-center">
+          <Trophy className="mx-auto mb-3 h-8 w-8 text-[#8b8b93]" strokeWidth={1.5} />
+          <p className="text-sm font-semibold text-[#e2e2e8]">
+            {hostedTournaments.length === 0 ? "You haven't hosted a tournament yet" : "No tournaments found"}
+          </p>
+          <p className="mt-1 text-xs text-[#8b8b93]">
+            {hostedTournaments.length === 0 ? (
+              <>
+                Set one up from{" "}
+                <Link href="/host-tournament" className="text-[#ff8f86] hover:text-[#ff2448]">
+                  Host a Tournament
+                </Link>
+                .
+              </>
+            ) : (
+              "Try a different search or status filter."
+            )}
+          </p>
+        </div>
+      ) : (
+        <div className="space-y-3">
+          {filtered.map((t) => {
+            const meta = statusMeta(t.status);
+            return (
+              <Link
+                key={t.id}
+                href={`/player/tournaments/${t.id}`}
+                className="flex flex-col gap-3 rounded-[8px] border border-white/10 bg-white/[0.03] p-5 transition-colors hover:border-white/20 sm:flex-row sm:items-center sm:justify-between"
+              >
+                <div className="min-w-0">
+                  <div className="mb-2 flex flex-wrap items-center gap-2">
+                    <span
+                      className={`inline-flex items-center gap-1.5 rounded-[2px] px-2.5 py-1 text-[10px] font-semibold uppercase tracking-wide ${meta.className}`}
+                      style={mono}
+                    >
+                      {meta.live && <span className="h-1.5 w-1.5 animate-pulse rounded-full bg-white" />}
+                      {meta.label}
+                    </span>
+                    <span className="text-[11px] uppercase tracking-wide text-[#5a5a60]" style={mono}>
+                      #{tournamentCode(t)}
+                    </span>
+                  </div>
+                  <p className="truncate text-base font-semibold text-[#e2e2e8]">{t.name}</p>
+                  <div className="mt-1.5 flex flex-wrap items-center gap-x-3 gap-y-1 text-xs text-[#8b8b93]">
+                    <span className="flex items-center gap-1">
+                      <Calendar className="h-3.5 w-3.5" strokeWidth={1.75} />
+                      {formatDate(t.date)}
+                    </span>
+                    <span className="flex items-center gap-1">
+                      <MapPin className="h-3.5 w-3.5" strokeWidth={1.75} />
+                      {t.venue}
+                    </span>
+                    <span>
+                      {t.registeredPlayerIds.length}/{t.maxPlayers} registered
+                    </span>
+                  </div>
+                </div>
+                <span className="flex shrink-0 items-center gap-1.5 self-start rounded-[2px] border border-white/15 px-4 py-2 text-xs font-semibold uppercase tracking-wide text-[#c2c6d7] sm:self-center">
+                  Manage
+                  <ChevronRight className="h-3.5 w-3.5" strokeWidth={2} />
+                </span>
+              </Link>
+            );
+          })}
+        </div>
+      )}
     </div>
   );
 }
