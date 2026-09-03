@@ -1,5 +1,6 @@
 import type {
   AppUser,
+  Category,
   Club,
   Match,
   Player,
@@ -16,37 +17,129 @@ export const clubs: Club[] = [
     name: "Apex Table Tennis Club",
     location: "Bengaluru",
     state: "Karnataka",
+    address: "142, 100 Feet Road, Indiranagar, Bengaluru, Karnataka 560038",
     description:
       "Bengaluru's premier competitive club, producing state and national medalists since 2008.",
+    aboutHighlights: [
+      "Professional coaching staff with international competition experience.",
+      "Structured training programs for Beginner, Intermediate, and Advanced tiers.",
+      "Regular in-house ranking tournaments and sparring sessions.",
+      "Dedicated fitness and agility training area for physical conditioning.",
+    ],
     playerIds: ["p-1", "p-2", "p-7", "p-11"],
     founded: 2008,
+    phone: "+91 80 4123 5567",
+    email: "contact@apexttc.in",
+    verified: true,
+    rating: 4.8,
+    facilities: {
+      tableCount: 12,
+      tableVarieties: "Stiga Optimum 30 & Butterfly Centrefold 25",
+      floorType: "Wooden Floor",
+      floorGrade: "Professional Grade",
+      lighting: "1200+ Lux",
+      isAirConditioned: true,
+      hasWashroom: true,
+      hasParking: true,
+      hasROWater: true,
+      seatingCapacity: 60,
+    },
   },
   {
     id: "club-spinforge",
     name: "SpinForge Academy",
     location: "Pune",
     state: "Maharashtra",
+    address: "Plot 27, Baner-Pashan Link Road, Baner, Pune, Maharashtra 411045",
     description: "High-performance training academy focused on junior development.",
+    aboutHighlights: [
+      "Junior-focused curriculum led by certified youth development coaches.",
+      "Video analysis sessions for technique correction every weekend.",
+      "Partnerships with schools for talent scouting and trials.",
+      "Physiotherapy support on-site during peak training hours.",
+    ],
     playerIds: ["p-3", "p-8", "p-12"],
     founded: 2015,
+    phone: "+91 20 4987 2231",
+    email: "info@spinforgeacademy.in",
+    verified: true,
+    rating: 4.5,
+    facilities: {
+      tableCount: 8,
+      tableVarieties: "Butterfly Centrefold 25 & Joola 3000-SC",
+      floorType: "Synthetic Floor",
+      floorGrade: "Training Grade",
+      lighting: "900+ Lux",
+      isAirConditioned: false,
+      hasWashroom: true,
+      hasParking: true,
+      hasROWater: true,
+      seatingCapacity: 30,
+    },
   },
   {
     id: "club-riverside",
     name: "Riverside Paddlers",
     location: "Kolkata",
     state: "West Bengal",
+    address: "18B, Rashbehari Avenue, Gariahat, Kolkata, West Bengal 700029",
     description: "Community club with the largest active membership in eastern India.",
+    aboutHighlights: [
+      "Open-membership club welcoming players of every skill level.",
+      "Weekend league nights with a round-robin format for all ages.",
+      "Equipment rental and racket stringing services available on-site.",
+      "Long-standing community partnerships with local schools.",
+    ],
     playerIds: ["p-4", "p-9"],
     founded: 1998,
+    phone: "+91 33 2461 8890",
+    email: "hello@riversidepaddlers.in",
+    verified: true,
+    rating: 4.6,
+    facilities: {
+      tableCount: 15,
+      tableVarieties: "Stiga Optimum 30 & Cornilleau Competition 850",
+      floorType: "Wooden Floor",
+      floorGrade: "Community Grade",
+      lighting: "1000+ Lux",
+      isAirConditioned: true,
+      hasWashroom: true,
+      hasParking: false,
+      hasROWater: true,
+      seatingCapacity: 80,
+    },
   },
   {
     id: "club-vanguard",
     name: "Vanguard TTC",
     location: "Chennai",
     state: "Tamil Nadu",
+    address: "56, Anna Nagar 2nd Avenue, Anna Nagar, Chennai, Tamil Nadu 600040",
     description: "Home to three national champions and a full-time coaching staff.",
+    aboutHighlights: [
+      "Full-time coaching staff led by former national team players.",
+      "High-performance program for state and national qualifiers.",
+      "Match-play sessions with live scoring and video review.",
+      "Strength and conditioning block twice a week for competitive players.",
+    ],
     playerIds: ["p-5", "p-6", "p-10"],
     founded: 2011,
+    phone: "+91 44 2615 7742",
+    email: "contact@vanguardttc.in",
+    verified: false,
+    rating: 4.3,
+    facilities: {
+      tableCount: 10,
+      tableVarieties: "Joola 3000-SC & Butterfly Centrefold 25",
+      floorType: "Wooden Floor",
+      floorGrade: "Competition Grade",
+      lighting: "1100+ Lux",
+      isAirConditioned: true,
+      hasWashroom: false,
+      hasParking: true,
+      hasROWater: false,
+      seatingCapacity: 45,
+    },
   },
 ];
 
@@ -64,6 +157,7 @@ export const players: Player[] = [
     wins: 61,
     losses: 14,
     recentForm: ["W", "W", "W", "L", "W"],
+    playStyle: "All-Round Attacker",
   },
   {
     id: "p-2",
@@ -78,6 +172,7 @@ export const players: Player[] = [
     wins: 54,
     losses: 19,
     recentForm: ["W", "L", "W", "W", "W"],
+    playStyle: "Offensive Looper",
   },
   {
     id: "p-3",
@@ -92,6 +187,7 @@ export const players: Player[] = [
     wins: 38,
     losses: 21,
     recentForm: ["L", "W", "W", "L", "W"],
+    playStyle: "Counter-Attacker",
   },
   {
     id: "p-4",
@@ -106,6 +202,7 @@ export const players: Player[] = [
     wins: 45,
     losses: 24,
     recentForm: ["W", "W", "L", "W", "L"],
+    playStyle: "Defensive Chopper",
   },
   {
     id: "p-5",
@@ -120,6 +217,7 @@ export const players: Player[] = [
     wins: 78,
     losses: 12,
     recentForm: ["W", "W", "W", "W", "L"],
+    playStyle: "Offensive Spinner",
   },
   {
     id: "p-6",
@@ -134,6 +232,7 @@ export const players: Player[] = [
     wins: 29,
     losses: 18,
     recentForm: ["L", "L", "W", "W", "W"],
+    playStyle: "Two-Winged Looper",
   },
   {
     id: "p-7",
@@ -148,6 +247,7 @@ export const players: Player[] = [
     wins: 22,
     losses: 15,
     recentForm: ["W", "W", "L", "W", "W"],
+    playStyle: "Fast Attacker",
   },
   {
     id: "p-8",
@@ -162,6 +262,7 @@ export const players: Player[] = [
     wins: 49,
     losses: 22,
     recentForm: ["W", "L", "W", "L", "W"],
+    playStyle: "Blocker-Counter",
   },
   {
     id: "p-9",
@@ -176,6 +277,7 @@ export const players: Player[] = [
     wins: 33,
     losses: 20,
     recentForm: ["W", "W", "W", "L", "L"],
+    playStyle: "Defensive Chopper",
   },
   {
     id: "p-10",
@@ -190,6 +292,7 @@ export const players: Player[] = [
     wins: 14,
     losses: 9,
     recentForm: ["W", "L", "W", "W", "L"],
+    playStyle: "Developing Attacker",
   },
   {
     id: "p-11",
@@ -204,6 +307,7 @@ export const players: Player[] = [
     wins: 31,
     losses: 17,
     recentForm: ["W", "W", "W", "W", "W"],
+    playStyle: "Offensive Looper",
   },
   {
     id: "p-12",
@@ -218,6 +322,7 @@ export const players: Player[] = [
     wins: 19,
     losses: 13,
     recentForm: ["L", "W", "W", "L", "W"],
+    playStyle: "All-Round Attacker",
   },
 ];
 
@@ -273,6 +378,10 @@ export const tournaments: Tournament[] = [
     entryFee: 500,
     description: "Flagship senior singles event of TT Open 2026, pool stage followed by knockout.",
     status: "REGISTRATION_OPEN",
+    matchFormat: "Best of 5 sets",
+    ballType: "Plastic 40+, 3-star (match)",
+    umpireStatus: "Umpired",
+    prizePool: 40000,
     poolSize: 4,
   },
   {
@@ -290,6 +399,10 @@ export const tournaments: Tournament[] = [
     entryFee: 300,
     description: "Under-21 knockout draw run alongside the senior TT Open.",
     status: "REGISTRATION_OPEN",
+    matchFormat: "Best of 5 sets",
+    ballType: "Plastic 40+, 3-star (match)",
+    umpireStatus: "Umpired",
+    prizePool: 15000,
   },
   {
     id: "trn-monsoon-open",
@@ -306,6 +419,10 @@ export const tournaments: Tournament[] = [
     entryFee: 400,
     description: "Currently in progress — pool stage completed, knockout underway.",
     status: "KNOCKOUT",
+    matchFormat: "Best of 5 sets",
+    ballType: "Plastic 40+, 2-star (training)",
+    umpireStatus: "Self-officiated",
+    prizePool: 25000,
     poolSize: 4,
   },
   {
@@ -323,6 +440,10 @@ export const tournaments: Tournament[] = [
     entryFee: 450,
     description: "Completed regional championship for the eastern zone.",
     status: "COMPLETED",
+    matchFormat: "Best of 7 sets",
+    ballType: "Plastic 40+, 3-star (match)",
+    umpireStatus: "Umpired",
+    prizePool: 60000,
     poolSize: 4,
     champion: "p-1",
     runnerUp: "p-4",
@@ -524,3 +645,73 @@ export function getTournamentPlayers(tournament: Tournament) {
     .map((id) => getPlayer(id))
     .filter((p): p is Player => Boolean(p));
 }
+
+// Short reference code shown next to a tournament in the manage views, e.g.
+// "GSTT-2026-CHN" — derived entirely from the tournament's own fields (event
+// name initials, year, host city) so it's stable without needing a stored id.
+export function tournamentCode(tournament: Tournament) {
+  const event = getEvent(tournament.eventId);
+  const words = (event?.name ?? tournament.name).replace(/[^a-zA-Z ]/g, "").split(" ").filter(Boolean);
+  const codeInitials = words.map((w) => w[0]).join("").toUpperCase().slice(0, 4) || "TRN";
+  const year = new Date(tournament.date).getFullYear();
+  const cityRaw = (event?.location ?? tournament.venue).split(",")[0].trim();
+  const city = cityRaw.replace(/[^a-zA-Z]/g, "").slice(0, 3).toUpperCase() || "TBD";
+  return `${codeInitials}-${year}-${city}`;
+}
+
+export interface CategoryBreakdownRow {
+  category: Category;
+  spotsFilled: number;
+  spotsTotal: number;
+  feeCollected: number;
+}
+
+// The "Manage Tournament" overview groups registrants by their own player
+// category — real data, not invented — since a Tournament only carries one
+// nominal `category` label even though registrants can span several age
+// brackets. There's no per-category cap in the data model, so the spot total
+// is estimated by splitting maxPlayers across the categories actually
+// present, padded a little (deterministically, from the category name) so
+// the fill bar isn't always pinned at 100%.
+export function getCategoryBreakdown(tournament: Tournament): CategoryBreakdownRow[] {
+  const registered = getTournamentPlayers(tournament);
+  const byCategory = new Map<Category, Player[]>();
+  for (const p of registered) {
+    const list = byCategory.get(p.category) ?? [];
+    list.push(p);
+    byCategory.set(p.category, list);
+  }
+  const categories = [...byCategory.keys()];
+  const perCategoryCap = Math.max(1, Math.round(tournament.maxPlayers / Math.max(1, categories.length)));
+
+  return categories
+    .map((category) => {
+      const categoryPlayers = byCategory.get(category)!;
+      const pad = category.length % 4;
+      const spotsTotal = Math.max(categoryPlayers.length, perCategoryCap) + pad;
+      return {
+        category,
+        spotsFilled: categoryPlayers.length,
+        spotsTotal,
+        feeCollected: categoryPlayers.length * tournament.entryFee,
+      };
+    })
+    .sort((a, b) => b.spotsFilled - a.spotsFilled);
+}
+
+// Player has no stored phone field — this derives a stable, presentational
+// placeholder number from the player id so the registrations table has
+// something realistic to show without fabricating (and persisting) fake
+// contact data.
+export function derivedPlayerPhone(player: Player) {
+  const seed = Number(player.id.replace(/\D/g, "")) || 1;
+  const first = 70000 + ((seed * 7919) % 20000);
+  const second = 10000 + ((seed * 104729) % 90000);
+  return `+91 ${first} ${second}`;
+}
+
+// Flat platform fee charged to a club/host for hosting a tournament — shown
+// on their Payment History in Settings, and editable from Admin Settings.
+// Demo-only: there's no billing backend, so admin's edit doesn't propagate
+// anywhere live; it's just the default this constant represents.
+export const platformHostingFee = 999;

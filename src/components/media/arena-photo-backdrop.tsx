@@ -25,7 +25,7 @@ export function ArenaPhotoBackdrop({
         alt=""
         fill
         sizes="(min-width: 1024px) 50vw, 100vw"
-        className={`object-cover grayscale transition-[transform,filter] duration-700 group-hover:scale-105 group-hover:grayscale-0 ${
+        className={`object-cover transition-transform duration-700 group-hover:scale-105 ${
           variant === "subtle" ? "opacity-100" : "opacity-70"
         }`}
       />

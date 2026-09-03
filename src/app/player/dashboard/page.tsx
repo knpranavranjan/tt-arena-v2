@@ -25,6 +25,8 @@ import {
   getPlayer,
   getWeeklyDelta,
 } from "@/lib/mock-data";
+import { formatDate } from "@/lib/format";
+import type { Tournament, TournamentStatus } from "@/lib/types";
 import { ScrollArea } from "@/components/ui/scroll-area";
 import {
   Dialog,
@@ -46,6 +48,44 @@ function averageClubRating(clubId: string) {
   const clubPlayers = getClubPlayers(clubId);
   if (clubPlayers.length === 0) return 0;
   return clubPlayers.reduce((sum, p) => sum + p.rating, 0) / clubPlayers.length;
+}
+
+function tournamentStatusMeta(status: TournamentStatus): { label: string; textClass: string; accent: string } {
+  switch (status) {
+    case "REGISTRATION_OPEN":
+      return { label: "Registration Open", textClass: "text-[#ff8f86]", accent: "#ff2448" };
+    case "POOLS":
+      return { label: "Pools In Progress", textClass: "text-[#ff8f86]", accent: "#ff2448" };
+    case "KNOCKOUT":
+      return { label: "Knockout In Progress", textClass: "text-[#ff8f86]", accent: "#ff2448" };
+    case "SEEDING":
+      return { label: "Seeding", textClass: "text-amber-300", accent: "#fbbf24" };
+    case "REGISTRATION_CLOSED":
+      return { label: "Registration Closed", textClass: "text-amber-300", accent: "#fbbf24" };
+    case "DRAFT":
+      return { label: "Draft", textClass: "text-[#8b8b93]", accent: "rgba(255,255,255,0.25)" };
+    case "COMPLETED":
+      return { label: "Completed", textClass: "text-[#8b8b93]", accent: "rgba(255,255,255,0.25)" };
+  }
+}
+
+function TournamentHostingCard({ tournament }: { tournament: Tournament }) {
+  const meta = tournamentStatusMeta(tournament.status);
+  return (
+    <Link
+      href={`/tournaments/${tournament.id}`}
+      className="block rounded-[6px] border border-white/10 bg-white/[0.03] p-3.5 transition-colors hover:border-white/20"
+      style={{ borderLeftWidth: 3, borderLeftColor: meta.accent }}
+    >
+      <p className={`text-[10px] font-bold uppercase tracking-wide ${meta.textClass}`} style={{ fontFamily: "var(--font-home-mono)" }}>
+        {meta.label}
+      </p>
+      <p className="mt-1.5 text-sm font-semibold text-[#e2e2e8]">{tournament.name}</p>
+      <p className="mt-1 text-xs text-[#8b8b93]">
+        {formatDate(tournament.date)} &middot; {tournament.venue}
+      </p>
+    </Link>
+  );
 }
 
 export default function PlayerDashboardPage() {
@@ -74,6 +114,11 @@ export default function PlayerDashboardPage() {
     });
 
   const registered = tournaments.filter((t) => t.registeredPlayerIds.includes(player.id));
+  // Tournaments this player submitted through "Host a Tournament" — the form
+  // stamps `organizer` with the hosting player's own name, so that's the real
+  // ownership signal (distinct from `registered`, which is tournaments they
+  // signed up to play in).
+  const hostedTournaments = tournaments.filter((t) => t.organizer === player.name);
 
   const clubRank = club
     ? [...clubs].sort((a, b) => averageClubRating(b.id) - averageClubRating(a.id)).findIndex((c) => c.id === club.id) + 1
@@ -380,6 +425,43 @@ export default function PlayerDashboardPage() {
               </ScrollArea>
             )}
           </div>
+          {/* Tournaments I'm hosting */}
+          <section>
+            <h2 className="mb-4 text-xs font-bold uppercase tracking-widest text-[#ff2448]" style={{ fontFamily: "var(--font-home-mono)" }}>
+              Tournaments You&apos;re Hosting
+            </h2>
+            {hostedTournaments.length === 0 ? (
+              <p className="text-sm text-[#8b8b93]">
+                No tournaments right now. Get started from{" "}
+                <Link href="/host-tournament" className="text-[#ff8f86] hover:text-[#ff2448]">
+                  Host a Tournament
+                </Link>
+                .
+              </p>
+            ) : (
+              <div className="max-h-[360px] space-y-2 overflow-y-auto pr-1">
+                {hostedTournaments.map((t) => (
+                  <TournamentHostingCard key={t.id} tournament={t} />
+                ))}
+              </div>
+            )}
+            <div className="mt-4 space-y-2">
+              <Link
+                href="/player/tournaments"
+                className="flex w-full items-center justify-center rounded-[2px] bg-[#ff2448] py-3 text-xs font-semibold uppercase tracking-wide text-white transition-all hover:scale-[1.02] hover:shadow-[0_0_16px_-4px_#ff2448] active:scale-95"
+                style={{ fontFamily: "var(--font-home-mono)" }}
+              >
+                Manage Tournaments
+              </Link>
+              <Link
+                href="/player/tournament"
+                className="flex w-full items-center justify-center rounded-[2px] border border-white/15 py-3 text-xs font-semibold uppercase tracking-wide text-[#e2e2e8] transition-colors hover:border-white/30 hover:bg-white/5"
+                style={{ fontFamily: "var(--font-home-mono)" }}
+              >
+                View All Events
+              </Link>
+            </div>
+          </section>
         </div>
       </div>
 

@@ -45,6 +45,10 @@ export default function NewTournamentPage() {
       entryFee: Number(entryFee) || 0,
       description,
       status: "DRAFT",
+      matchFormat: "Best of 5 sets",
+      ballType: "Plastic 40+, 3-star (match)",
+      umpireStatus: "Umpired",
+      prizePool: 0,
       poolSize: format === "POOL_KNOCKOUT" ? 4 : undefined,
     };
     tournaments.push(newTournament);

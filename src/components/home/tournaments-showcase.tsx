@@ -15,18 +15,18 @@ export function TournamentsShowcase() {
   if (!featuredThree.length) return null;
 
   return (
-    <section className="border-t border-white/10 bg-[#0c0e12] py-20">
-      <div className="mx-auto max-w-[1280px] px-4 sm:px-12">
+    <section className="border-t border-white/10 bg-[#0c0e12] py-16">
+      <div className="w-full px-6 sm:px-10 lg:px-16 xl:px-20">
         <div className="mb-10 flex flex-col justify-between gap-4 md:flex-row md:items-end">
           <div>
             <span
-              className="mb-2 block text-xs font-semibold uppercase tracking-[0.15em] text-[#ff8f86]"
+              className="mb-2 block text-sm font-semibold uppercase tracking-[0.15em] text-[#ff8f86]"
               style={{ fontFamily: "var(--font-home-mono)" }}
             >
               Tournaments
             </span>
             <h2
-              className="text-2xl font-bold text-[#e2e2e8] sm:text-[28px]"
+              className="text-[26px] font-bold text-[#e2e2e8] sm:text-[32px]"
               style={{ fontFamily: "var(--font-home-display)" }}
             >
               What&apos;s happening in the arena.
@@ -41,19 +41,16 @@ export function TournamentsShowcase() {
           </Link>
         </div>
 
-        <RevealGroup className="grid grid-cols-1 gap-6 md:grid-cols-3">
+        <RevealGroup className="grid grid-cols-1 gap-8 md:grid-cols-3">
           {featuredThree.map((t) => {
             const live = t.status === "REGISTRATION_OPEN" || t.status === "SEEDING" || t.status === "POOLS" || t.status === "KNOCKOUT";
             return (
               <RevealItem key={t.id}>
-                <Link
-                  href={`/tournaments/${t.id}`}
-                  className="group relative flex h-full min-h-[350px] flex-col overflow-hidden rounded-[8px] border border-white/10 bg-white/[0.03] p-6 backdrop-blur-xl transition-colors hover:border-[#ff2448]/50"
-                >
+                <div className="group relative flex h-full min-h-[340px] flex-col overflow-hidden rounded-[8px] border border-white/10 bg-white/[0.03] p-6 backdrop-blur-xl transition-colors hover:border-[#ff2448]/50">
                   <ArenaPhotoBackdrop />
-                  <div className="mb-auto">
+                  <Link href={`/tournaments/${t.id}`} className="mb-auto block">
                     <span
-                      className={`mb-4 inline-block rounded-[2px] px-2 py-1 text-[10px] font-semibold ${
+                      className={`mb-4 inline-block rounded-[2px] px-2.5 py-1.5 text-xs font-semibold ${
                         live
                           ? "bg-[#ff2448] text-[#ffd2cd]"
                           : "border border-white/20 text-[#e2e2e8]"
@@ -62,36 +59,37 @@ export function TournamentsShowcase() {
                     >
                       {live ? "Live Now" : "Upcoming"}
                     </span>
-                    <h3 className="mb-4 text-xl font-bold uppercase text-[#e2e2e8]">{t.name}</h3>
+                    <h3 className="mb-3 text-xl font-bold uppercase text-[#e2e2e8]">{t.name}</h3>
                     <div className="space-y-2">
                       <div className="flex items-center gap-1.5 text-sm uppercase tracking-wide text-[#c2c6d7]">
                         {formatDate(t.date)}
                       </div>
                       <div className="flex items-center gap-1.5 text-sm uppercase tracking-wide text-[#c2c6d7]">
-                        <MapPin className="h-3.5 w-3.5 shrink-0" strokeWidth={1.5} /> {t.venue}
+                        <MapPin className="h-4 w-4 shrink-0" strokeWidth={1.5} /> {t.venue}
                       </div>
                       <div className="text-sm uppercase tracking-wide text-[#c2c6d7]">{t.category}</div>
                     </div>
-                  </div>
+                  </Link>
                   <div className="mt-6">
                     <div className="mb-4 flex items-center gap-2 text-[#e2e2e8]">
                       <Users className="h-4 w-4" strokeWidth={1.5} />
                       <span className="text-sm font-bold">{t.registeredPlayerIds.length}</span>
                       <span className="text-xs text-[#c2c6d7]">players</span>
                     </div>
-                    <div
-                      className={`inline-flex w-full items-center justify-center gap-2 rounded-[2px] px-4 py-2 text-[11px] font-semibold uppercase tracking-wide transition-all group-hover:scale-[1.02] ${
+                    <Link
+                      href={live ? "/login" : `/tournaments/${t.id}`}
+                      className={`inline-flex w-full items-center justify-center gap-2 rounded-[2px] px-5 py-3 text-xs font-semibold uppercase tracking-wide transition-all hover:scale-[1.02] ${
                         live
                           ? "bg-[#ff2448] text-[#ffd2cd]"
-                          : "border border-white/20 text-[#e2e2e8] group-hover:bg-white/5"
+                          : "border border-white/20 text-[#e2e2e8] hover:bg-white/5"
                       }`}
                       style={{ fontFamily: "var(--font-home-mono)" }}
                     >
-                      {live ? "View Live Scores" : "View Details"}
+                      {live ? "Register" : "View Details"}
                       <ArrowRight className="h-3.5 w-3.5" strokeWidth={2} />
-                    </div>
+                    </Link>
                   </div>
-                </Link>
+                </div>
               </RevealItem>
             );
           })}

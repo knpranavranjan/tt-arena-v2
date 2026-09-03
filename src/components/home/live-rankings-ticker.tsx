@@ -13,7 +13,7 @@ function RankCard({ rank, player }: { rank: number; player: (typeof ranked)[numb
   return (
     <Link
       href={`/players/${player.id}`}
-      className="flex w-64 shrink-0 items-center gap-4 rounded-[4px] border border-white/10 bg-white/[0.04] px-4 py-2 backdrop-blur-xl transition-colors hover:border-white/20"
+      className="flex w-64 shrink-0 items-center gap-3 rounded-[4px] border border-white/10 bg-white/[0.04] px-4 py-2.5 backdrop-blur-xl transition-colors hover:border-white/20"
     >
       <span
         className="text-lg text-[#ff8f86]"
@@ -21,7 +21,7 @@ function RankCard({ rank, player }: { rank: number; player: (typeof ranked)[numb
       >
         {String(rank).padStart(2, "0")}
       </span>
-      <div className="flex h-8 w-8 shrink-0 items-center justify-center rounded-full border border-white/15 bg-[#333539] text-[10px] font-semibold text-[#c2c6d7]">
+      <div className="flex h-8 w-8 shrink-0 items-center justify-center rounded-full border border-white/15 bg-[#333539] text-xs font-semibold text-[#c2c6d7]">
         {initials(player.name)}
       </div>
       <div className="flex min-w-0 flex-col">
@@ -49,7 +49,7 @@ export function LiveRankingsTicker() {
       id="rankings"
       className="relative z-30 -mt-10 overflow-hidden border-y border-white/10 bg-[#0c0e12]/80 py-4 backdrop-blur-md"
     >
-      <div className="mx-auto flex max-w-[1280px] items-center px-4 sm:px-12">
+      <div className="flex w-full items-center px-6 sm:px-10 lg:px-16 xl:px-20">
         <div className="z-10 mr-8 flex shrink-0 items-center gap-2 bg-[#0c0e12]/90 py-2 pr-4">
           <span className="relative flex h-2 w-2">
             <span className="absolute inset-0 animate-ping rounded-full bg-[#ff2448] opacity-75" />

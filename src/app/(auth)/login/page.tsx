@@ -13,6 +13,20 @@ const roleOptions: { value: Role; label: string; email: string }[] = [
   { value: "ADMIN", label: "Admin", email: "admin@ttmanagement.app" },
 ];
 
+// "next" is only honored when it actually belongs to the role being signed in
+// as. Landing here as /login?next=/club/dashboard (RequireRole bounced you
+// here) but then picking a different tab — say Player — used to still push
+// you to /club/dashboard: RequireRole immediately bounces that mismatched
+// role straight back to /login?next=/club/dashboard, so submitting looked
+// like it did nothing. Falling back to that role's own dashboard breaks the
+// loop.
+const rolePathPrefix: Record<Role, string> = {
+  PLAYER: "/player",
+  CLUB: "/club",
+  HOST: "/host",
+  ADMIN: "/admin",
+};
+
 const fieldClass =
   "w-full rounded-none border border-white/10 bg-[#0a0a0a] px-4 py-3 text-white transition-colors focus:border-[#ff2448] focus:outline-none";
 const labelClass = "block text-xs font-semibold uppercase tracking-widest text-[#8b8b93]";
@@ -33,7 +47,11 @@ function LoginForm() {
   const handleSubmit = (e: React.FormEvent) => {
     e.preventDefault();
     login(role);
-    const next = searchParams.get("next") ?? dashboardPathForRole[role];
+    const requestedNext = searchParams.get("next");
+    const next =
+      requestedNext && requestedNext.startsWith(rolePathPrefix[role])
+        ? requestedNext
+        : dashboardPathForRole[role];
     router.push(next);
   };
 
