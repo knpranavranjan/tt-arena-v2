@@ -2,8 +2,8 @@
 
 import Link from "next/link";
 import { useParams, usePathname } from "next/navigation";
-import { Download, MapPin } from "lucide-react";
-import { toast } from "sonner";
+import { MapPin } from "lucide-react";
+import { ExportReportMenu } from "@/components/tournament/ExportReportMenu";
 import { useCurrentPlayer } from "@/lib/session-data";
 import { getEvent, getTournament, tournamentCode } from "@/lib/mock-data";
 import type { TournamentStatus } from "@/lib/types";
@@ -68,6 +68,7 @@ export default function ManagePlayerTournamentLayout({ children }: { children: R
   const tabs = [
     { href: basePath, label: "Overview" },
     { href: `${basePath}/registrations`, label: "Registrations" },
+    { href: `${basePath}/matches`, label: "Matches" },
   ];
 
   return (
@@ -94,19 +95,7 @@ export default function ManagePlayerTournamentLayout({ children }: { children: R
             Tournament ID #{tournamentCode(tournament)}
           </p>
         </div>
-        <button
-          type="button"
-          onClick={() =>
-            toast.success("Report export started", {
-              description: "This is a demo action — no file is generated yet.",
-            })
-          }
-          className="flex shrink-0 items-center gap-2 rounded-[2px] border border-white/15 px-4 py-2.5 text-xs font-semibold uppercase tracking-wide text-[#c2c6d7] transition-colors hover:border-white/30 hover:bg-white/5"
-          style={mono}
-        >
-          <Download className="h-3.5 w-3.5" strokeWidth={2} />
-          Export Report
-        </button>
+        <ExportReportMenu tournament={tournament} />
       </div>
 
       <div className="mb-8 flex gap-2 border-b border-white/10">

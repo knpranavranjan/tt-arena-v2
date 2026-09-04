@@ -56,6 +56,56 @@
 }
 
 /*
+  Tournament console tokens — the ported tt-tournament management workspace
+  (src/components/tournament-console/*) is built entirely from these semantic
+  names. Values are the arena palette so the console matches the rest of the
+  site. The `accent` family is deliberately renamed to `brand` here so it does
+  not collide with tt-arena's own --color-accent (navy, used by shadcn ui/*).
+*/
+@theme {
+  --color-canvas: #0c0c0c;
+  --color-panel: #141416;
+  --color-subtle: #1c1c1f;
+  --color-raised: #26262b;
+
+  --color-line: #262629;
+  --color-line-soft: #1e1e21;
+
+  --color-ink: #e6e6ea;
+  --color-ink-muted: #c2c6d7;
+  --color-ink-faint: #8b8b93;
+
+  --color-brand: #ff2448;
+  --color-brand-hover: #ff4060;
+  --color-brand-text: #ff8f86;
+  --color-brand-soft: #2b0e15;
+
+  --color-focus: #ff8f86;
+  --color-focus-soft: #3a1220;
+
+  --color-good: #34d399;
+  --color-good-soft: #0d2f24;
+  --color-warn: #fbbf24;
+  --color-warn-soft: #2f2609;
+  --color-bad: #ff8f86;
+  --color-bad-soft: #331019;
+  --color-gold: #fbbf24;
+  --color-gold-soft: #2c2208;
+}
+
+@layer base {
+  /* Console score/rating fields are typed, not nudged. */
+  .tc-scope input[type="number"]::-webkit-outer-spin-button,
+  .tc-scope input[type="number"]::-webkit-inner-spin-button {
+    appearance: none;
+    margin: 0;
+  }
+  .tc-scope input[type="number"] {
+    appearance: textfield;
+  }
+}
+
+/*
   Dark-first premium sports theme. This product does not ship a light
   mode — :root carries the dark palette directly instead of gating it
   behind .dark, since every surface is designed against it.

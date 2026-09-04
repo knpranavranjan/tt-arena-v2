@@ -6,6 +6,7 @@ import { Toaster } from "@/components/ui/sonner";
 import { AuthProvider } from "@/lib/auth";
 import { JoinRequestsProvider } from "@/lib/join-requests";
 import { RegistrationsProvider } from "@/lib/registrations";
+import { TournamentStatusProvider } from "@/lib/tournament-status";
 import { HostingPlansProvider } from "@/lib/hosting-plans";
 import { MembershipProvider } from "@/lib/membership";
 import "./globals.css";
@@ -42,14 +43,16 @@ export default function RootLayout({ children }: LayoutProps<"/">) {
           <AuthProvider>
             <JoinRequestsProvider>
               <RegistrationsProvider>
-                <HostingPlansProvider>
-                  <MembershipProvider>
-                    <TooltipProvider delay={200}>
-                      {children}
-                      <Toaster />
-                    </TooltipProvider>
-                  </MembershipProvider>
-                </HostingPlansProvider>
+                <TournamentStatusProvider>
+                  <HostingPlansProvider>
+                    <MembershipProvider>
+                      <TooltipProvider delay={200}>
+                        {children}
+                        <Toaster />
+                      </TooltipProvider>
+                    </MembershipProvider>
+                  </HostingPlansProvider>
+                </TournamentStatusProvider>
               </RegistrationsProvider>
             </JoinRequestsProvider>
           </AuthProvider>
