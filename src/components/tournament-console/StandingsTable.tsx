@@ -1,8 +1,8 @@
 'use client'
 
-import React from 'react'
+import React, { useState } from 'react'
 
-import { Badge, Competitor, RankPill, Table, TableWrap, Td, Th } from '@/components/tournament-console/ui'
+import { Badge, Button, Competitor, RankPill, Table, TableWrap, Td, Th } from '@/components/tournament-console/ui'
 import { cn } from '@/lib/utils'
 import { ruleLabel } from '@/lib/tournament/standings'
 import type { Player, RankedRow, TieBreakRule } from '@/lib/tournament/types'
@@ -10,6 +10,10 @@ import type { Player, RankedRow, TieBreakRule } from '@/lib/tournament/types'
 /**
  * Live pool table. Rows that currently advance are shaded, so the effect of
  * changing the tie-break rule is visible immediately.
+ *
+ * Pass `onReorder` to let the organizer drag rows into any order by hand — the
+ * new order is reported as a player-id list and everything downstream
+ * (qualification, bracket seeding) re-derives from it.
  */
 export default function StandingsTable({
   rows,
@@ -19,6 +23,9 @@ export default function StandingsTable({
   tieRule,
   fillIds,
   doubles = false,
+  onReorder,
+  manuallyOrdered = false,
+  onResetOrder,
 }: {
   rows: RankedRow[]
   playerById: Map<string, Player>
@@ -27,15 +34,47 @@ export default function StandingsTable({
   tieRule: TieBreakRule
   fillIds?: Set<string>
   doubles?: boolean
+  onReorder?: (playerIds: string[]) => void
+  manuallyOrdered?: boolean
+  onResetOrder?: () => void
 }) {
   const hasTie = rows.some((r) => r.tieGroup !== null)
+  const draggable = Boolean(onReorder)
+
+  const [dragIndex, setDragIndex] = useState<number | null>(null)
+  const [dropIndex, setDropIndex] = useState<number | null>(null)
+
+  const commitReorder = (from: number, to: number) => {
+    if (!onReorder || from === to || from < 0 || to < 0) return
+    const ids = rows.map((r) => r.playerId)
+    const [moved] = ids.splice(from, 1)
+    ids.splice(to, 0, moved)
+    onReorder(ids)
+  }
 
   return (
     <>
+      {draggable ? (
+        <div className="flex flex-wrap items-center gap-2 px-3 pb-2 pt-2.5 text-[11.5px] text-ink-faint">
+          <span>Drag a row to set the finishing order by hand — qualification updates with it.</span>
+          {manuallyOrdered ? (
+            <>
+              <Badge tone="warn">manual order</Badge>
+              {onResetOrder ? (
+                <Button size="xs" variant="ghost" onClick={onResetOrder}>
+                  Reset to computed
+                </Button>
+              ) : null}
+            </>
+          ) : null}
+        </div>
+      ) : null}
+
       <TableWrap>
         <Table>
           <thead>
             <tr>
+              {draggable ? <Th className="w-8" /> : null}
               <Th className="w-11">#</Th>
               <Th>{doubles ? 'Pair' : 'Player'}</Th>
               <Th num>Seed</Th>
@@ -51,18 +90,51 @@ export default function StandingsTable({
             </tr>
           </thead>
           <tbody>
-            {rows.map((r) => {
+            {rows.map((r, index) => {
               const qualifies = r.rank <= advancePerPool
               const filled = Boolean(fillIds?.has(r.playerId)) && !qualifies
               return (
                 <tr
                   key={r.playerId}
+                  draggable={draggable}
+                  onDragStart={draggable ? () => setDragIndex(index) : undefined}
+                  onDragEnter={draggable ? () => setDropIndex(index) : undefined}
+                  onDragOver={draggable ? (e) => e.preventDefault() : undefined}
+                  onDragEnd={
+                    draggable
+                      ? () => {
+                          setDragIndex(null)
+                          setDropIndex(null)
+                        }
+                      : undefined
+                  }
+                  onDrop={
+                    draggable
+                      ? (e) => {
+                          e.preventDefault()
+                          if (dragIndex !== null) commitReorder(dragIndex, index)
+                          setDragIndex(null)
+                          setDropIndex(null)
+                        }
+                      : undefined
+                  }
                   className={cn(
                     'transition-colors hover:bg-subtle',
                     qualifies && 'bg-linear-to-r from-good-soft to-transparent to-40%',
                     filled && 'bg-linear-to-r from-warn-soft to-transparent to-40%',
+                    draggable && 'cursor-grab',
+                    dragIndex === index && 'opacity-40',
+                    dropIndex === index &&
+                      dragIndex !== null &&
+                      dragIndex !== index &&
+                      'ring-2 ring-inset ring-focus',
                   )}
                 >
+                  {draggable ? (
+                    <Td className="select-none text-center text-ink-faint" title="Drag to reorder">
+                      ⠿
+                    </Td>
+                  ) : null}
                   <Td>
                     <RankPill rank={r.rank} highlight={qualifies || filled} />
                   </Td>

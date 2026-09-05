@@ -1,6 +1,6 @@
 'use client'
 
-import { useMemo, useState } from 'react'
+import { useEffect, useMemo, useRef, useState } from 'react'
 
 import {
   ActionBar, Avatar, Badge, Button, Card, Competitor, Empty, Note, PageHead, Stat,
@@ -24,6 +24,22 @@ export default function GroupsStage() {
   const assigned = useMemo(() => new Set((pools ?? []).flatMap((p) => p.playerIds)), [pools])
   const unassigned = useMemo(() => players.filter((p) => !assigned.has(p.id)), [players, assigned])
   const currentSizes = pools?.map((p) => p.playerIds.length) ?? []
+
+  // The allocation must reflect the current roster the moment the host lands
+  // here — if players were added or removed after the pools were built, re-run
+  // the same algorithm automatically. Manual rearrangements (everyone still
+  // assigned) are left alone.
+  const staleAllocation =
+    Boolean(pools) && (unassigned.length > 0 || assigned.size !== players.length)
+  const healed = useRef(false)
+  useEffect(() => {
+    if (staleAllocation && pools && !healed.current) {
+      healed.current = true
+      actions.buildPools({ poolCount: pools.length, method: poolMethod })
+    } else if (!staleAllocation) {
+      healed.current = false
+    }
+  }, [staleAllocation, pools, poolMethod, actions])
   const undersized = pools?.filter((p) => p.playerIds.length < 2) ?? []
   const spread = useMemo(() => {
     const avgs = (pools ?? []).filter((p) => p.playerIds.length > 0).map((p) => poolStrength(p, playerById).avg)
@@ -94,7 +110,7 @@ export default function GroupsStage() {
       <PageHead
         eyebrow="Groups"
         title={`Groups — ${activeCategory.name}`}
-        sub="Drag any player into any group. Seeding order is used as the starting point — override it however you like."
+        sub={`Auto-allocated by the ${poolMethod} algorithm from the seeding order. Drag any player into any group to override it.`}
       >
         <Button size="sm" onClick={() => actions.shufflePools()}>
           ⇄ Shuffle teams

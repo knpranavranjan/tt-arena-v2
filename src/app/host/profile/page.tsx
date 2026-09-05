@@ -35,7 +35,7 @@ export default function HostProfilePage() {
             </div>
             <div className="flex flex-col gap-1.5">
               <Label htmlFor="email">Contact Email</Label>
-              <Input id="email" value={user.email} disabled />
+              <Input id="email" value={user.email ?? ""} disabled />
             </div>
             <div className="flex flex-col gap-1.5">
               <Label htmlFor="phone">Contact Phone</Label>

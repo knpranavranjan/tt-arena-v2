@@ -57,11 +57,6 @@ export function RegistrationsProvider({ children }: { children: ReactNode }) {
     return () => window.removeEventListener("storage", onStorage);
   }, []);
 
-  const persist = useCallback((next: TournamentRegistration[]) => {
-    setRegistrations(next);
-    window.localStorage.setItem(STORAGE_KEY, JSON.stringify(next));
-  }, []);
-
   const register = useCallback(
     (tournamentId: string, playerId: string, playerName: string, entryFee: number) => {
       setRegistrations((current) => {
@@ -86,16 +81,19 @@ export function RegistrationsProvider({ children }: { children: ReactNode }) {
     [],
   );
 
-  const confirmPayment = useCallback(
-    (tournamentId: string, playerId: string) => {
-      persist(
-        registrations.map((r) =>
-          r.tournamentId === tournamentId && r.playerId === playerId ? { ...r, status: "REGISTERED" as const } : r,
-        ),
+  // A functional update, like `register` above — not a plain `registrations.map(...)`
+  // off the render's closure — so this stays correct even when called in the
+  // same tick right after `register()` (e.g. a single "pay now" action that
+  // registers and immediately confirms payment for a brand-new category).
+  const confirmPayment = useCallback((tournamentId: string, playerId: string) => {
+    setRegistrations((current) => {
+      const next = current.map((r) =>
+        r.tournamentId === tournamentId && r.playerId === playerId ? { ...r, status: "REGISTERED" as const } : r,
       );
-    },
-    [registrations, persist],
-  );
+      window.localStorage.setItem(STORAGE_KEY, JSON.stringify(next));
+      return next;
+    });
+  }, []);
 
   const statusFor = useCallback(
     (tournamentId: string, playerId: string) =>

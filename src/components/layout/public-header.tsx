@@ -6,6 +6,7 @@ import { useState } from "react";
 import { Menu } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { Sheet, SheetContent, SheetHeader, SheetTitle, SheetTrigger } from "@/components/ui/sheet";
+import { NotificationBell } from "@/components/layout/notification-bell";
 import { dashboardPathForRole, useAuth } from "@/lib/auth";
 import { cn } from "@/lib/utils";
 import type { Role } from "@/lib/types";
@@ -99,6 +100,7 @@ export function PublicHeader() {
         )}
 
         <div className="hidden items-center gap-3 md:flex">
+          {user && !isAuthPage && <NotificationBell />}
           {user && !showAuthButtons ? (
             <Button
               size="lg"

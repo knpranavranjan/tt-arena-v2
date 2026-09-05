@@ -16,9 +16,10 @@ import {
   PageHead, Progress, SeedPill,
 } from '@/components/tournament-console/ui'
 import { cn } from '@/lib/utils'
-import { log2, roundName } from '@/lib/tournament/bracketMath'
+import { log2, roundName, THIRD_PLACE_STAGE } from '@/lib/tournament/bracketMath'
 import {
-  bracketProgress, championId, findBracketMatch, fourthPlaceId, runnerUpId, thirdPlaceId,
+  bracketProgress, championId, findBracketMatch, fourthPlaceId, knockoutGameRules, runnerUpId,
+  thirdPlaceId,
 } from '@/lib/tournament/knockout'
 import { formatGames, gameTally } from '@/lib/tournament/scoring'
 import type { KnockoutMatch } from '@/lib/tournament/types'
@@ -27,8 +28,27 @@ import { useActiveTournament } from '@/lib/matches-store'
 export default function KnockoutStage() {
   const {
     tournament, isDoubles, qualification, playerById, seedOf, bracket, poolsComplete, poolMatches,
-    manualQualifierIds, qualifierOrder, actions,
+    manualQualifierIds, qualifierOrder, releasedStages, actions,
   } = useActiveTournament()
+
+  const StagePublishToggle = ({ stageKey }: { stageKey: string }) => {
+    const live = releasedStages.includes(stageKey)
+    return (
+      <button
+        type="button"
+        onClick={() => (live ? actions.unpublishStage(stageKey) : actions.publishStage(stageKey))}
+        className={cn(
+          'mx-auto mt-1 block rounded-full px-2.5 py-0.5 text-[10px] font-semibold uppercase tracking-[0.06em] transition',
+          live
+            ? 'bg-good-soft text-good hover:bg-good/20'
+            : 'border border-line text-ink-faint hover:border-ink-faint hover:text-ink',
+        )}
+        title={live ? 'Published to players — click to hide' : 'Publish this round to registered players'}
+      >
+        {live ? '● live' : 'publish'}
+      </button>
+    )
+  }
   const [editingId, setEditingId] = useState<string | null>(null)
   const [showQualifiers, setShowQualifiers] = useState(!bracket)
   const [dragIndex, setDragIndex] = useState<number | null>(null)
@@ -422,6 +442,7 @@ export default function KnockoutStage() {
                     <div key={i} className="flex min-w-[216px] flex-col justify-around gap-3">
                       <div className="mb-1 border-b border-line-soft pb-2 text-center text-[11px] font-semibold uppercase tracking-[0.07em] text-ink-faint">
                         {roundName(bracket.size / 2 ** i)}
+                        <StagePublishToggle stageKey={roundName(bracket.size / 2 ** i)} />
                       </div>
                       {round.map((m) => (
                         <MatchCard key={m.id} match={m} isFinal={i === bracket.rounds.length - 1} />
@@ -433,6 +454,7 @@ export default function KnockoutStage() {
                     <div className="flex min-w-[216px] flex-col justify-center gap-3">
                       <div className="mb-1 border-b border-line-soft pb-2 text-center text-[11px] font-semibold uppercase tracking-[0.07em] text-ink-faint">
                         Third Place
+                        <StagePublishToggle stageKey={THIRD_PLACE_STAGE} />
                       </div>
                       <MatchCard match={bracket.thirdPlace} />
                       {!bracket.thirdPlace.aId || !bracket.thirdPlace.bId ? (
@@ -480,6 +502,10 @@ export default function KnockoutStage() {
               const isThird = editingMatch.id === bracket.thirdPlace?.id
               const isFinalRound = editingMatch.round === bracket.rounds.length - 1
               const roundLabel = isThird ? 'Third Place' : roundName(bracket.size / 2 ** editingMatch.round)
+              // Third place is contested by the beaten semi-finalists, so it uses
+              // the semi-final / final rule set (remaining = 4).
+              const remainingInRound = isThird ? 4 : bracket.size / 2 ** editingMatch.round
+              const gameRules = knockoutGameRules(tournament, remainingInRound)
               const advanceHint = isThird
                 ? 'this decides third place.'
                 : isFinalRound
@@ -489,15 +515,15 @@ export default function KnockoutStage() {
                 <Card className="mt-4">
                   <CardHead
                     title={`${roundLabel} — enter score`}
-                    desc={`${name(editingMatch.aId)} vs ${name(editingMatch.bId)}`}
+                    desc={`${name(editingMatch.aId)} vs ${name(editingMatch.bId)} · best of ${gameRules.bestOf}, first to ${gameRules.pointsToWin}`}
                   />
                   <CardBody className="max-w-[440px]">
                     <ScoreEditor
                       match={editingMatch}
                       playerById={playerById}
-                      bestOf={tournament.koBestOf ?? tournament.bestOf}
-                      pointsToWin={tournament.koPointsToWin}
-                      winBy={tournament.koWinBy}
+                      bestOf={gameRules.bestOf}
+                      pointsToWin={gameRules.pointsToWin}
+                      winBy={gameRules.winBy}
                       advanceHint={advanceHint}
                       onCancel={() => setEditingId(null)}
                       onSave={(result) => {

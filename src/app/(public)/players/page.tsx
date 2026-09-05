@@ -14,6 +14,7 @@ import { EmptyState } from "@/components/feedback/empty-state";
 import { RevealGroup, RevealItem } from "@/components/motion/reveal";
 import { arenaFontVariables } from "@/lib/fonts";
 import { clubs, players, getWeeklyDelta } from "@/lib/mock-data";
+import { usePlayerRatings } from "@/lib/player-ratings";
 import { initials } from "@/lib/format";
 import type { Gender } from "@/lib/types";
 
@@ -24,6 +25,7 @@ export default function PlayersPage({ basePath = "/players" }: { basePath?: stri
   const [club, setClub] = useState("all");
   const [state, setState] = useState("all");
   const [gender, setGender] = useState("all");
+  const ratings = usePlayerRatings();
 
   const filtered = useMemo(() => {
     const result = players.filter((p) => {
@@ -33,8 +35,8 @@ export default function PlayersPage({ basePath = "/players" }: { basePath?: stri
       if (gender !== "all" && p.gender !== (gender as Gender)) return false;
       return true;
     });
-    return [...result].sort((a, b) => b.rating - a.rating);
-  }, [search, club, state, gender]);
+    return [...result].sort((a, b) => ratings.getRating(b.id) - ratings.getRating(a.id));
+  }, [search, club, state, gender, ratings]);
 
   return (
     <div className={arenaFontVariables} style={{ fontFamily: "var(--font-home-body)" }}>
@@ -194,7 +196,7 @@ export default function PlayersPage({ basePath = "/players" }: { basePath?: stri
                         className="px-6 py-5 text-right text-base font-bold text-[#e2e2e8]"
                         style={{ fontFamily: "var(--font-home-mono)" }}
                       >
-                        {player.rating}
+                        {ratings.getRating(player.id)}
                       </td>
                       <td className="px-6 py-5 text-right">
                         <span
@@ -247,7 +249,7 @@ export default function PlayersPage({ basePath = "/players" }: { basePath?: stri
                           Rating
                         </span>
                         <span className="text-lg font-bold text-[#ff8f86]" style={{ fontFamily: "var(--font-home-mono)" }}>
-                          {player.rating}
+                          {ratings.getRating(player.id)}
                         </span>
                       </div>
                       <span

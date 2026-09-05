@@ -27,6 +27,7 @@ import { arenaFontVariables } from "@/lib/fonts";
 import { getClub, getClubPlayers, events, tournaments } from "@/lib/mock-data";
 import { formatDate, initials } from "@/lib/format";
 import { JoinClubButton } from "@/components/club/join-club-button";
+import { LiveRating } from "@/components/players/live-rating";
 import type { Player, TTEvent } from "@/lib/types";
 
 export default async function ClubProfilePage({
@@ -42,7 +43,11 @@ export default async function ClubProfilePage({
   const clubEvents = [...events]
     .filter((e) => e.participatingClubIds.includes(club.id))
     .sort((a, b) => (a.status === "LIVE" ? -1 : b.status === "LIVE" ? 1 : 0));
-  const mapQuery = encodeURIComponent(club.address);
+  // The club chose its map spot at sign-up: an exact "current location" pin, or
+  // (the default) the address itself. Either way it feeds the same map query.
+  const mapQuery = club.coordinates
+    ? `${club.coordinates.lat},${club.coordinates.lng}`
+    : encodeURIComponent(club.address);
   const f = club.facilities;
 
   const facilityCards: { icon: ReactNode; title: string; detail: string }[] = [
@@ -119,7 +124,6 @@ export default async function ClubProfilePage({
             <div className="flex divide-x divide-white/10 rounded-[4px] border border-white/10 bg-white/[0.04] backdrop-blur-xl">
               <StatCell value={clubPlayers.length} label="Players" />
               <StatCell value={clubEvents.length} label="Events" />
-              <StatCell value={club.rating.toFixed(1)} label="Rating" />
             </div>
             <JoinClubButton clubId={club.id} clubName={club.name} />
           </div>
@@ -162,7 +166,7 @@ export default async function ClubProfilePage({
             <div className="overflow-hidden rounded-[8px] border border-white/10">
               <iframe
                 title={`Map showing ${club.name}`}
-                src={`https://www.google.com/maps?q=${mapQuery}&output=embed`}
+                src={`https://www.google.com/maps?q=${mapQuery}&z=16&output=embed`}
                 className="h-40 w-full grayscale invert-[0.9] contrast-[0.85]"
                 loading="lazy"
                 referrerPolicy="no-referrer-when-downgrade"
@@ -313,12 +317,11 @@ function PlayerRow({ player }: { player: Player }) {
         <p className="truncate text-sm font-semibold text-[#e2e2e8]">{player.name}</p>
         <p className="truncate text-xs uppercase tracking-wide text-[#8b8b93]">{player.playStyle}</p>
       </div>
-      <span
+      <LiveRating
+        playerId={player.id}
         className="shrink-0 rounded-[2px] bg-[#ff2448]/15 px-2 py-1 text-xs font-bold text-[#ff8f86]"
         style={{ fontFamily: "var(--font-home-mono)" }}
-      >
-        {player.rating}
-      </span>
+      />
     </Link>
   );
 }

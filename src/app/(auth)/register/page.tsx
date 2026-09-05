@@ -1,10 +1,15 @@
 "use client";
 
-import { useState } from "react";
+import { useEffect, useRef, useState } from "react";
 import Link from "next/link";
 import { useRouter } from "next/navigation";
 import { useAuth, dashboardPathForRole } from "@/lib/auth";
-import type { Category, Gender, Role } from "@/lib/types";
+import {
+  ClubLocationPicker,
+  DEFAULT_CLUB_LOCATION,
+  type ClubLocation,
+} from "@/components/auth/club-location-picker";
+import type { Gender, Role } from "@/lib/types";
 
 const roleOptions: { value: Role; label: string }[] = [
   { value: "PLAYER", label: "Player" },
@@ -12,7 +17,22 @@ const roleOptions: { value: Role; label: string }[] = [
   { value: "HOST", label: "Tournament Host" },
 ];
 
-const categories: Category[] = ["Under 13", "Under 17", "Under 21", "Senior", "Veteran (40+)"];
+type SkillLevel = "Beginner" | "Intermediate" | "Advanced" | "Pro";
+
+const skillLevels: { value: SkillLevel; description: string }[] = [
+  { value: "Beginner", description: "Learning basic strokes and rules." },
+  { value: "Intermediate", description: "Consistent gameplay and knows spin control." },
+  {
+    value: "Advanced",
+    description:
+      "Tactical play with custom rubbers. For players participating in district, state level tournaments.",
+  },
+  {
+    value: "Pro",
+    description:
+      "For players participating in high-level tournaments (state, nationals, and international).",
+  },
+];
 
 const fieldClass =
   "w-full rounded-none border border-white/10 bg-[#0a0a0a] px-4 py-3 text-white transition-colors focus:border-[#ff2448] focus:outline-none";
@@ -20,21 +40,48 @@ const labelClass = "block text-xs font-semibold uppercase tracking-widest text-[
 
 export default function RegisterPage() {
   const [role, setRole] = useState<Role>("PLAYER");
+  const [uniqueId, setUniqueId] = useState("");
   const [name, setName] = useState("");
   const [email, setEmail] = useState("");
   const [phone, setPhone] = useState("");
   const [dob, setDob] = useState("");
   const [gender, setGender] = useState<Gender | "">("");
-  const [category, setCategory] = useState<Category | "">("");
+  const [skillLevel, setSkillLevel] = useState<SkillLevel | "">("");
+  const [skillOpen, setSkillOpen] = useState(false);
+  const skillRef = useRef<HTMLDivElement>(null);
   const [location, setLocation] = useState("");
+  const [clubLocation, setClubLocation] = useState<ClubLocation>(DEFAULT_CLUB_LOCATION);
   const [password, setPassword] = useState("");
-  const { login } = useAuth();
+  const [error, setError] = useState<string | null>(null);
+  const { register } = useAuth();
   const router = useRouter();
+
+  // Close the skill-level listbox on outside click / Escape.
+  useEffect(() => {
+    if (!skillOpen) return;
+    const onDown = (e: MouseEvent) => {
+      if (skillRef.current && !skillRef.current.contains(e.target as Node)) setSkillOpen(false);
+    };
+    const onKey = (e: KeyboardEvent) => {
+      if (e.key === "Escape") setSkillOpen(false);
+    };
+    document.addEventListener("mousedown", onDown);
+    document.addEventListener("keydown", onKey);
+    return () => {
+      document.removeEventListener("mousedown", onDown);
+      document.removeEventListener("keydown", onKey);
+    };
+  }, [skillOpen]);
 
   const handleSubmit = (e: React.FormEvent) => {
     e.preventDefault();
-    login(role);
-    router.push(dashboardPathForRole[role]);
+    setError(null);
+    const res = register({ uniqueId, name, password, role, email });
+    if (!res.ok) {
+      setError(res.error);
+      return;
+    }
+    router.push(dashboardPathForRole[res.role]);
   };
 
   return (
@@ -64,14 +111,30 @@ export default function RegisterPage() {
 
         <form onSubmit={handleSubmit} className="space-y-6">
           <div className="space-y-2">
+            <label htmlFor="uniqueId" className={labelClass}>Unique ID</label>
+            <input
+              id="uniqueId"
+              required
+              type="text"
+              autoComplete="username"
+              placeholder="e.g. arjun_s07"
+              value={uniqueId}
+              onChange={(e) => setUniqueId(e.target.value)}
+              className={`${fieldClass} placeholder:text-[#5a5a60]`}
+            />
+            <p className="text-[11px] text-[#5a5a60]">You&apos;ll sign in with this and your password. It must be unique.</p>
+          </div>
+
+          <div className="space-y-2">
             <label htmlFor="fullName" className={labelClass}>Full Name</label>
             <input id="fullName" required type="text" value={name} onChange={(e) => setName(e.target.value)} className={fieldClass} />
+            <p className="text-[11px] text-[#5a5a60]">Shown on your dashboard. Two people can share the same name.</p>
           </div>
 
           <div className="grid grid-cols-1 gap-6 md:grid-cols-2">
             <div className="space-y-2">
               <label htmlFor="email" className={labelClass}>Email</label>
-              <input id="email" required type="email" value={email} onChange={(e) => setEmail(e.target.value)} className={fieldClass} />
+              <input id="email" type="email" value={email} onChange={(e) => setEmail(e.target.value)} className={fieldClass} />
             </div>
             <div className="space-y-2">
               <label htmlFor="phone" className={labelClass}>Phone</label>
@@ -82,13 +145,12 @@ export default function RegisterPage() {
           <div className="grid grid-cols-1 gap-6 md:grid-cols-2">
             <div className="space-y-2">
               <label htmlFor="dob" className={labelClass}>Date of Birth</label>
-              <input id="dob" required type="date" value={dob} onChange={(e) => setDob(e.target.value)} className={`${fieldClass} [color-scheme:dark]`} />
+              <input id="dob" type="date" value={dob} onChange={(e) => setDob(e.target.value)} className={`${fieldClass} [color-scheme:dark]`} />
             </div>
             <div className="space-y-2">
               <label htmlFor="gender" className={labelClass}>Gender</label>
               <select
                 id="gender"
-                required
                 value={gender}
                 onChange={(e) => setGender(e.target.value as Gender)}
                 className={`${fieldClass} appearance-none bg-[url('data:image/svg+xml;charset=UTF-8,%3csvg%20xmlns=%27http://www.w3.org/2000/svg%27%20viewBox=%270%200%2024%2024%27%20fill=%27none%27%20stroke=%27white%27%20stroke-width=%272%27%20stroke-linecap=%27round%27%20stroke-linejoin=%27round%27%3e%3cpolyline%20points=%276%209%2012%2015%2018%209%27%3e%3c/polyline%3e%3c/svg%3e')] bg-[position:right_1rem_center] bg-no-repeat`}
@@ -102,34 +164,82 @@ export default function RegisterPage() {
 
           {role === "PLAYER" && (
             <div className="space-y-2">
-              <label htmlFor="category" className={labelClass}>Category</label>
-              <select
-                id="category"
-                required
-                value={category}
-                onChange={(e) => setCategory(e.target.value as Category)}
-                className={`${fieldClass} appearance-none bg-[url('data:image/svg+xml;charset=UTF-8,%3csvg%20xmlns=%27http://www.w3.org/2000/svg%27%20viewBox=%270%200%2024%2024%27%20fill=%27none%27%20stroke=%27white%27%20stroke-width=%272%27%20stroke-linecap=%27round%27%20stroke-linejoin=%27round%27%3e%3cpolyline%20points=%276%209%2012%2015%2018%209%27%3e%3c/polyline%3e%3c/svg%3e')] bg-[position:right_1rem_center] bg-no-repeat`}
-              >
-                <option value="" disabled>Select</option>
-                {categories.map((c) => (
-                  <option key={c} value={c}>{c}</option>
-                ))}
-              </select>
+              <label htmlFor="skillLevel" className={labelClass}>Skill Level</label>
+              <div ref={skillRef} className="relative">
+                <button
+                  id="skillLevel"
+                  type="button"
+                  aria-haspopup="listbox"
+                  aria-expanded={skillOpen}
+                  onClick={() => setSkillOpen((v) => !v)}
+                  className={`${fieldClass} flex items-center justify-between gap-3 text-left ${
+                    skillLevel ? "text-white" : "text-[#5a5a60]"
+                  } ${skillOpen ? "border-[#ff2448]" : ""}`}
+                >
+                  <span>{skillLevel || "Select"}</span>
+                  <svg
+                    viewBox="0 0 24 24"
+                    fill="none"
+                    stroke="white"
+                    strokeWidth="2"
+                    strokeLinecap="round"
+                    strokeLinejoin="round"
+                    className={`h-4 w-4 shrink-0 transition-transform ${skillOpen ? "rotate-180" : ""}`}
+                  >
+                    <polyline points="6 9 12 15 18 9" />
+                  </svg>
+                </button>
+
+                {skillOpen && (
+                  <ul
+                    role="listbox"
+                    aria-label="Skill level"
+                    className="absolute left-0 right-0 z-20 mt-1 max-h-72 overflow-y-auto border border-white/10 bg-[#0a0a0a] shadow-2xl"
+                  >
+                    {skillLevels.map((s) => {
+                      const active = skillLevel === s.value;
+                      return (
+                        <li key={s.value} role="option" aria-selected={active}>
+                          <button
+                            type="button"
+                            onClick={() => {
+                              setSkillLevel(s.value);
+                              setSkillOpen(false);
+                            }}
+                            className={`block w-full border-b border-white/5 px-4 py-3 text-left text-[13px] leading-snug transition-colors last:border-b-0 ${
+                              active
+                                ? "bg-[#ff2448]/15 text-white"
+                                : "text-[#8b8b93] hover:bg-white/5 hover:text-white"
+                            }`}
+                          >
+                            <span className="font-semibold text-white">{s.value}:</span> {s.description}
+                          </button>
+                        </li>
+                      );
+                    })}
+                  </ul>
+                )}
+              </div>
             </div>
           )}
 
           <div className="space-y-2">
-            <label htmlFor="location" className={labelClass}>Location</label>
+            <label htmlFor="location" className={labelClass}>
+              {role === "CLUB" ? "Club Address" : "Location"}
+            </label>
             <input
               id="location"
-              required
               type="text"
-              placeholder="City, State"
+              placeholder={role === "CLUB" ? "Street, area, city, state, PIN" : "City, State"}
               value={location}
               onChange={(e) => setLocation(e.target.value)}
               className={`${fieldClass} placeholder:text-[#5a5a60]`}
             />
           </div>
+
+          {role === "CLUB" && (
+            <ClubLocationPicker value={clubLocation} onChange={setClubLocation} address={location} />
+          )}
 
           <div className="space-y-2">
             <label htmlFor="password" className={labelClass}>Password</label>
@@ -144,6 +254,12 @@ export default function RegisterPage() {
             />
           </div>
 
+          {error && (
+            <p className="border border-[#ff2448]/40 bg-[#ff2448]/10 px-4 py-3 text-xs font-medium text-[#ff8f86]">
+              {error}
+            </p>
+          )}
+
           <div className="pt-4">
             <button
               type="submit"
@@ -155,7 +271,7 @@ export default function RegisterPage() {
         </form>
 
         <p className="mt-4 text-center text-xs text-[#5a5a60]">
-          Demo mode — this creates a preview session, not a real account.
+          Demo mode — the account is saved in this browser only.
         </p>
 
         <div className="mt-6 text-center">

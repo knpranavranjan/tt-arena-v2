@@ -93,3 +93,27 @@ export function seedPlayers(players: readonly Player[]): SeededPlayer[] {
 export function seedMap(players: readonly Player[]): Map<string, number> {
   return new Map(seedPlayers(players).map((p) => [p.id, p.seed]))
 }
+
+/**
+ * Rating seeding with an optional hand-set order laid on top: players named in
+ * `manualOrder` take that order; anyone else keeps rating order, behind them.
+ * Shared by the console's live view and the read-only player Match Centre.
+ */
+export function applySeedOrder(
+  players: readonly Player[],
+  manualOrder: readonly string[] | null | undefined,
+): SeededPlayer[] {
+  const base = seedPlayers(players)
+  if (!manualOrder || manualOrder.length === 0) return base
+  const byId = new Map(base.map((p) => [p.id, p]))
+  const ordered: SeededPlayer[] = []
+  for (const id of manualOrder) {
+    const p = byId.get(id)
+    if (p) {
+      ordered.push(p)
+      byId.delete(id)
+    }
+  }
+  for (const p of base) if (byId.has(p.id)) ordered.push(p)
+  return ordered.map((p, i) => ({ ...p, seed: i + 1 }))
+}

@@ -3,7 +3,7 @@
 import { useState } from "react";
 import Link from "next/link";
 import { usePathname, useRouter } from "next/navigation";
-import { Bell, LogOut, Menu, Settings, type LucideIcon } from "lucide-react";
+import { Headset, LogOut, Menu, Settings, type LucideIcon } from "lucide-react";
 import {
   DropdownMenu,
   DropdownMenuContent,
@@ -15,9 +15,9 @@ import { Avatar, AvatarFallback } from "@/components/ui/avatar";
 import { Button } from "@/components/ui/button";
 import { Sheet, SheetContent, SheetHeader, SheetTitle, SheetTrigger } from "@/components/ui/sheet";
 import { Wordmark } from "@/components/layout/public-header";
+import { NotificationBell } from "@/components/layout/notification-bell";
 import { useAuth } from "@/lib/auth";
-import { useCurrentClub } from "@/lib/session-data";
-import { useJoinRequests } from "@/lib/join-requests";
+import { useTournamentAssistants } from "@/lib/tournament-assistants";
 import { initials } from "@/lib/format";
 import { cn } from "@/lib/utils";
 import type { Role } from "@/lib/types";
@@ -55,8 +55,17 @@ export function DashboardShell({
 }) {
   const pathname = usePathname();
   const { user, logout } = useAuth();
+  const { assignmentsFor } = useTournamentAssistants();
   const router = useRouter();
   const [open, setOpen] = useState(false);
+
+  // A host can hand any account match-console access to a tournament. When this
+  // account holds at least one such grant, surface an "Assisting" entry into the
+  // matches-only /assist surface — from whichever portal they normally use.
+  const items: NavItem[] =
+    assignmentsFor(user?.uniqueId).length > 0
+      ? [...navItems, { href: "/assist", label: "Assisting", icon: Headset }]
+      : navItems;
 
   return (
     <div className="flex min-h-full flex-1 flex-col">
@@ -70,7 +79,7 @@ export function DashboardShell({
           </div>
 
           <nav className="hidden items-center gap-2 md:flex">
-            {navItems.map((item) => {
+            {items.map((item) => {
               const active = pathname === item.href || pathname.startsWith(`${item.href}/`);
               return (
                 <Link
@@ -92,7 +101,7 @@ export function DashboardShell({
 
           <div className="flex items-center gap-3">
             <span className="hidden text-sm text-muted-foreground lg:inline">{pageTitle}</span>
-            {role === "CLUB" && <JoinRequestsBell />}
+            {user && <NotificationBell />}
             {user && (
               <DropdownMenu>
                 <DropdownMenuTrigger
@@ -137,7 +146,7 @@ export function DashboardShell({
                   <SheetTitle className="font-heading">{roleLabel[role]}</SheetTitle>
                 </SheetHeader>
                 <nav className="flex flex-col gap-1 px-4">
-                  {navItems.map((item) => {
+                  {items.map((item) => {
                     const active = pathname === item.href || pathname.startsWith(`${item.href}/`);
                     return (
                       <Link
@@ -164,23 +173,3 @@ export function DashboardShell({
   );
 }
 
-function JoinRequestsBell() {
-  const club = useCurrentClub();
-  const { pendingForClub } = useJoinRequests();
-  const count = club ? pendingForClub(club.id).length : 0;
-
-  return (
-    <Link
-      href="/club/dashboard#join-requests"
-      className="relative inline-flex h-9 w-9 items-center justify-center rounded-full text-muted-foreground transition-colors hover:bg-accent hover:text-foreground"
-      aria-label={count > 0 ? `${count} pending join requests` : "Join requests"}
-    >
-      <Bell className="h-4 w-4" strokeWidth={1.75} />
-      {count > 0 && (
-        <span className="absolute right-0.5 top-0.5 flex h-4 min-w-4 items-center justify-center rounded-full bg-[#ff2448] px-1 text-[10px] font-bold leading-none text-white">
-          {count}
-        </span>
-      )}
-    </Link>
-  );
-}

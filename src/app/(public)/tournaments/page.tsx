@@ -15,7 +15,9 @@ import { EmptyState } from "@/components/feedback/empty-state";
 import { RevealGroup, RevealItem } from "@/components/motion/reveal";
 import { ArenaPhotoBackdrop } from "@/components/media/arena-photo-backdrop";
 import { arenaFontVariables } from "@/lib/fonts";
-import { tournaments } from "@/lib/mock-data";
+import { useAllEvents, useAllTournaments } from "@/lib/hosted-tournaments";
+import { effectiveStatus, useTournamentStatus } from "@/lib/tournament-status";
+import { buildEventGroups, categoryCountLabel, mostActiveStatus, type EventGroup } from "@/lib/event-groups";
 import { formatDate } from "@/lib/format";
 import type { TournamentStatus } from "@/lib/types";
 
@@ -30,28 +32,55 @@ const statuses: { value: TournamentStatus | "all"; label: string }[] = [
 
 const statusLabel = Object.fromEntries(statuses.map((s) => [s.value, s.label]));
 
+const STATUS_TEXT: Record<TournamentStatus, string> = {
+  DRAFT: "Pending Approval",
+  REGISTRATION_OPEN: "Registration Open",
+  REGISTRATION_CLOSED: "Registration Closed",
+  SEEDING: "Seeding",
+  POOLS: "Pools",
+  KNOCKOUT: "In Progress",
+  COMPLETED: "Completed",
+};
+
+// "Live" means matches are actually being played right now — the same bar
+// used across the dashboards' status pills — not just registration being open.
 function isLive(status: TournamentStatus) {
-  return status === "REGISTRATION_OPEN" || status === "SEEDING" || status === "POOLS" || status === "KNOCKOUT";
+  return status === "POOLS" || status === "KNOCKOUT";
+}
+
+interface DisplayGroup extends EventGroup {
+  status: TournamentStatus;
+  href: string;
 }
 
 export default function TournamentsPage() {
   const [search, setSearch] = useState("");
   const [status, setStatus] = useState<TournamentStatus | "all">("all");
 
-  const filtered = useMemo(() => {
-    return tournaments.filter((t) => {
-      if (search && !t.name.toLowerCase().includes(search.toLowerCase())) return false;
-      if (status !== "all" && t.status !== status) return false;
-      return true;
-    });
-  }, [search, status]);
+  const allTournaments = useAllTournaments();
+  const allEvents = useAllEvents();
+  const { overrides } = useTournamentStatus();
 
-  // Featured pick comes from the filtered set only, so search/status filters also affect it.
-  const featured = [...filtered].sort((a, b) => {
-    if (isLive(a.status) !== isLive(b.status)) return isLive(a.status) ? -1 : 1;
-    return new Date(a.date).getTime() - new Date(b.date).getTime();
-  })[0];
-  const gridTournaments = filtered.filter((t) => t.id !== featured?.id);
+  const groups = useMemo<DisplayGroup[]>(() => {
+    return buildEventGroups(allTournaments, allEvents)
+      .map((g) => ({
+        ...g,
+        status: mostActiveStatus(g.categories.map((c) => effectiveStatus(c, overrides))),
+        href: `/tournaments/${g.primary.id}`,
+      }))
+      // A hosted event stays hidden from players until an admin approves it.
+      .filter((g) => g.status !== "DRAFT");
+  }, [allTournaments, allEvents, overrides]);
+
+  const filtered = groups.filter((g) => {
+    if (search && !g.name.toLowerCase().includes(search.toLowerCase())) return false;
+    if (status !== "all" && g.status !== status) return false;
+    return true;
+  });
+
+  const live = filtered.filter((g) => isLive(g.status));
+  const upcoming = filtered.filter((g) => !isLive(g.status) && g.status !== "COMPLETED");
+  const completed = filtered.filter((g) => g.status === "COMPLETED");
 
   return (
     <div className={arenaFontVariables} style={{ fontFamily: "var(--font-home-body)" }}>
@@ -88,7 +117,7 @@ export default function TournamentsPage() {
       </section>
 
       {/* Discovery bar */}
-      <section className="relative z-20 mx-auto mb-12 w-full max-w-[1280px] px-4 sm:px-12">
+      <section className="relative z-20 mx-auto mt-10 mb-12 w-full max-w-[1280px] px-4 sm:mt-14 sm:px-12">
         <div className="flex flex-col items-stretch gap-4 md:flex-row">
           <div className="relative flex-grow">
             <Search className="pointer-events-none absolute left-4 top-1/2 h-4 w-4 -translate-y-1/2 text-[#c2c6d7]" />
@@ -97,11 +126,11 @@ export default function TournamentsPage() {
               placeholder="Search tournaments…"
               value={search}
               onChange={(e) => setSearch(e.target.value)}
-              className="w-full rounded-[4px] border border-white/10 bg-[#1a1c20] py-4 pl-11 pr-4 text-sm text-[#e2e2e8] placeholder:text-[#c2c6d7]/50 focus:border-[#ff2448] focus:outline-none focus:ring-1 focus:ring-[#ff2448]"
+              className="h-[52px] w-full rounded-[4px] border border-white/10 bg-[#1a1c20] pl-11 pr-4 text-sm text-[#e2e2e8] placeholder:text-[#c2c6d7]/50 focus:border-[#ff2448] focus:outline-none focus:ring-1 focus:ring-[#ff2448]"
             />
           </div>
           <Select value={status} onValueChange={(v) => setStatus((v as TournamentStatus | "all") ?? "all")}>
-            <SelectTrigger className="w-full border-white/10 bg-[#1a1c20] py-4 text-[#e2e2e8] md:w-56">
+            <SelectTrigger className="!h-[52px] w-full !rounded-[4px] border-white/10 bg-[#1a1c20] px-4 text-sm text-[#e2e2e8] md:w-56">
               <SelectValue>{(value: TournamentStatus | "all") => statusLabel[value] ?? "Status"}</SelectValue>
             </SelectTrigger>
             <SelectContent>
@@ -122,124 +151,158 @@ export default function TournamentsPage() {
           />
         </section>
       ) : (
-        <>
-          {/* Featured tournament */}
-          {featured && (
-            <section className="mx-auto mb-20 w-full max-w-[1280px] px-4 sm:px-12">
-              <Link
-                href={`/tournaments/${featured.id}`}
-                className="group relative flex flex-col overflow-hidden rounded-[8px] border border-white/10 bg-white/[0.03] backdrop-blur-xl transition-colors hover:border-[#ff2448]/50 md:flex-row"
-              >
-                <span
-                  className={`absolute left-4 top-4 z-20 inline-flex items-center gap-2 rounded-[2px] px-3 py-1 text-[10px] font-semibold uppercase tracking-wide backdrop-blur ${
-                    isLive(featured.status)
-                      ? "bg-[#ff2448] text-[#ffd2cd]"
-                      : "border border-white/20 bg-[#111318]/80 text-[#e2e2e8]"
-                  }`}
-                  style={{ fontFamily: "var(--font-home-mono)" }}
-                >
-                  {isLive(featured.status) && <span className="h-1.5 w-1.5 animate-pulse rounded-full bg-white" />}
-                  {statusLabel[featured.status]}
-                </span>
-                <div className="relative h-64 w-full overflow-hidden md:h-auto md:w-3/5">
-                  <ArenaPhotoBackdrop variant="subtle" />
-                </div>
-                <div className="flex w-full flex-col justify-center p-8 md:w-2/5">
-                  <h2 className="mb-2 text-2xl font-bold uppercase text-[#e2e2e8] sm:text-[28px]">
-                    {featured.name}
-                  </h2>
-                  <div className="mb-6 space-y-1.5 text-[#c2c6d7]">
-                    <p className="flex items-center gap-1.5">
-                      <Calendar className="h-4 w-4 shrink-0" strokeWidth={1.5} />
-                      {formatDate(featured.date)}
-                    </p>
-                    <p className="flex items-center gap-1.5">
-                      <MapPin className="h-4 w-4 shrink-0" strokeWidth={1.5} />
-                      {featured.venue}
-                    </p>
-                    <p className="flex items-center gap-1.5">
-                      <Trophy className="h-4 w-4 shrink-0" strokeWidth={1.5} />
-                      {featured.category}
-                    </p>
-                  </div>
-                  <div className="mb-8 flex gap-6">
-                    <div>
-                      <div
-                        className="mb-1 text-xs uppercase tracking-wide text-[#c2c6d7]"
-                        style={{ fontFamily: "var(--font-home-mono)" }}
-                      >
-                        Players
-                      </div>
-                      <div className="text-2xl font-bold text-[#e2e2e8]">
-                        {featured.registeredPlayerIds.length}/{featured.maxPlayers}
-                      </div>
-                    </div>
-                  </div>
-                  <span
-                    className={`inline-flex w-fit items-center gap-2 rounded-[4px] px-6 py-3 text-sm font-semibold transition-all ${
-                      isLive(featured.status)
-                        ? "border border-[#ff2448] bg-[#ff2448]/10 text-[#ff8f86] group-hover:bg-[#ff2448] group-hover:text-white"
-                        : "border border-white/20 text-[#e2e2e8] group-hover:bg-white/5"
-                    }`}
-                  >
-                    {featured.status === "REGISTRATION_OPEN" ? "Register Now" : "View Tournament"}
-                    <ArrowRight className="h-4 w-4 transition-transform group-hover:translate-x-1" strokeWidth={2} />
-                  </span>
-                </div>
-              </Link>
+        <div className="mx-auto w-full max-w-[1280px] px-4 pb-24 sm:px-12">
+          {live.length > 0 && (
+            <section className="mb-16">
+              <SectionHeading dotColor="bg-[#ff2448]" pulse>
+                Live Now
+              </SectionHeading>
+              <div className="flex flex-col gap-6">
+                {live.map((g) => (
+                  <LiveCard key={g.eventId} group={g} />
+                ))}
+              </div>
             </section>
           )}
 
-          {/* Tournament grid */}
-          <section className="mx-auto w-full max-w-[1280px] px-4 pb-24 sm:px-12">
-            <RevealGroup className="grid grid-cols-1 gap-6 md:grid-cols-2 lg:grid-cols-3">
-              {gridTournaments.map((t) => (
-                <RevealItem key={t.id}>
-                  <Link
-                    href={`/tournaments/${t.id}`}
-                    className="group flex h-full flex-col overflow-hidden rounded-[8px] border border-white/10 bg-white/[0.03] backdrop-blur-xl transition-transform duration-300 hover:-translate-y-1 hover:border-[#ff2448]/40"
-                  >
-                    <div className="relative h-40 overflow-hidden">
-                      <ArenaPhotoBackdrop variant="subtle" />
-                      <span
-                        className={`absolute left-3 top-3 inline-flex items-center gap-1.5 rounded-[2px] px-2 py-1 text-[10px] font-semibold uppercase tracking-wide ${
-                          isLive(t.status)
-                            ? "bg-[#ff2448] text-[#ffd2cd]"
-                            : "border border-white/20 bg-[#111318]/80 text-[#e2e2e8]"
-                        }`}
-                        style={{ fontFamily: "var(--font-home-mono)" }}
-                      >
-                        {statusLabel[t.status]}
-                      </span>
-                    </div>
-                    <div className="flex flex-1 flex-col p-6">
-                      <h3 className="mb-3 text-lg font-bold uppercase text-[#e2e2e8]">{t.name}</h3>
-                      <div className="mb-6 space-y-1.5 text-sm text-[#c2c6d7]">
-                        <p className="flex items-center gap-1.5">
-                          <Calendar className="h-3.5 w-3.5 shrink-0" strokeWidth={1.5} />
-                          {formatDate(t.date)}
-                        </p>
-                        <p className="flex items-center gap-1.5">
-                          <MapPin className="h-3.5 w-3.5 shrink-0" strokeWidth={1.5} />
-                          {t.venue}
-                        </p>
-                        <p className="flex items-center gap-1.5">
-                          <Trophy className="h-3.5 w-3.5 shrink-0" strokeWidth={1.5} />
-                          {t.category}
-                        </p>
-                      </div>
-                      <div className="mt-auto flex items-center gap-1.5 border-t border-white/10 pt-4 text-sm text-[#e2e2e8]">
-                        <Users className="h-3.5 w-3.5 text-[#c2c6d7]" strokeWidth={1.5} />
-                        {t.registeredPlayerIds.length}/{t.maxPlayers} players
-                      </div>
-                    </div>
-                  </Link>
-                </RevealItem>
-              ))}
-            </RevealGroup>
+          <section className="mb-16">
+            <SectionHeading>Upcoming</SectionHeading>
+            {upcoming.length === 0 ? (
+              <p className="text-sm text-[#8b8b93]">No upcoming tournaments match your filters.</p>
+            ) : (
+              <RevealGroup className="grid grid-cols-1 gap-6 md:grid-cols-2 lg:grid-cols-3">
+                {upcoming.map((g) => (
+                  <RevealItem key={g.eventId}>
+                    <TournamentCard group={g} />
+                  </RevealItem>
+                ))}
+              </RevealGroup>
+            )}
           </section>
-        </>
+
+          <section>
+            <SectionHeading>Completed</SectionHeading>
+            {completed.length === 0 ? (
+              <p className="text-sm text-[#8b8b93]">No completed tournaments match your filters.</p>
+            ) : (
+              <RevealGroup className="grid grid-cols-1 gap-6 md:grid-cols-2 lg:grid-cols-3">
+                {completed.map((g) => (
+                  <RevealItem key={g.eventId}>
+                    <TournamentCard group={g} />
+                  </RevealItem>
+                ))}
+              </RevealGroup>
+            )}
+          </section>
+        </div>
       )}
     </div>
+  );
+}
+
+function SectionHeading({
+  children,
+  dotColor,
+  pulse,
+}: {
+  children: string;
+  dotColor?: string;
+  pulse?: boolean;
+}) {
+  return (
+    <h2
+      className="mb-5 flex items-center gap-2 text-xs font-bold uppercase tracking-[0.15em] text-[#c2c6d7]"
+      style={{ fontFamily: "var(--font-home-mono)" }}
+    >
+      {dotColor && <span className={`h-2 w-2 rounded-full ${dotColor} ${pulse ? "animate-pulse" : ""}`} />}
+      {children}
+    </h2>
+  );
+}
+
+function LiveCard({ group: g }: { group: DisplayGroup }) {
+  return (
+    <Link
+      href={g.href}
+      className="group relative flex flex-col overflow-hidden rounded-[8px] border border-[#ff2448]/40 bg-white/[0.03] backdrop-blur-xl transition-colors hover:border-[#ff2448]/70 md:flex-row"
+    >
+      <span
+        className="absolute left-4 top-4 z-20 inline-flex items-center gap-2 rounded-[2px] bg-[#ff2448] px-3 py-1 text-[10px] font-semibold uppercase tracking-wide text-[#ffd2cd] backdrop-blur"
+        style={{ fontFamily: "var(--font-home-mono)" }}
+      >
+        <span className="h-1.5 w-1.5 animate-pulse rounded-full bg-white" />
+        {STATUS_TEXT[g.status]}
+      </span>
+      <div className="relative h-64 w-full overflow-hidden md:h-auto md:w-3/5">
+        <ArenaPhotoBackdrop variant="subtle" />
+      </div>
+      <div className="flex w-full flex-col justify-center p-8 md:w-2/5">
+        <h2 className="mb-2 text-2xl font-bold uppercase text-[#e2e2e8] sm:text-[28px]">{g.name}</h2>
+        <div className="mb-6 space-y-1.5 text-[#c2c6d7]">
+          <p className="flex items-center gap-1.5">
+            <Calendar className="h-4 w-4 shrink-0" strokeWidth={1.5} />
+            {formatDate(g.date)}
+          </p>
+          <p className="flex items-center gap-1.5">
+            <MapPin className="h-4 w-4 shrink-0" strokeWidth={1.5} />
+            {g.venue}
+          </p>
+          <p className="flex items-center gap-1.5">
+            <Trophy className="h-4 w-4 shrink-0" strokeWidth={1.5} />
+            {categoryCountLabel(g)}
+          </p>
+        </div>
+        <div className="mb-8">
+          <div className="mb-1 text-xs uppercase tracking-wide text-[#c2c6d7]" style={{ fontFamily: "var(--font-home-mono)" }}>
+            Players
+          </div>
+          <div className="text-2xl font-bold text-[#e2e2e8]">{g.registeredCount} registered</div>
+        </div>
+        <span className="inline-flex w-fit items-center gap-2 rounded-[4px] border border-[#ff2448] bg-[#ff2448]/10 px-6 py-3 text-sm font-semibold text-[#ff8f86] transition-all group-hover:bg-[#ff2448] group-hover:text-white">
+          View Tournament
+          <ArrowRight className="h-4 w-4 transition-transform group-hover:translate-x-1" strokeWidth={2} />
+        </span>
+      </div>
+    </Link>
+  );
+}
+
+function TournamentCard({ group: g }: { group: DisplayGroup }) {
+  return (
+    <Link
+      href={g.href}
+      className="group flex h-full flex-col overflow-hidden rounded-[8px] border border-white/10 bg-white/[0.03] backdrop-blur-xl transition-transform duration-300 hover:-translate-y-1 hover:border-[#ff2448]/40"
+    >
+      <div className="relative h-40 overflow-hidden">
+        <ArenaPhotoBackdrop variant="subtle" />
+        <span
+          className="absolute left-3 top-3 inline-flex items-center gap-1.5 rounded-[2px] border border-white/20 bg-[#111318]/80 px-2 py-1 text-[10px] font-semibold uppercase tracking-wide text-[#e2e2e8]"
+          style={{ fontFamily: "var(--font-home-mono)" }}
+        >
+          {STATUS_TEXT[g.status]}
+        </span>
+      </div>
+      <div className="flex flex-1 flex-col p-6">
+        <h3 className="mb-3 text-lg font-bold uppercase text-[#e2e2e8]">{g.name}</h3>
+        <div className="mb-6 space-y-1.5 text-sm text-[#c2c6d7]">
+          <p className="flex items-center gap-1.5">
+            <Calendar className="h-3.5 w-3.5 shrink-0" strokeWidth={1.5} />
+            {formatDate(g.date)}
+          </p>
+          <p className="flex items-center gap-1.5">
+            <MapPin className="h-3.5 w-3.5 shrink-0" strokeWidth={1.5} />
+            {g.venue}
+          </p>
+          <p className="flex items-center gap-1.5">
+            <Trophy className="h-3.5 w-3.5 shrink-0" strokeWidth={1.5} />
+            {categoryCountLabel(g)}
+          </p>
+        </div>
+        <div className="mt-auto flex items-center gap-1.5 border-t border-white/10 pt-4 text-sm text-[#e2e2e8]">
+          <Users className="h-3.5 w-3.5 text-[#c2c6d7]" strokeWidth={1.5} />
+          {g.registeredCount} registered
+        </div>
+      </div>
+    </Link>
   );
 }

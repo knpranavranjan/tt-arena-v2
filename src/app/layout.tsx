@@ -7,8 +7,12 @@ import { AuthProvider } from "@/lib/auth";
 import { JoinRequestsProvider } from "@/lib/join-requests";
 import { RegistrationsProvider } from "@/lib/registrations";
 import { TournamentStatusProvider } from "@/lib/tournament-status";
+import { HostedTournamentsProvider } from "@/lib/hosted-tournaments";
+import { TournamentAssistantsProvider } from "@/lib/tournament-assistants";
+import { PlayerRatingsProvider } from "@/lib/player-ratings";
 import { HostingPlansProvider } from "@/lib/hosting-plans";
 import { MembershipProvider } from "@/lib/membership";
+import { NotificationsProvider } from "@/lib/notifications";
 import "./globals.css";
 
 const inter = Inter({
@@ -44,14 +48,22 @@ export default function RootLayout({ children }: LayoutProps<"/">) {
             <JoinRequestsProvider>
               <RegistrationsProvider>
                 <TournamentStatusProvider>
-                  <HostingPlansProvider>
-                    <MembershipProvider>
-                      <TooltipProvider delay={200}>
-                        {children}
-                        <Toaster />
-                      </TooltipProvider>
-                    </MembershipProvider>
-                  </HostingPlansProvider>
+                  <HostedTournamentsProvider>
+                    <TournamentAssistantsProvider>
+                      <PlayerRatingsProvider>
+                        <HostingPlansProvider>
+                          <MembershipProvider>
+                            <NotificationsProvider>
+                              <TooltipProvider delay={200}>
+                                {children}
+                                <Toaster />
+                              </TooltipProvider>
+                            </NotificationsProvider>
+                          </MembershipProvider>
+                        </HostingPlansProvider>
+                      </PlayerRatingsProvider>
+                    </TournamentAssistantsProvider>
+                  </HostedTournamentsProvider>
                 </TournamentStatusProvider>
               </RegistrationsProvider>
             </JoinRequestsProvider>

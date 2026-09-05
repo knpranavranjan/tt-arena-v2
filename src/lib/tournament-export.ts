@@ -195,6 +195,81 @@ export function downloadPlayersCsv(tournament: Tournament, rows: ExportRow[]) {
   triggerDownload(new Blob([csv], { type: "text/csv;charset=utf-8" }), `${tournamentCode(tournament)}-players.csv`);
 }
 
+/* --------------------------------------------------------------- XLSX */
+
+const XLSX_HEADER = [
+  "#", "Name", "Club", "Category", "Phone", "Entries", "Amount Paid (INR)", "Registered On", "Status",
+];
+const XLSX_COL_WIDTHS = [4, 24, 22, 14, 16, 8, 18, 16, 16].map((wch) => ({ wch }));
+
+/** Excel sheet names must be ≤ 31 chars, free of []:*?/\ and unique in a book. */
+function uniqueSheetName(raw: string, used: Set<string>): string {
+  const base = (raw || "Sheet").replace(/[[\]:*?/\\]/g, " ").trim().slice(0, 31) || "Sheet";
+  let name = base;
+  let n = 2;
+  while (used.has(name.toLowerCase())) {
+    const suffix = ` (${n++})`;
+    name = base.slice(0, 31 - suffix.length) + suffix;
+  }
+  used.add(name.toLowerCase());
+  return name;
+}
+
+/**
+ * One `.xlsx` workbook, one worksheet per category — so a four-category event
+ * downloads as a single file with "Under 21", "Under 15", … tabs.
+ */
+export async function downloadPlayersXlsx(tournament: Tournament, rows: ExportRow[]) {
+  const XLSX = await import("xlsx");
+
+  const byCategory = new Map<string, ExportRow[]>();
+  for (const r of rows) {
+    const key = r.category || "Uncategorised";
+    const list = byCategory.get(key);
+    if (list) list.push(r);
+    else byCategory.set(key, [r]);
+  }
+  const categories = [...byCategory.keys()].sort((a, b) =>
+    a.localeCompare(b, undefined, { numeric: true }),
+  );
+  // A book must have at least one sheet, even when there are no registrants yet.
+  if (categories.length === 0) {
+    categories.push("Players");
+    byCategory.set("Players", []);
+  }
+
+  const wb = XLSX.utils.book_new();
+  const used = new Set<string>();
+  for (const category of categories) {
+    const catRows = byCategory.get(category) ?? [];
+    const aoa: (string | number)[][] = [
+      XLSX_HEADER,
+      ...catRows.map((r, i) => [
+        i + 1,
+        r.name,
+        r.club,
+        r.category,
+        r.phone,
+        r.entries,
+        r.amountPaid,
+        formatDate(r.registeredAt),
+        r.status,
+      ]),
+    ];
+    const ws = XLSX.utils.aoa_to_sheet(aoa);
+    ws["!cols"] = XLSX_COL_WIDTHS;
+    XLSX.utils.book_append_sheet(wb, ws, uniqueSheetName(category, used));
+  }
+
+  const out = XLSX.write(wb, { bookType: "xlsx", type: "array" }) as ArrayBuffer;
+  triggerDownload(
+    new Blob([out], {
+      type: "application/vnd.openxmlformats-officedocument.spreadsheetml.sheet",
+    }),
+    `${tournamentCode(tournament)}-players.xlsx`,
+  );
+}
+
 /* ---------------------------------------------------------------- PDF */
 
 /** Three-page PDF: overview, registrations by category, champion. */

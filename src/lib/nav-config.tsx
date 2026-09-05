@@ -1,4 +1,4 @@
-import { BarChart3, Building2, Calendar, LayoutDashboard, Users } from "lucide-react";
+import { BarChart3, Building2, Calendar, LayoutDashboard, Radio, Users } from "lucide-react";
 import type { NavItem } from "@/components/layout/dashboard-shell";
 
 // Every portal keeps Players/Clubs/Events inside its own shell rather than
@@ -8,6 +8,7 @@ import type { NavItem } from "@/components/layout/dashboard-shell";
 // too) and swapped in the public site's own header instead.
 export const playerNav: NavItem[] = [
   { href: "/player/dashboard", label: "Dashboard", icon: LayoutDashboard },
+  { href: "/player/match-centre", label: "Match Centre", icon: Radio },
   { href: "/player/players", label: "Players", icon: Users },
   { href: "/player/clubs", label: "Clubs", icon: Building2 },
   { href: "/player/tournament", label: "Events", icon: Calendar },

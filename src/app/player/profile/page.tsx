@@ -48,7 +48,7 @@ export default function PlayerProfilePage() {
               <Field label="Category" value={player.category} readOnly />
               <Field label="Club" value={player.clubName ?? "Unaffiliated"} readOnly />
               <Field label="State" value={player.state} readOnly />
-              <Field label="Email" value={user.email} readOnly />
+              <Field label="Email" value={user.email ?? "—"} readOnly />
               <div className="flex flex-col gap-1.5">
                 <Label htmlFor="phone">Phone</Label>
                 <Input id="phone" value={phone} onChange={(e) => setPhone(e.target.value)} />

@@ -7,7 +7,37 @@
  * always feed match `floor(i / 2)` of the next round.
  */
 import { log2, nextPowerOfTwo, roundName, seedOrder } from './bracketMath'
-import type { Bracket, BracketSlot, KnockoutMatch, MatchBase, Qualifier } from './types'
+import type { Bracket, BracketSlot, KnockoutMatch, MatchBase, Qualifier, Tournament, WinRule } from './types'
+
+/** Resolved game rules for one knockout round. */
+export interface KnockoutGameRules {
+  bestOf: number
+  pointsToWin: number
+  winBy: WinRule
+}
+
+type KnockoutRuleSource = Pick<
+  Tournament,
+  'bestOf' | 'koBestOf' | 'koPointsToWin' | 'koWinBy' | 'koSemiFinalBestOf' | 'koSemiFinalPointsToWin'
+>
+
+/**
+ * Sets-per-game and points-per-set can differ once a draw reaches its business
+ * end. `remainingPlayers` is how many are still alive in the round being played
+ * (8 = quarter-final, 4 = semi-final, 2 = final). The semi-final / final rules
+ * cover 4 and 2 — and the third-place play-off, which is scored at the "4 left"
+ * stage — and fall back to the quarter-final rules when left unset.
+ */
+export function knockoutGameRules(t: KnockoutRuleSource, remainingPlayers: number): KnockoutGameRules {
+  const laterRounds = remainingPlayers <= 4
+  const quarterBestOf = t.koBestOf ?? t.bestOf
+  const quarterPointsToWin = t.koPointsToWin ?? 11
+  return {
+    bestOf: laterRounds ? (t.koSemiFinalBestOf ?? quarterBestOf) : quarterBestOf,
+    pointsToWin: laterRounds ? (t.koSemiFinalPointsToWin ?? quarterPointsToWin) : quarterPointsToWin,
+    winBy: t.koWinBy ?? 'win_by_two',
+  }
+}
 
 function newMatch(round: number, index: number): KnockoutMatch {
   return {

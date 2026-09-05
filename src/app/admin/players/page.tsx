@@ -4,19 +4,21 @@ import { useMemo, useState } from "react";
 import Link from "next/link";
 import { ChevronRight, Search } from "lucide-react";
 import { players } from "@/lib/mock-data";
+import { usePlayerRatings } from "@/lib/player-ratings";
 
 const mono = { fontFamily: "var(--font-home-mono)" };
 const display = { fontFamily: "var(--font-home-display)" };
 
 export default function AdminPlayersPage() {
   const [search, setSearch] = useState("");
+  const ratings = usePlayerRatings();
 
   const filtered = useMemo(
     () =>
       players
         .filter((p) => p.name.toLowerCase().includes(search.toLowerCase()))
-        .sort((a, b) => b.rating - a.rating),
-    [search],
+        .sort((a, b) => ratings.getRating(b.id) - ratings.getRating(a.id)),
+    [search, ratings],
   );
 
   return (

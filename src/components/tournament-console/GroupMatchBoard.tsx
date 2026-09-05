@@ -4,8 +4,9 @@ import { useState } from 'react'
 
 import ScoreEditor from '@/components/tournament-console/ScoreEditor'
 import StandingsTable from '@/components/tournament-console/StandingsTable'
-import { Card, CardBody, Competitor } from '@/components/tournament-console/ui'
+import { Button, Card, CardBody, Competitor } from '@/components/tournament-console/ui'
 import { cn } from '@/lib/utils'
+import { POOLS_STAGE } from '@/lib/tournament/bracketMath'
 import { formatGames } from '@/lib/tournament/scoring'
 import type { PoolMatch } from '@/lib/tournament/types'
 import { useActiveTournament } from '@/lib/matches-store'
@@ -17,7 +18,8 @@ import { useActiveTournament } from '@/lib/matches-store'
  */
 export default function GroupMatchBoard() {
   const {
-    tournament, isDoubles, pools, poolMatches, playerById, seedOf, standingsByPool, qualification, actions,
+    tournament, isDoubles, pools, poolMatches, playerById, seedOf, standingsByPool, qualification,
+    manualStandingsOrder, releasedStages, actions,
   } = useActiveTournament()
   const [poolId, setPoolId] = useState<string | null>(null)
   const [editing, setEditing] = useState<string | null>(null)
@@ -35,6 +37,7 @@ export default function GroupMatchBoard() {
     m.games.reduce((n, [x, y]) => n + ((side === 'a' ? x > y : y > x) ? 1 : 0), 0)
   const winRule = tournament.groupWinBy === 'golden' ? 'golden point' : 'win by 2'
   const fillIds = new Set((qualification?.promoted ?? []).map((q) => q.playerId))
+  const poolsPublished = releasedStages.includes(POOLS_STAGE)
 
   return (
     <div className="flex flex-col gap-4">
@@ -56,6 +59,24 @@ export default function GroupMatchBoard() {
         >
           Edit rules
         </button>
+      </div>
+
+      {/* publish the pool schedule to registered players' Match Centre */}
+      <div className="flex flex-wrap items-center justify-between gap-2 rounded-[10px] border border-line bg-panel px-3.5 py-2.5">
+        <span className="text-[12px] text-ink-muted">
+          {poolsPublished
+            ? 'Pool schedule is live in players’ Match Centre — scores update as you enter them.'
+            : 'Publish the pool fixtures and live standings to registered players.'}
+        </span>
+        {poolsPublished ? (
+          <Button size="xs" variant="ghost" onClick={() => actions.unpublishStage(POOLS_STAGE)}>
+            Unpublish
+          </Button>
+        ) : (
+          <Button size="xs" variant="primary" onClick={() => actions.publishStage(POOLS_STAGE)}>
+            Publish pool schedule
+          </Button>
+        )}
       </div>
 
       {/* group pills */}
@@ -200,6 +221,9 @@ export default function GroupMatchBoard() {
               advancePerPool={qualification?.advancePerPool ?? tournament.advancePerPool ?? 1}
               tieRule={tournament.tieBreakRule}
               fillIds={fillIds}
+              onReorder={(ids) => actions.reorderStanding(activePool.id, ids)}
+              manuallyOrdered={Boolean(manualStandingsOrder?.[activePool.id])}
+              onResetOrder={() => actions.resetStandingsOrder(activePool.id)}
             />
           </Card>
         ) : null}

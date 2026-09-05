@@ -14,7 +14,9 @@ import {
 } from "lucide-react";
 import { toast } from "sonner";
 import { arenaFontVariables } from "@/lib/fonts";
-import { appUsers, clubs, events, players, tournaments, tournamentCode } from "@/lib/mock-data";
+import { appUsers, clubs, players, tournamentCode } from "@/lib/mock-data";
+import { useAllEvents, useAllTournaments } from "@/lib/hosted-tournaments";
+import { buildEventGroups, mostActiveStatus } from "@/lib/event-groups";
 import { formatDate } from "@/lib/format";
 import { effectiveStatus, useTournamentStatus } from "@/lib/tournament-status";
 import type { TournamentStatus } from "@/lib/types";
@@ -66,14 +68,31 @@ function StatCard({ icon: Icon, label, value, accent }: { icon: LucideIcon; labe
 
 export default function AdminDashboardPage() {
   const { overrides, approve } = useTournamentStatus();
+  const tournaments = useAllTournaments();
+  const events = useAllEvents();
+
   const withStatus = tournaments.map((t) => ({ t, status: effectiveStatus(t, overrides) }));
-  const pendingApproval = withStatus.filter((r) => r.status === "DRAFT");
   const activeTournaments = withStatus.filter((r) => !["DRAFT", "COMPLETED"].includes(r.status));
   const completedTournaments = withStatus.filter((r) => r.status === "COMPLETED");
   const liveEvents = events.filter((e) => e.status === "LIVE");
   const recentTournaments = [...tournaments]
     .sort((a, b) => new Date(b.date).getTime() - new Date(a.date).getTime())
     .slice(0, 6);
+
+  // One entry per event awaiting review — every category approved together.
+  const pendingApproval = buildEventGroups(tournaments, events)
+    .map((group) => ({
+      group,
+      status: mostActiveStatus(group.categories.map((c) => effectiveStatus(c, overrides))),
+    }))
+    .filter((r) => r.status === "DRAFT");
+
+  const approveEvent = (categoryIds: string[], name: string) => {
+    categoryIds.forEach((id) => approve(id));
+    toast.success("Event approved", {
+      description: `${name} is live — every category is now open and its Matches workspace unlocked.`,
+    });
+  };
 
   return (
     <div className={arenaFontVariables} style={{ fontFamily: "var(--font-home-body)" }}>
@@ -142,25 +161,21 @@ export default function AdminDashboardPage() {
           </p>
         ) : (
           <div className="space-y-2">
-            {pendingApproval.map(({ t }) => (
+            {pendingApproval.map(({ group: g }) => (
               <div
-                key={t.id}
+                key={g.eventId}
                 className="flex flex-wrap items-center justify-between gap-3 rounded-[6px] border border-white/10 bg-white/[0.03] p-3.5"
               >
                 <div className="min-w-0">
-                  <p className="truncate text-sm font-semibold text-[#e2e2e8]">{t.name}</p>
+                  <p className="truncate text-sm font-semibold text-[#e2e2e8]">{g.name}</p>
                   <p className="mt-0.5 text-xs text-[#8b8b93]">
-                    #{tournamentCode(t)} &middot; Hosted by {t.organizer} &middot; {formatDate(t.date)}
+                    #{tournamentCode(g.primary)} &middot; Hosted by {g.organizer} &middot; {formatDate(g.date)}
+                    {" "}&middot; {g.categories.length} categor{g.categories.length === 1 ? "y" : "ies"}
                   </p>
                 </div>
                 <button
                   type="button"
-                  onClick={() => {
-                    approve(t.id);
-                    toast.success("Tournament approved", {
-                      description: `${t.name} is live — its Matches workspace is now open.`,
-                    });
-                  }}
+                  onClick={() => approveEvent(g.categories.map((c) => c.id), g.name)}
                   className="shrink-0 rounded-[2px] bg-[#ff2448] px-4 py-2 text-xs font-semibold uppercase tracking-wide text-white transition-all hover:scale-[1.02] active:scale-95"
                   style={mono}
                 >

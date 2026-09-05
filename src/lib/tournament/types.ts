@@ -236,11 +236,17 @@ export interface Tournament {
   groupPointsToWin?: number
   /** Group stage: how a game ends. */
   groupWinBy?: WinRule
-  /** Knockout stage: games per match. */
+  /** Knockout — quarter-finals and every earlier round: games per match. */
   koBestOf?: number
-  /** Knockout stage: points to win a game. */
+  /** Knockout — quarter-finals and every earlier round: points to win a game. */
   koPointsToWin?: number
-  /** Knockout stage: how a game ends. */
+  /** Knockout — semi-finals, final and the third-place play-off: games per match.
+   *  Falls back to `koBestOf` when unset. */
+  koSemiFinalBestOf?: number
+  /** Knockout — semi-finals, final and the third-place play-off: points to win a
+   *  game. Falls back to `koPointsToWin` when unset. */
+  koSemiFinalPointsToWin?: number
+  /** Knockout stage: how a game ends (applies to every knockout round). */
   koWinBy?: WinRule
   generateSample: boolean
   sampleCount: number

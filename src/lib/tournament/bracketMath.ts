@@ -10,6 +10,13 @@
  *   17 players -> Round of 32
  */
 
+/**
+ * Stage keys the host publishes to players' Match Centre. Knockout rounds use
+ * `roundName()` output ("Quarter Final", "Semi Final", "Final", "Round of N").
+ */
+export const POOLS_STAGE = 'pools'
+export const THIRD_PLACE_STAGE = 'Third Place'
+
 export function nextPowerOfTwo(n: number): number {
   if (!Number.isFinite(n) || n <= 1) return 2
   let p = 2

@@ -3,7 +3,7 @@
 import { useMemo, useState } from "react";
 import Image from "next/image";
 import Link from "next/link";
-import { Building2, MapPin, Search, Users, Zap } from "lucide-react";
+import { Building2, MapPin, Search, Users } from "lucide-react";
 import {
   Select,
   SelectContent,
@@ -15,16 +15,9 @@ import { EmptyState } from "@/components/feedback/empty-state";
 import { RevealGroup, RevealItem } from "@/components/motion/reveal";
 import { ArenaPhotoBackdrop } from "@/components/media/arena-photo-backdrop";
 import { arenaFontVariables } from "@/lib/fonts";
-import { clubs, players } from "@/lib/mock-data";
-import type { Club } from "@/lib/types";
+import { clubs } from "@/lib/mock-data";
 
 const states = Array.from(new Set(clubs.map((c) => c.state))).sort();
-
-function topPlayerOf(club: Club) {
-  return players
-    .filter((p) => p.clubId === club.id)
-    .sort((a, b) => b.rating - a.rating)[0];
-}
 
 export default function ClubsPage({ basePath = "/clubs" }: { basePath?: string }) {
   const [search, setSearch] = useState("");
@@ -37,12 +30,6 @@ export default function ClubsPage({ basePath = "/clubs" }: { basePath?: string }
       return true;
     });
   }, [search, state]);
-
-  // Only spotlight a featured club when it's actually part of the current filtered results —
-  // otherwise a search/state filter would still show an unrelated club up top.
-  const featured = [...filtered].sort((a, b) => b.playerIds.length - a.playerIds.length)[0];
-  const gridClubs = filtered.filter((c) => c.id !== featured?.id);
-  const featuredTop = featured ? topPlayerOf(featured) : undefined;
 
   return (
     <div className={`relative ${arenaFontVariables}`} style={{ fontFamily: "var(--font-home-body)" }}>
@@ -89,7 +76,7 @@ export default function ClubsPage({ basePath = "/clubs" }: { basePath?: string }
       </section>
 
       {/* Discovery bar */}
-      <section className="relative z-20 mx-auto mb-12 w-full max-w-[1280px] px-4 sm:px-12">
+      <section className="relative z-20 mx-auto mt-10 mb-12 w-full max-w-[1280px] px-4 sm:mt-14 sm:px-12">
         <div className="flex flex-col items-stretch gap-4 md:flex-row">
           <div className="relative flex-grow">
             <Search className="pointer-events-none absolute left-4 top-1/2 h-4 w-4 -translate-y-1/2 text-[#c2c6d7]" />
@@ -98,11 +85,11 @@ export default function ClubsPage({ basePath = "/clubs" }: { basePath?: string }
               placeholder="Search clubs by name…"
               value={search}
               onChange={(e) => setSearch(e.target.value)}
-              className="w-full rounded-[4px] border border-white/10 bg-[#1a1c20] py-4 pl-11 pr-4 text-sm text-[#e2e2e8] placeholder:text-[#c2c6d7]/50 focus:border-[#ff2448] focus:outline-none focus:ring-1 focus:ring-[#ff2448]"
+              className="h-[52px] w-full rounded-[4px] border border-white/10 bg-[#1a1c20] pl-11 pr-4 text-sm text-[#e2e2e8] placeholder:text-[#c2c6d7]/50 focus:border-[#ff2448] focus:outline-none focus:ring-1 focus:ring-[#ff2448]"
             />
           </div>
           <Select value={state} onValueChange={(v) => setState(v ?? "all")}>
-            <SelectTrigger className="w-full border-white/10 bg-[#1a1c20] py-4 text-[#e2e2e8] md:w-56">
+            <SelectTrigger className="!h-[52px] w-full !rounded-[4px] border-white/10 bg-[#1a1c20] px-4 text-sm text-[#e2e2e8] md:w-56">
               <SelectValue>{(value: string) => (value === "all" ? "State" : value)}</SelectValue>
             </SelectTrigger>
             <SelectContent>
@@ -124,110 +111,38 @@ export default function ClubsPage({ basePath = "/clubs" }: { basePath?: string }
           />
         </section>
       ) : (
-        <>
-          {/* Featured club */}
-          {featured && (
-            <section className="relative z-10 mx-auto mb-20 w-full max-w-[1280px] px-4 sm:px-12">
-              <Link
-                href={`${basePath}/${featured.id}`}
-                className="group relative flex flex-col overflow-hidden rounded-[8px] border border-white/10 bg-white/[0.03] shadow-[0_8px_32px_rgba(0,0,0,0.37)] backdrop-blur-xl transition-all duration-300 hover:border-[#ff2448]/50 hover:shadow-[0_0_30px_rgba(255,36,72,0.15)] md:flex-row"
-              >
-                <span className="absolute left-4 top-4 z-20 inline-flex items-center gap-2 rounded-[2px] border border-[#ff2448]/30 bg-[#111318]/80 px-3 py-1 text-[10px] font-semibold uppercase tracking-wide text-[#ff8f86] backdrop-blur">
-                  <span className="h-1.5 w-1.5 animate-pulse rounded-full bg-[#ff2448]" />
-                  Featured
-                </span>
-                <div className="relative h-64 w-full overflow-hidden md:h-auto md:w-3/5">
-                  <ArenaPhotoBackdrop variant="subtle" />
-                </div>
-                <div className="flex w-full flex-col justify-center p-8 md:w-2/5">
-                  <h2 className="mb-2 text-2xl font-bold text-[#e2e2e8] sm:text-[28px]">{featured.name}</h2>
-                  <p className="mb-6 flex items-center gap-1.5 text-[#c2c6d7]">
-                    <MapPin className="h-4 w-4 shrink-0" strokeWidth={1.5} />
-                    {featured.location}, {featured.state}
-                  </p>
-                  <div className="mb-8 flex gap-6">
-                    <div>
-                      <div
-                        className="mb-1 text-xs uppercase tracking-wide text-[#c2c6d7]"
-                        style={{ fontFamily: "var(--font-home-mono)" }}
-                      >
-                        Players
-                      </div>
-                      <div className="text-2xl font-bold text-[#e2e2e8]">{featured.playerIds.length}</div>
-                    </div>
-                    {featuredTop && (
-                      <div>
-                        <div
-                          className="mb-1 text-xs uppercase tracking-wide text-[#c2c6d7]"
-                          style={{ fontFamily: "var(--font-home-mono)" }}
-                        >
-                          Club Rating
-                        </div>
-                        <div className="text-2xl font-bold text-[#e2e2e8]">{featuredTop.rating}</div>
-                      </div>
-                    )}
+        <section className="relative z-10 mx-auto w-full max-w-[1280px] px-4 pb-24 sm:px-12">
+          <RevealGroup className="grid grid-cols-1 gap-6 md:grid-cols-2 lg:grid-cols-3">
+            {filtered.map((club) => (
+              <RevealItem key={club.id}>
+                <Link
+                  href={`${basePath}/${club.id}`}
+                  className="group flex h-full flex-col overflow-hidden rounded-[8px] border border-white/10 bg-white/[0.03] shadow-[0_8px_32px_rgba(0,0,0,0.37)] backdrop-blur-xl transition-all duration-300 hover:-translate-y-1 hover:border-[#ff2448]/40 hover:shadow-[0_0_25px_rgba(255,36,72,0.18)]"
+                >
+                  <div className="relative h-40 overflow-hidden">
+                    <ArenaPhotoBackdrop variant="subtle" />
                   </div>
-                  <span className="inline-flex w-fit items-center gap-2 rounded-[4px] border border-[#ff2448] bg-[#ff2448]/10 px-6 py-3 text-sm font-semibold text-[#ff8f86] shadow-[0_0_15px_rgba(255,36,72,0.2)] transition-all group-hover:bg-[#ff2448] group-hover:text-white group-hover:shadow-[0_0_25px_rgba(255,36,72,0.6)]">
-                    Enter Arena
-                    <Zap className="h-4 w-4 transition-transform group-hover:scale-110" strokeWidth={2} />
-                  </span>
-                </div>
-              </Link>
-            </section>
-          )}
-
-          {/* Club grid */}
-          <section className="relative z-10 mx-auto w-full max-w-[1280px] px-4 pb-24 sm:px-12">
-            <RevealGroup className="grid grid-cols-1 gap-6 md:grid-cols-2 lg:grid-cols-3">
-              {gridClubs.map((club) => {
-                const top = topPlayerOf(club);
-                return (
-                  <RevealItem key={club.id}>
-                    <Link
-                      href={`${basePath}/${club.id}`}
-                      className="group flex h-full flex-col overflow-hidden rounded-[8px] border border-white/10 bg-white/[0.03] shadow-[0_8px_32px_rgba(0,0,0,0.37)] backdrop-blur-xl transition-all duration-300 hover:-translate-y-1 hover:border-[#ff2448]/40 hover:shadow-[0_0_25px_rgba(255,36,72,0.18)]"
-                    >
-                      <div className="relative h-40 overflow-hidden">
-                        <ArenaPhotoBackdrop variant="subtle" />
-                      </div>
-                      <div className="relative flex flex-1 flex-col p-6">
-                        <div
-                          className="absolute left-1/2 top-0 h-px w-1/3 -translate-x-1/2 bg-gradient-to-r from-transparent via-[#ff2448]/50 to-transparent"
-                          aria-hidden="true"
-                        />
-                        <h3 className="mb-1 text-lg font-bold text-[#e2e2e8]">{club.name}</h3>
-                        <p className="mb-4 flex items-center gap-1 text-sm text-[#c2c6d7]">
-                          <MapPin className="h-3.5 w-3.5 shrink-0" strokeWidth={1.5} />
-                          {club.location}, {club.state}
-                        </p>
-                        <p className="mb-6 line-clamp-2 text-sm text-[#c2c6d7]">{club.description}</p>
-                        <div className="mt-auto flex items-end justify-between border-t border-white/10 pt-4">
-                          <div className="flex items-center gap-1.5 text-sm text-[#e2e2e8]">
-                            <Users className="h-3.5 w-3.5 text-[#c2c6d7]" strokeWidth={1.5} />
-                            {club.playerIds.length} players
-                          </div>
-                          {top && (
-                            <div className="text-right">
-                              <div
-                                className="mb-1 text-[10px] uppercase tracking-wide text-[#c2c6d7]"
-                                style={{ fontFamily: "var(--font-home-mono)" }}
-                              >
-                                Club Rating
-                              </div>
-                              <div className="text-lg font-bold text-[#ff8f86]" style={{ fontFamily: "var(--font-home-mono)" }}>
-                                {top.rating}
-                              </div>
-                            </div>
-                          )}
-                        </div>
-                      </div>
-                    </Link>
-                  </RevealItem>
-                );
-              })}
-            </RevealGroup>
-          </section>
-        </>
+                  <div className="relative flex flex-1 flex-col p-6">
+                    <div
+                      className="absolute left-1/2 top-0 h-px w-1/3 -translate-x-1/2 bg-gradient-to-r from-transparent via-[#ff2448]/50 to-transparent"
+                      aria-hidden="true"
+                    />
+                    <h3 className="mb-1 text-lg font-bold text-[#e2e2e8]">{club.name}</h3>
+                    <p className="mb-4 flex items-center gap-1 text-sm text-[#c2c6d7]">
+                      <MapPin className="h-3.5 w-3.5 shrink-0" strokeWidth={1.5} />
+                      {club.location}, {club.state}
+                    </p>
+                    <p className="mb-6 line-clamp-2 text-sm text-[#c2c6d7]">{club.description}</p>
+                    <div className="mt-auto flex items-center gap-1.5 border-t border-white/10 pt-4 text-sm text-[#e2e2e8]">
+                      <Users className="h-3.5 w-3.5 text-[#c2c6d7]" strokeWidth={1.5} />
+                      {club.playerIds.length} players
+                    </div>
+                  </div>
+                </Link>
+              </RevealItem>
+            ))}
+          </RevealGroup>
+        </section>
       )}
     </div>
   );

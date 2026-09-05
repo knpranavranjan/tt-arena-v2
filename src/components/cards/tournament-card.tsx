@@ -35,7 +35,7 @@ export function TournamentCard({ tournament, className }: { tournament: Tourname
         </span>
         <span className="flex items-center gap-1.5">
           <Users className="h-3.5 w-3.5 shrink-0" strokeWidth={1.5} />
-          {tournament.registeredPlayerIds.length}/{tournament.maxPlayers}
+          {tournament.registeredPlayerIds.length} registered
         </span>
       </div>
     </Link>

@@ -1,11 +1,16 @@
 'use client'
 
 import { useMemo, useState } from 'react'
+import { Check, Search, UserPlus } from 'lucide-react'
 
 import {
   ActionBar, Badge, Button, Card, CardBody, CardHead, CellInput, Competitor, Empty,
   PageHead, SeedPill, Segmented, Table, TableWrap, Td, Th,
 } from '@/components/tournament-console/ui'
+import {
+  Dialog, DialogContent, DialogDescription, DialogHeader, DialogTitle,
+} from '@/components/ui/dialog'
+import { usePlatformDirectory } from '@/lib/platform-directory'
 import { cn } from '@/lib/utils'
 import { useActiveTournament } from '@/lib/matches-store'
 
@@ -16,6 +21,12 @@ export default function PlayerSetup() {
   const [dragIndex, setDragIndex] = useState<number | null>(null)
   const [dropIndex, setDropIndex] = useState<number | null>(null)
   const [pick, setPick] = useState<string[]>([])
+  const [addOpen, setAddOpen] = useState(false)
+  const [query, setQuery] = useState('')
+
+  const { search } = usePlatformDirectory()
+  const enteredIds = useMemo(() => new Set(players.map((p) => p.id)), [players])
+  const results = useMemo(() => search(query, enteredIds), [search, query, enteredIds])
 
   const noun = isDoubles ? 'pair' : 'player'
   const nouns = isDoubles ? 'pairs' : 'players'
@@ -74,14 +85,15 @@ export default function PlayerSetup() {
             <Button size="sm" variant="danger" disabled={players.length === 0} onClick={actions.clearPlayers}>
               Clear all
             </Button>
-            <Button size="sm" onClick={() => actions.addPlayer()}>
-              Add player
+            <Button size="sm" variant="primary" onClick={() => { setQuery(''); setAddOpen(true) }}>
+              Add by ID
             </Button>
           </CardHead>
 
           {players.length === 0 ? (
             <Empty title="No players yet">
-              Use &ldquo;Add player&rdquo;, or &ldquo;Sync from registrations&rdquo; to pull in everyone who signed up.
+              Use &ldquo;Add by ID&rdquo; to find a signed-in player by their unique ID, or &ldquo;Sync from
+              registrations&rdquo; to pull in everyone who signed up.
             </Empty>
           ) : (
             <TableWrap className="max-h-[560px] overflow-y-auto">
@@ -135,10 +147,7 @@ export default function PlayerSetup() {
                           >
                             ↓
                           </Button>
-                          <Button size="xs" variant="ghost" title="Duplicate" onClick={() => actions.duplicatePlayer(p.id)}>
-                            ⧉
-                          </Button>
-                          <Button size="xs" variant="ghost" title="Delete" className="text-bad" onClick={() => actions.removePlayer(p.id)}>
+                          <Button size="xs" variant="ghost" title="Remove from entry list" className="text-bad" onClick={() => actions.removePlayer(p.id)}>
                             ✕
                           </Button>
                         </div>
@@ -313,6 +322,93 @@ export default function PlayerSetup() {
           )}
         </Card>
       )}
+
+      <Dialog open={addOpen} onOpenChange={setAddOpen}>
+        <DialogContent className="max-w-[calc(100%-2rem)] gap-4 border border-white/10 bg-[#0c0e12] p-5 text-[#e2e2e8] sm:max-w-md" showCloseButton>
+          <DialogHeader>
+            <DialogTitle className="flex items-center gap-2 text-base font-bold text-[#e2e2e8]">
+              <UserPlus className="h-4 w-4 text-[#ff8f86]" strokeWidth={2} />
+              Add a player
+            </DialogTitle>
+            <DialogDescription className="text-xs leading-relaxed text-[#8b8b93]">
+              Only people with an account can be entered — search by unique ID or name. This keeps
+              post-tournament ratings attributable.
+            </DialogDescription>
+          </DialogHeader>
+
+          <div className="relative">
+            <Search className="pointer-events-none absolute left-3 top-1/2 h-4 w-4 -translate-y-1/2 text-[#5a5a62]" strokeWidth={2} />
+            <input
+              autoFocus
+              value={query}
+              onChange={(e) => setQuery(e.target.value)}
+              placeholder="e.g. arjun_s07"
+              className="w-full rounded-[6px] border border-white/10 bg-[#161719] py-2.5 pl-9 pr-3 text-sm text-[#e2e2e8] placeholder:text-[#5a5a62] focus:border-[#ff2448] focus:outline-none"
+            />
+          </div>
+
+          <div className="max-h-[300px] overflow-y-auto rounded-[8px] border border-white/10 bg-white/[0.02]">
+            {results.length === 0 ? (
+              <p className="px-4 py-6 text-center text-xs text-[#8b8b93]">
+                {query.trim()
+                  ? `No account matches “${query.trim()}”. They must sign up before they can be entered.`
+                  : 'Start typing a unique ID or name.'}
+              </p>
+            ) : (
+              <ul className="divide-y divide-white/[0.06]">
+                {results.map((person) => (
+                  <li key={person.id}>
+                    <button
+                      type="button"
+                      onClick={() => {
+                        actions.addRegisteredPlayer({
+                          id: person.id,
+                          name: person.name,
+                          rating: person.rating,
+                          club: person.club,
+                          state: person.state,
+                        })
+                        setQuery('')
+                      }}
+                      className="flex w-full items-center gap-3 px-3 py-2.5 text-left transition-colors hover:bg-white/[0.04]"
+                    >
+                      <span className="flex h-8 w-8 shrink-0 items-center justify-center rounded-full bg-white/[0.06] text-xs font-bold text-[#c2c6d7]">
+                        {person.name.slice(0, 1)}
+                      </span>
+                      <span className="min-w-0 flex-1">
+                        <span className="block truncate text-[13px] font-semibold text-[#e8e8ee]">{person.name}</span>
+                        <span className="block truncate text-[11px] text-[#8b8b93]">
+                          @{person.handle}
+                          {person.club ? ` · ${person.club}` : ''} · {person.rating}
+                        </span>
+                      </span>
+                      {!person.hasAccount && (
+                        <span className="shrink-0 rounded-[3px] bg-white/[0.06] px-1.5 py-0.5 text-[9px] font-bold uppercase tracking-wide text-[#8b8b93]">
+                          Roster
+                        </span>
+                      )}
+                    </button>
+                  </li>
+                ))}
+              </ul>
+            )}
+          </div>
+
+          <div className="flex items-center justify-between text-[11px] text-[#5a5a62]">
+            <span className="flex items-center gap-1.5">
+              <Check className="h-3 w-3 text-emerald-400" strokeWidth={3} />
+              {players.length} in the entry list
+            </span>
+            <button
+              type="button"
+              onClick={() => setAddOpen(false)}
+              className="rounded-[4px] border border-white/15 px-3 py-1.5 text-[11px] font-semibold uppercase tracking-wide text-[#e2e2e8] transition-colors hover:border-white/30 hover:bg-white/5"
+            >
+              Done
+            </button>
+          </div>
+        </DialogContent>
+      </Dialog>
 
       <ActionBar>
         <span className="text-xs text-ink-faint">

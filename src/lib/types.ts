@@ -40,6 +40,9 @@ export interface Club {
   location: string;
   state: string;
   address: string;
+  /** Exact pin from "use current location" at sign-up. When absent, the map is
+   *  placed from `address`. */
+  coordinates?: { lat: number; lng: number };
   description: string;
   aboutHighlights: string[];
   logoUrl?: string;
@@ -48,11 +51,18 @@ export interface Club {
   phone: string;
   email: string;
   verified: boolean;
-  rating: number;
   facilities: ClubFacilities;
 }
 
 export type TournamentFormat = "SINGLE_ELIMINATION" | "POOL_KNOCKOUT" | "ROUND_ROBIN_LEAGUE";
+
+export type QuestionResponseType = "Multiple Choice" | "Short Answer" | "Yes / No";
+
+export interface RegistrationQuestion {
+  question: string;
+  responseType: QuestionResponseType;
+  options?: string[];
+}
 
 export type TournamentStatus =
   | "DRAFT"
@@ -92,6 +102,12 @@ export interface Tournament {
   ballType: string;
   umpireStatus: string;
   prizePool: number;
+  /** Combined cash pool across every category of the parent event. */
+  totalPrizePool?: number;
+  /** Standardised 4:5 portrait poster (data URL or path), shown on the event page. */
+  posterUrl?: string;
+  /** Custom questions the host asks each player at registration. */
+  registrationQuestions?: RegistrationQuestion[];
   poolSize?: number;
   champion?: string;
   runnerUp?: string;
@@ -110,6 +126,8 @@ export interface TTEvent {
   status: EventStatus;
   tournamentIds: string[];
   participatingClubIds: string[];
+  /** Standardised 4:5 portrait poster (data URL or path). */
+  posterUrl?: string;
 }
 
 export interface Pool {

@@ -42,7 +42,12 @@ export default function PoolAllocation() {
   const setGp = (patch: Partial<GamePoints>) => actions.updateTournament({ groupPoints: { ...gp, ...patch } })
 
   const goToGroups = () => {
-    const needsBuild = !pools || pools.length !== poolCount || poolMethod !== method
+    const pooled = (pools ?? []).reduce((n, p) => n + p.playerIds.length, 0)
+    // Always land on Groups with a fresh algorithmic allocation — rebuild when
+    // there are no pools yet, the count/method changed, or the roster moved on
+    // since the pools were last built.
+    const needsBuild =
+      !pools || pools.length !== poolCount || poolMethod !== method || pooled !== players.length
     if (needsBuild) actions.buildPools({ poolCount, method })
     actions.goto('groups')
   }
@@ -151,24 +156,54 @@ export default function PoolAllocation() {
         {/* ------------------------------------------------ knockout game rules */}
         {!rrOnly ? (
           <Card>
-            <CardHead small title="Knockout game rules" />
-            <CardBody className="flex flex-col gap-4">
-              <Field label="Sets per Game">
-                <ChipPicker
-                  options={range(1, 5)}
-                  value={tournament.koBestOf ?? tournament.bestOf}
-                  onChange={(v) => actions.updateTournament({ koBestOf: Math.max(1, Number(v) || 1) })}
-                  min={1}
-                />
-              </Field>
-              <Field label="Points to Win a Set">
-                <ChipPicker
-                  options={range(1, 21)}
-                  value={tournament.koPointsToWin ?? 11}
-                  onChange={(v) => actions.updateTournament({ koPointsToWin: Math.max(1, Number(v) || 1) })}
-                  min={1}
-                />
-              </Field>
+            <CardHead
+              small
+              title="Knockout game rules"
+              desc="Sets can be shortened or lengthened for the closing rounds — set the quarter-finals (and every round before them) apart from the semis and final."
+            />
+            <CardBody className="flex flex-col gap-5">
+              <div className="flex flex-col gap-4">
+                <h3 className="text-[13px] font-semibold text-ink">Quarter Finals &amp; earlier rounds</h3>
+                <Field label="Sets per Game">
+                  <ChipPicker
+                    options={range(1, 5)}
+                    value={tournament.koBestOf ?? tournament.bestOf}
+                    onChange={(v) => actions.updateTournament({ koBestOf: Math.max(1, Number(v) || 1) })}
+                    min={1}
+                  />
+                </Field>
+                <Field label="Points to Win a Set">
+                  <ChipPicker
+                    options={range(1, 21)}
+                    value={tournament.koPointsToWin ?? 11}
+                    onChange={(v) => actions.updateTournament({ koPointsToWin: Math.max(1, Number(v) || 1) })}
+                    min={1}
+                  />
+                </Field>
+              </div>
+
+              <div className="flex flex-col gap-4 border-t border-line-soft pt-4">
+                <h3 className="text-[13px] font-semibold text-ink">Semi Finals &amp; Final</h3>
+                <Field label="Sets per Game">
+                  <ChipPicker
+                    options={range(1, 5)}
+                    value={tournament.koSemiFinalBestOf ?? tournament.koBestOf ?? tournament.bestOf}
+                    onChange={(v) => actions.updateTournament({ koSemiFinalBestOf: Math.max(1, Number(v) || 1) })}
+                    min={1}
+                  />
+                </Field>
+                <Field label="Points to Win a Set">
+                  <ChipPicker
+                    options={range(1, 21)}
+                    value={tournament.koSemiFinalPointsToWin ?? tournament.koPointsToWin ?? 11}
+                    onChange={(v) =>
+                      actions.updateTournament({ koSemiFinalPointsToWin: Math.max(1, Number(v) || 1) })
+                    }
+                    min={1}
+                  />
+                </Field>
+              </div>
+
               <Field label="Match Win Determined by">
                 <Segmented
                   options={WIN_BY}

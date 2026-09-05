@@ -8,10 +8,12 @@ import { Dialog, DialogClose, DialogContent, DialogDescription, DialogTitle } fr
 import { useAuth } from "@/lib/auth";
 import { useCurrentClub, useCurrentPlayer } from "@/lib/session-data";
 import { arenaFontVariables } from "@/lib/fonts";
-import { events, tournaments } from "@/lib/mock-data";
 import { useHostingPlans } from "@/lib/hosting-plans";
+import { useHostedTournaments } from "@/lib/hosted-tournaments";
 import { formatCurrency } from "@/lib/format";
-import type { Tournament, TournamentFormat } from "@/lib/types";
+import { PosterUpload } from "@/components/tournaments/poster-upload";
+import { TieBreakRules } from "@/components/tournaments/tie-break-rules";
+import type { RegistrationQuestion, TTEvent, Tournament, TournamentFormat } from "@/lib/types";
 
 const mono = { fontFamily: "var(--font-home-mono)" };
 const display = { fontFamily: "var(--font-home-display)" };
@@ -72,6 +74,7 @@ export default function HostTournamentPage() {
   const club = useCurrentClub();
   const player = useCurrentPlayer();
   const { plans: hostingPlans } = useHostingPlans();
+  const { addHostedEvent } = useHostedTournaments();
 
   const [name, setName] = useState("");
   const [date, setDate] = useState("");
@@ -89,6 +92,7 @@ export default function HostTournamentPage() {
     { id: makeId("q"), question: "", responseType: "Multiple Choice", options: [""] },
   ]);
   const [details, setDetails] = useState("");
+  const [poster, setPoster] = useState("");
   const [submitted, setSubmitted] = useState(false);
   const [showPlanModal, setShowPlanModal] = useState(false);
 
@@ -149,9 +153,26 @@ export default function HostTournamentPage() {
     const sharedEventId = makeId("evt-host");
     const createdIds: string[] = [];
 
-    validCategories.forEach((cat) => {
+    const registrationQuestions: RegistrationQuestion[] = questions
+      .filter((q) => q.question.trim())
+      .map((q) => ({
+        question: q.question.trim(),
+        responseType: q.responseType,
+        options:
+          q.responseType === "Multiple Choice"
+            ? q.options.map((o) => o.trim()).filter(Boolean)
+            : undefined,
+      }));
+
+    const combinedPrizePool =
+      Number(totalPrizePool) ||
+      validCategories.reduce((sum, c) => sum + (Number(c.prizePool) || 0), 0) ||
+      undefined;
+
+    const createdCategories: Tournament[] = validCategories.map((cat) => {
       const id = makeId("trn-host");
-      const newTournament: Tournament = {
+      createdIds.push(id);
+      return {
         id,
         eventId: sharedEventId,
         name: `${name} — ${cat.name}`,
@@ -170,12 +191,13 @@ export default function HostTournamentPage() {
         ballType: ballType.trim() || "Plastic 40+, 3-star (match)",
         umpireStatus,
         prizePool: Number(cat.prizePool) || 0,
+        totalPrizePool: combinedPrizePool,
+        posterUrl: poster || undefined,
+        registrationQuestions: registrationQuestions.length ? registrationQuestions : undefined,
       };
-      tournaments.push(newTournament);
-      createdIds.push(id);
     });
 
-    events.push({
+    const newEvent: TTEvent = {
       id: sharedEventId,
       name,
       organizer: organizerName,
@@ -185,7 +207,11 @@ export default function HostTournamentPage() {
       status: "UPCOMING",
       tournamentIds: createdIds,
       participatingClubIds: club ? [club.id] : [],
-    });
+      posterUrl: poster || undefined,
+    };
+
+    // One submission → one event + its categories, persisted together.
+    addHostedEvent(newEvent, createdCategories);
 
     toast.success("Submitted for approval", {
       description: "An admin will review this before it goes live for players.",
@@ -397,6 +423,16 @@ export default function HostTournamentPage() {
             </div>
           </div>
 
+          <div>
+            <h2 className={sectionLabelClass} style={mono}>
+              Tie-break Rules
+            </h2>
+            <p className="mb-4 text-xs text-[#8b8b93]">
+              Applies to every SpinTTRatings tournament and is shown to players on the event page.
+            </p>
+            <TieBreakRules />
+          </div>
+
           <div className="grid gap-6 sm:grid-cols-2">
             <div>
               <label htmlFor="ballType" className={labelClass} style={mono}>
@@ -566,6 +602,13 @@ export default function HostTournamentPage() {
               <Plus className="h-3.5 w-3.5" strokeWidth={2.5} />
               Add Question
             </button>
+          </div>
+
+          <div>
+            <h2 className={sectionLabelClass} style={mono}>
+              Event Poster
+            </h2>
+            <PosterUpload value={poster} onChange={setPoster} />
           </div>
 
           <div>

@@ -5,7 +5,7 @@ import { Download, FileSpreadsheet, FileText, Loader2 } from "lucide-react";
 import { toast } from "sonner";
 
 import { useRegistrations } from "@/lib/registrations";
-import { buildExportRows, downloadPlayersCsv, downloadTournamentPdf } from "@/lib/tournament-export";
+import { buildExportRows, downloadPlayersXlsx, downloadTournamentPdf } from "@/lib/tournament-export";
 import type { Tournament } from "@/lib/types";
 
 const mono = { fontFamily: "var(--font-home-mono)" };
@@ -30,15 +30,25 @@ export function ExportReportMenu({ tournament }: { tournament: Tournament }) {
     }
   };
 
-  const exportCsv = () => {
+  const exportXlsx = async () => {
     setOpen(false);
+    setBusy(true);
+    const t = toast.loading("Building Excel workbook…");
     try {
       const rows = buildExportRows(tournament, registrations);
-      downloadPlayersCsv(tournament, rows);
-      toast.success(`Exported ${rows.length} player${rows.length === 1 ? "" : "s"} to CSV`);
+      const categories = new Set(rows.map((r) => r.category || "Uncategorised")).size;
+      await downloadPlayersXlsx(tournament, rows);
+      toast.success(
+        `Exported ${rows.length} player${rows.length === 1 ? "" : "s"} across ${categories} categor${
+          categories === 1 ? "y" : "ies"
+        }`,
+        { id: t },
+      );
     } catch (e) {
       console.error(e);
-      toast.error("Couldn't export the players list");
+      toast.error("Couldn't export the players list", { id: t });
+    } finally {
+      setBusy(false);
     }
   };
 
@@ -82,13 +92,13 @@ export function ExportReportMenu({ tournament }: { tournament: Tournament }) {
             </button>
             <button
               type="button"
-              onClick={exportCsv}
+              onClick={exportXlsx}
               className="flex w-full items-start gap-2.5 px-3 py-2.5 text-left transition-colors hover:bg-white/5"
             >
               <FileSpreadsheet className="mt-0.5 h-4 w-4 shrink-0 text-emerald-400" strokeWidth={2} />
               <span>
                 <span className="block text-xs font-semibold text-[#e2e2e8]">Excel (players)</span>
-                <span className="block text-[11px] text-[#8b8b93]">Registered players list — CSV</span>
+                <span className="block text-[11px] text-[#8b8b93]">One sheet per category — .xlsx</span>
               </span>
             </button>
           </div>

@@ -14,7 +14,7 @@ const mono = { fontFamily: "var(--font-home-mono)" };
 export function JoinClubButton({ clubId, clubName }: { clubId: string; clubName: string }) {
   const { user, isLoading: authLoading } = useAuth();
   const player = useCurrentPlayer();
-  const { sendRequest, hasPendingRequest, isLoading: requestsLoading } = useJoinRequests();
+  const { sendRequest, hasPendingRequest, requests, isLoading: requestsLoading } = useJoinRequests();
 
   if (authLoading || requestsLoading) {
     return <div className="mt-4 h-[50px] w-full animate-pulse rounded-[2px] bg-white/5" />;
@@ -50,7 +50,13 @@ export function JoinClubButton({ clubId, clubName }: { clubId: string; clubName:
     );
   }
 
-  if (player.clubId === clubId) {
+  // A player isn't capped at one club — membership here means either their
+  // seeded home club or a club whose join request was accepted.
+  const isMember =
+    player.clubId === clubId ||
+    requests.some((r) => r.clubId === clubId && r.playerId === player.id && r.status === "ACCEPTED");
+
+  if (isMember) {
     return (
       <div
         className={`mt-4 ${baseButtonClass} border border-white/15 text-[#c2c6d7]`}

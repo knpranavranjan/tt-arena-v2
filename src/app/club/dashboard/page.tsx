@@ -6,6 +6,8 @@ import { Check, ShieldCheck, Trophy, X } from "lucide-react";
 import { arenaFontVariables } from "@/lib/fonts";
 import { useCurrentClub } from "@/lib/session-data";
 import { useJoinRequests } from "@/lib/join-requests";
+import { usePlayerRatings } from "@/lib/player-ratings";
+import { LiveRating } from "@/components/players/live-rating";
 import { abbreviateName, formatDate } from "@/lib/format";
 import { getClubPlayers, getPlayer, tournaments } from "@/lib/mock-data";
 import type { Player, Tournament, TournamentStatus } from "@/lib/types";
@@ -58,9 +60,10 @@ function tournamentStatusMeta(status: TournamentStatus): { label: string; textCl
 export default function ClubDashboardPage() {
   const club = useCurrentClub();
   const { pendingForClub, updateStatus } = useJoinRequests();
+  const ratings = usePlayerRatings();
   if (!club) return null;
 
-  const clubPlayers = getClubPlayers(club.id).sort((a, b) => b.rating - a.rating);
+  const clubPlayers = getClubPlayers(club.id).sort((a, b) => ratings.getRating(b.id) - ratings.getRating(a.id));
   const playerIds = new Set(clubPlayers.map((p) => p.id));
   const clubTournaments = tournaments.filter((t) => t.registeredPlayerIds.some((id) => playerIds.has(id)));
   const activeTournaments = clubTournaments.filter((t) => t.status !== "COMPLETED");
@@ -291,9 +294,7 @@ function RosterRow({ player }: { player: Player }) {
           {calcAge(player.dateOfBirth)} &middot; {player.gender === "MALE" ? "Male" : "Female"}
         </p>
       </div>
-      <span className="shrink-0 text-sm font-extrabold text-[#ff8f86]" style={mono}>
-        {player.rating}
-      </span>
+      <LiveRating playerId={player.id} className="shrink-0 text-sm font-extrabold text-[#ff8f86]" style={mono} />
     </Link>
   );
 }

@@ -6,6 +6,7 @@ import React, {
   useContext,
   useEffect,
   useMemo,
+  useRef,
   useState,
 } from "react";
 
@@ -25,7 +26,7 @@ import {
   pairRoster,
   toMembers,
 } from "@/lib/tournament/doubles";
-import { blankPlayer, generatePlayers, seedPlayers, uid } from "@/lib/tournament/players";
+import { applySeedOrder, blankPlayer, generatePlayers, seedPlayers, uid } from "@/lib/tournament/players";
 import {
   allocate,
   balancedSizes,
@@ -39,7 +40,7 @@ import { categoryCode } from "@/lib/tournament/registrations";
 import { hashString, rngFor } from "@/lib/tournament/rng";
 import { generateAllPoolMatches } from "@/lib/tournament/roundRobin";
 import type { MatchResultPatch } from "@/lib/tournament/scoring";
-import { computeAllStandings } from "@/lib/tournament/standings";
+import { applyManualOrder, computeAllStandings } from "@/lib/tournament/standings";
 import type {
   AllocationMethod,
   Bracket,
@@ -60,6 +61,7 @@ import type {
 } from "@/lib/tournament/types";
 
 import { getCategoryBreakdown, getPlayer, getTournamentPlayers } from "@/lib/mock-data";
+import type { PublishedResult } from "@/lib/published-results";
 import { useRegistrations, type TournamentRegistration } from "@/lib/registrations";
 import { useTournamentStatus } from "@/lib/tournament-status";
 import type { Player as ArenaPlayer, Tournament as ArenaTournament } from "@/lib/types";
@@ -81,6 +83,9 @@ export interface CategoryDraw {
   pools: Pool[] | null;
   poolMatches: PoolMatch[];
   poolMethod: AllocationMethod;
+  /** Per-pool standings order set by dragging rows. Keyed by pool id; a pool
+   *  absent from the map is ranked automatically. */
+  manualStandingsOrder: Record<string, string[]> | null;
   manualQualifierIds: string[] | null;
   qualifierOrder: string[] | null;
   bracket: Bracket | null;
@@ -95,10 +100,15 @@ export interface CategorySummary extends CategoryEntry {
   championId: string | null;
 }
 
-export interface PublishedResult {
-  champion?: string;
-  runnerUp?: string;
-  semiFinalists?: string[];
+export type { PublishedPlacement, PublishedResult } from "@/lib/published-results";
+
+/** A read-only snapshot the player Match Centre renders — recomputed on every
+ *  console change so the player view stays live without re-deriving anything. */
+export interface CategoryFeed {
+  name: string;
+  advancePerPool: number;
+  standings: Record<string, RankedRow[]>;
+  seedOrder: Record<string, number>;
 }
 
 interface StoredMatches {
@@ -108,6 +118,10 @@ interface StoredMatches {
   configPatch: Partial<ConsoleTournament>;
   draws: Record<string, CategoryDraw>;
   published: Record<string, PublishedResult>;
+  /** Stages the host has published to players, per category id. */
+  scheduleReleases: Record<string, string[]>;
+  /** Derived, written on persist — see `CategoryFeed`. */
+  feeds?: Record<string, CategoryFeed>;
 }
 
 export interface MatchesActions {
@@ -118,6 +132,14 @@ export interface MatchesActions {
 
   generateSamplePlayers: (count: number, nameStyle: NameStyle, replace?: boolean) => void;
   addPlayer: (player?: Partial<Player>) => void;
+  /** Enter an existing platform player (kept by their real id so ratings apply). */
+  addRegisteredPlayer: (person: {
+    id: string;
+    name: string;
+    rating: number;
+    club: string;
+    state: string;
+  }) => void;
   updatePlayer: (id: string, patch: Partial<Player>) => void;
   removePlayer: (id: string) => void;
   duplicatePlayer: (id: string) => void;
@@ -140,6 +162,10 @@ export interface MatchesActions {
 
   setPoolResult: (matchId: string, result: Partial<MatchBase>) => void;
   clearPoolResult: (matchId: string) => void;
+  /** Drag a pool's standings into an explicit order (player ids, top first). */
+  reorderStanding: (poolId: string, playerIds: string[]) => void;
+  /** Drop the manual order for one pool (or every pool) — back to computed. */
+  resetStandingsOrder: (poolId?: string) => void;
 
   setManualQualifiers: (ids: string[] | null) => void;
   setQualifierOrder: (ids: string[] | null) => void;
@@ -147,6 +173,10 @@ export interface MatchesActions {
   clearBracket: () => void;
   setKoResult: (matchId: string, result: Partial<MatchBase>) => void;
   clearKoResult: (matchId: string) => void;
+
+  /** Release a stage's schedule to registered players' Match Centre. */
+  publishStage: (stageKey: string) => void;
+  unpublishStage: (stageKey: string) => void;
 
   publishResults: (result: PublishedResult) => void;
 }
@@ -169,9 +199,12 @@ export interface MatchesContextValue {
   pools: Pool[] | null;
   poolMatches: PoolMatch[];
   poolMethod: AllocationMethod;
+  manualStandingsOrder: Record<string, string[]> | null;
   manualQualifierIds: string[] | null;
   qualifierOrder: string[] | null;
   bracket: Bracket | null;
+  /** Stage keys the host has published for the active category. */
+  releasedStages: string[];
 
   seeded: SeededPlayer[];
   playerById: Map<string, Player>;
@@ -310,11 +343,52 @@ function baseConfig(t: ArenaTournament): ConsoleTournament {
     groupWinBy: "win_by_two",
     koBestOf: parseBestOf(t.matchFormat),
     koPointsToWin: 11,
+    koSemiFinalBestOf: parseBestOf(t.matchFormat),
+    koSemiFinalPointsToWin: 11,
     koWinBy: "win_by_two",
   };
 }
 
 const DEFAULT_POINTS: GamePoints = { win: 2, draw: 1, loss: 1 };
+
+/** Recompute the read-only per-category snapshot for the player Match Centre. */
+function buildFeeds(state: StoredMatches, config: ConsoleTournament): Record<string, CategoryFeed> {
+  const t = { ...config, ...state.configPatch };
+  const points = t.groupPoints ?? DEFAULT_POINTS;
+  const out: Record<string, CategoryFeed> = {};
+  for (const [catId, draw] of Object.entries(state.draws)) {
+    const seededPlayers = applySeedOrder(draw.players, draw.manualSeedOrder);
+    const seedOrder: Record<string, number> = {};
+    for (const p of seededPlayers) seedOrder[p.id] = p.seed;
+
+    let standings: Record<string, RankedRow[]> = {};
+    if (draw.pools) {
+      const seedOf = (id: string) => seedOrder[id] ?? 9999;
+      const map = computeAllStandings(
+        draw.pools,
+        draw.poolMatches,
+        t.tieBreakRule,
+        seedOf,
+        t.seed,
+        points,
+      );
+      if (draw.manualStandingsOrder) {
+        for (const pool of draw.pools) {
+          const ord = draw.manualStandingsOrder[pool.id];
+          if (ord) map.set(pool.id, applyManualOrder(map.get(pool.id) ?? [], ord));
+        }
+      }
+      standings = Object.fromEntries(map);
+    }
+    out[catId] = {
+      name: config.categories.find((c) => c.id === catId)?.name ?? catId,
+      advancePerPool: t.advancePerPool ?? 2,
+      standings,
+      seedOrder,
+    };
+  }
+  return out;
+}
 
 function toConsolePlayer(p: ArenaPlayer): Player {
   return { id: p.id, name: p.name, rating: p.rating, club: p.clubName ?? "", state: p.state };
@@ -360,6 +434,7 @@ function emptyDraw(
     pools: null,
     poolMatches: [],
     poolMethod: "snake",
+    manualStandingsOrder: null,
     manualQualifierIds: null,
     qualifierOrder: null,
     bracket: null,
@@ -393,6 +468,7 @@ function initialState(t: ArenaTournament, liveRegs: readonly TournamentRegistrat
     configPatch: {},
     draws,
     published: {},
+    scheduleReleases: {},
   };
 }
 
@@ -404,6 +480,40 @@ function readAll(): Record<string, StoredMatches> {
   } catch {
     return {};
   }
+}
+
+/**
+ * Rebuild a full workspace state from whatever is persisted for this
+ * tournament, reconciled against the current config. `keepNav` preserves the
+ * local viewer's step + active category so an external write (another tab, the
+ * host, or an assistant on /assist) is adopted without yanking them around.
+ * Used both for the initial hydrate and for live cross-tab sync.
+ */
+function reconcile(
+  stored: StoredMatches | undefined,
+  config: ReturnType<typeof baseConfig>,
+  t: ArenaTournament,
+  liveRegs: readonly TournamentRegistration[],
+  keepNav?: { stage: Stage; activeCategoryId: string },
+): StoredMatches {
+  if (!stored || !stored.draws) return initialState(t, liveRegs);
+  const draws: Record<string, CategoryDraw> = {};
+  for (const c of config.categories) {
+    const saved = stored.draws[c.id];
+    draws[c.id] = saved
+      ? { ...saved, unpaired: saved.unpaired ?? [] }
+      : initialDraw(t, c, liveRegs);
+  }
+  const wantActive = keepNav?.activeCategoryId ?? stored.activeCategoryId;
+  const activeCategoryId = draws[wantActive] ? wantActive : config.categories[0].id;
+  return {
+    stage: keepNav?.stage ?? stored.stage ?? "players",
+    activeCategoryId,
+    configPatch: stored.configPatch ?? {},
+    draws,
+    published: stored.published ?? {},
+    scheduleReleases: stored.scheduleReleases ?? {},
+  };
 }
 
 /* --------------------------------------------------------------- helpers */
@@ -431,6 +541,8 @@ const clearedResult: MatchResultPatch = {
   duration: null,
 };
 const resetQualifierOverrides = { manualQualifierIds: null, qualifierOrder: null } as const;
+// A change to who is in which pool makes any hand-set standings order meaningless.
+const resetPoolOverrides = { ...resetQualifierOverrides, manualStandingsOrder: null } as const;
 
 /* --------------------------------------------------------------- provider */
 
@@ -451,44 +563,68 @@ export function MatchesProvider({
   );
   const [hydrated, setHydrated] = useState(false);
 
+  // `registrations` identity churns every render — the reconcile helpers only
+  // need the latest value, not a re-subscription, so hold it in a ref.
+  const regsRef = useRef(registrations);
+  useEffect(() => {
+    regsRef.current = registrations;
+  });
+
   // Load any persisted draw for this tournament; otherwise keep the freshly
   // seeded one. Reconcile categories so a config change still lines up.
   useEffect(() => {
     const stored = readAll()[arenaTournament.id];
     if (stored && stored.draws) {
-      const draws: Record<string, CategoryDraw> = {};
-      for (const c of config.categories) {
-        const saved = stored.draws[c.id];
-        draws[c.id] = saved
-          ? { ...saved, unpaired: saved.unpaired ?? [] }
-          : initialDraw(arenaTournament, c, registrations);
-      }
-      const activeCategoryId = draws[stored.activeCategoryId]
-        ? stored.activeCategoryId
-        : config.categories[0].id;
-      setState({
-        stage: stored.stage ?? "players",
-        activeCategoryId,
-        configPatch: stored.configPatch ?? {},
-        draws,
-        published: stored.published ?? {},
-      });
+      setState(reconcile(stored, config, arenaTournament, regsRef.current));
     }
     setHydrated(true);
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [arenaTournament.id]);
 
-  // Persist on every change once hydrated.
+  // Live cross-tab / multi-login sync. The Matches console is now editable by
+  // the host *and* by any assistant the host granted access to (via /assist),
+  // possibly in several tabs at once. When another tab writes this tournament's
+  // blob, adopt it — keeping this viewer's own step + active category. Writes
+  // are whole-blob and last-write-wins, the same contract every other store in
+  // this app uses; because every tab adopts on the `storage` event near-
+  // instantly, concurrent edits interleave in practice.
+  useEffect(() => {
+    if (!hydrated) return;
+    const adopt = () => {
+      const stored = readAll()[arenaTournament.id];
+      if (!stored || !stored.draws) return;
+      setState((cur) => {
+        const next = reconcile(stored, config, arenaTournament, regsRef.current, {
+          stage: cur.stage,
+          activeCategoryId: cur.activeCategoryId,
+        });
+        return JSON.stringify(next) === JSON.stringify(cur) ? cur : next;
+      });
+    };
+    const onStorage = (e: StorageEvent) => {
+      if (e.key === STORAGE_KEY || e.key === null) adopt();
+    };
+    window.addEventListener("storage", onStorage);
+    window.addEventListener("focus", adopt);
+    return () => {
+      window.removeEventListener("storage", onStorage);
+      window.removeEventListener("focus", adopt);
+    };
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [hydrated, arenaTournament.id, config]);
+
+  // Persist on every change once hydrated. A `feeds` snapshot is recomputed on
+  // each write so the read-only player Match Centre never re-derives standings.
   useEffect(() => {
     if (!hydrated) return;
     try {
       const all = readAll();
-      all[arenaTournament.id] = state;
+      all[arenaTournament.id] = { ...state, feeds: buildFeeds(state, config) };
       window.localStorage.setItem(STORAGE_KEY, JSON.stringify(all));
     } catch {
       /* storage full or unavailable — the workspace still works for this session */
     }
-  }, [hydrated, state, arenaTournament.id]);
+  }, [hydrated, state, config, arenaTournament.id]);
 
   const mutate = useCallback((fn: (s: StoredMatches) => StoredMatches) => setState(fn), []);
 
@@ -512,23 +648,10 @@ export function MatchesProvider({
 
   /* -------------------------------------------------------- derived data */
 
-  const seeded = useMemo(() => {
-    const base = seedPlayers(activeDraw.players);
-    const order = activeDraw.manualSeedOrder;
-    if (!order || order.length === 0) return base;
-    const byId = new Map(base.map((p) => [p.id, p]));
-    const ordered: typeof base = [];
-    for (const id of order) {
-      const p = byId.get(id);
-      if (p) {
-        ordered.push(p);
-        byId.delete(id);
-      }
-    }
-    // Anyone not placed by hand keeps rating order, at the back.
-    for (const p of base) if (byId.has(p.id)) ordered.push(p);
-    return ordered.map((p, i) => ({ ...p, seed: i + 1 }));
-  }, [activeDraw.players, activeDraw.manualSeedOrder]);
+  const seeded = useMemo(
+    () => applySeedOrder(activeDraw.players, activeDraw.manualSeedOrder),
+    [activeDraw.players, activeDraw.manualSeedOrder],
+  );
   const playerById = useMemo(
     () => new Map(activeDraw.players.map((p) => [p.id, p])),
     [activeDraw.players],
@@ -545,7 +668,7 @@ export function MatchesProvider({
 
   const standingsByPool = useMemo(() => {
     if (!activeDraw.pools) return new Map<string, RankedRow[]>();
-    return computeAllStandings(
+    const computed = computeAllStandings(
       activeDraw.pools,
       activeDraw.poolMatches,
       tournament.tieBreakRule,
@@ -553,9 +676,22 @@ export function MatchesProvider({
       tournament.seed,
       groupPoints,
     );
+    // A hand-set drag order (from the Pool Matches standings table) wins over
+    // the computed ranking; everything downstream — qualification, the bracket
+    // seeding, an rr_only champion — reads this map, so it all follows.
+    const manual = activeDraw.manualStandingsOrder;
+    if (manual) {
+      for (const pool of activeDraw.pools) {
+        if (manual[pool.id]) {
+          computed.set(pool.id, applyManualOrder(computed.get(pool.id) ?? [], manual[pool.id]));
+        }
+      }
+    }
+    return computed;
   }, [
     activeDraw.pools,
     activeDraw.poolMatches,
+    activeDraw.manualStandingsOrder,
     tournament.tieBreakRule,
     tournament.seed,
     seedOf,
@@ -677,6 +813,13 @@ export function MatchesProvider({
             [...draw.players, { ...blankPlayer(draw.players.length), ...player, id: uid("p") }],
             t.tables,
           ),
+        ),
+
+      addRegisteredPlayer: (person) =>
+        mutateDraw((draw, t) =>
+          draw.players.some((p) => p.id === person.id)
+            ? draw
+            : afterPlayerChange(draw, [...draw.players, { ...person }], t.tables),
         ),
 
       updatePlayer: (id, patch) =>
@@ -804,7 +947,7 @@ export function MatchesProvider({
           const rng = rngFor(t.seed, draw.categoryId, "alloc", method, count);
           const pools = allocate(method, seedPlayers(draw.players), sizes, rng);
           return syncPools(
-            { ...draw, poolMethod: method, ...resetQualifierOverrides },
+            { ...draw, poolMethod: method, ...resetPoolOverrides },
             pools,
             t.tables,
           );
@@ -818,7 +961,7 @@ export function MatchesProvider({
           const rng = rngFor(t.seed, draw.categoryId, "shuffle", Date.now(), Math.random());
           const shuffled = allocate("random", seedPlayers(draw.players), sizes, rng)
             .map((p, i) => ({ ...p, id: draw.pools![i].id, name: draw.pools![i].name }));
-          return syncPools({ ...draw, ...resetQualifierOverrides }, shuffled, t.tables);
+          return syncPools({ ...draw, ...resetPoolOverrides }, shuffled, t.tables);
         }),
 
       movePlayerToPool: (playerId, targetPoolId) =>
@@ -833,7 +976,7 @@ export function MatchesProvider({
             target.playerIds = [...target.playerIds, playerId];
             target.capacity = Math.max(target.capacity, target.playerIds.length);
           }
-          return syncPools({ ...draw, ...resetQualifierOverrides }, pools, t.tables);
+          return syncPools({ ...draw, ...resetPoolOverrides }, pools, t.tables);
         }),
 
       renamePool: (poolId, name) =>
@@ -853,7 +996,7 @@ export function MatchesProvider({
               playerIds: [],
             },
           ];
-          return syncPools({ ...draw, ...resetQualifierOverrides }, pools, t.tables);
+          return syncPools({ ...draw, ...resetPoolOverrides }, pools, t.tables);
         }),
 
       removePool: (poolId) =>
@@ -869,7 +1012,7 @@ export function MatchesProvider({
           }
           pools.sort((a, b) => a.name.localeCompare(b.name, undefined, { numeric: true }));
           return syncPools(
-            { ...draw, ...resetQualifierOverrides },
+            { ...draw, ...resetPoolOverrides },
             pools.map((p) => ({ ...p, capacity: p.playerIds.length })),
             t.tables,
           );
@@ -892,6 +1035,28 @@ export function MatchesProvider({
           ),
           ...resetQualifierOverrides,
         })),
+
+      reorderStanding: (poolId, playerIds) =>
+        mutateDraw((draw) => ({
+          ...draw,
+          manualStandingsOrder: { ...(draw.manualStandingsOrder ?? {}), [poolId]: playerIds },
+          // The pool outcome the host just asserted changes who qualifies, so
+          // any earlier hand-picked qualifier list is stale.
+          ...resetQualifierOverrides,
+        })),
+
+      resetStandingsOrder: (poolId) =>
+        mutateDraw((draw) => {
+          if (!draw.manualStandingsOrder) return draw;
+          if (!poolId) return { ...draw, manualStandingsOrder: null, ...resetQualifierOverrides };
+          const next = { ...draw.manualStandingsOrder };
+          delete next[poolId];
+          return {
+            ...draw,
+            manualStandingsOrder: Object.keys(next).length ? next : null,
+            ...resetQualifierOverrides,
+          };
+        }),
 
       /* qualification and knockout --------------------------------- */
 
@@ -939,6 +1104,32 @@ export function MatchesProvider({
           draw.bracket ? { ...draw, bracket: clearBracketResult(draw.bracket, matchId) } : draw,
         ),
 
+      publishStage: (stageKey) =>
+        mutate((s) => {
+          const current = s.scheduleReleases[s.activeCategoryId] ?? [];
+          if (current.includes(stageKey)) return s;
+          return {
+            ...s,
+            scheduleReleases: {
+              ...s.scheduleReleases,
+              [s.activeCategoryId]: [...current, stageKey],
+            },
+          };
+        }),
+
+      unpublishStage: (stageKey) =>
+        mutate((s) => {
+          const current = s.scheduleReleases[s.activeCategoryId] ?? [];
+          if (!current.includes(stageKey)) return s;
+          return {
+            ...s,
+            scheduleReleases: {
+              ...s.scheduleReleases,
+              [s.activeCategoryId]: current.filter((k) => k !== stageKey),
+            },
+          };
+        }),
+
       // The Champion screen already knows the placings — it passes them in, so
       // this action just records them and marks the event completed. (Both
       // setState calls stay outside each other's updaters.)
@@ -967,9 +1158,11 @@ export function MatchesProvider({
     pools: activeDraw.pools,
     poolMatches: activeDraw.poolMatches,
     poolMethod: activeDraw.poolMethod,
+    manualStandingsOrder: activeDraw.manualStandingsOrder ?? null,
     manualQualifierIds: activeDraw.manualQualifierIds,
     qualifierOrder: activeDraw.qualifierOrder,
     bracket: activeDraw.bracket,
+    releasedStages: state.scheduleReleases[state.activeCategoryId] ?? [],
     seeded,
     playerById,
     seedOf,

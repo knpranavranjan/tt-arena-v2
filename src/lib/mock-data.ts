@@ -11,6 +11,28 @@ import type {
   Tournament,
 } from "@/lib/types";
 
+/**
+ * A stand-in 4:5 event poster (real hosts upload their own on the host form).
+ * Inline SVG so the seeded events show something in the poster slot.
+ */
+function seedPoster(title: string, subtitle: string, footer: string): string {
+  const esc = (s: string) => s.replace(/&/g, "&amp;").replace(/</g, "&lt;").replace(/>/g, "&gt;");
+  const svg = `<svg xmlns="http://www.w3.org/2000/svg" width="640" height="800" viewBox="0 0 640 800">
+<defs><linearGradient id="g" x1="0" y1="0" x2="0" y2="1">
+<stop offset="0" stop-color="#141821"/><stop offset="1" stop-color="#0a0c10"/></linearGradient></defs>
+<rect width="640" height="800" fill="url(#g)"/>
+<rect width="640" height="12" fill="#ff2448"/>
+<circle cx="500" cy="470" r="210" fill="none" stroke="#ff2448" stroke-opacity="0.14" stroke-width="60"/>
+<circle cx="180" cy="150" r="90" fill="#ff2448" fill-opacity="0.06"/>
+<rect x="56" y="330" width="90" height="6" fill="#ff2448"/>
+<text x="56" y="404" font-family="Arial, Helvetica, sans-serif" font-size="56" font-weight="800" fill="#e6e6ec">${esc(title)}</text>
+<text x="56" y="452" font-family="Arial, Helvetica, sans-serif" font-size="27" font-weight="700" fill="#ff8f86">${esc(subtitle)}</text>
+<text x="56" y="716" font-family="Arial, Helvetica, sans-serif" font-size="21" fill="#8b8b93">${esc(footer)}</text>
+<text x="56" y="752" font-family="Arial, Helvetica, sans-serif" font-size="19" font-weight="700" letter-spacing="3" fill="#c2c6d7">SPINTTRATINGS</text>
+</svg>`;
+  return `data:image/svg+xml,${encodeURIComponent(svg)}`;
+}
+
 export const clubs: Club[] = [
   {
     id: "club-apex",
@@ -18,6 +40,7 @@ export const clubs: Club[] = [
     location: "Bengaluru",
     state: "Karnataka",
     address: "142, 100 Feet Road, Indiranagar, Bengaluru, Karnataka 560038",
+    coordinates: { lat: 12.9719, lng: 77.6412 },
     description:
       "Bengaluru's premier competitive club, producing state and national medalists since 2008.",
     aboutHighlights: [
@@ -31,7 +54,6 @@ export const clubs: Club[] = [
     phone: "+91 80 4123 5567",
     email: "contact@apexttc.in",
     verified: true,
-    rating: 4.8,
     facilities: {
       tableCount: 12,
       tableVarieties: "Stiga Optimum 30 & Butterfly Centrefold 25",
@@ -51,6 +73,7 @@ export const clubs: Club[] = [
     location: "Pune",
     state: "Maharashtra",
     address: "Plot 27, Baner-Pashan Link Road, Baner, Pune, Maharashtra 411045",
+    coordinates: { lat: 18.559, lng: 73.7868 },
     description: "High-performance training academy focused on junior development.",
     aboutHighlights: [
       "Junior-focused curriculum led by certified youth development coaches.",
@@ -63,7 +86,6 @@ export const clubs: Club[] = [
     phone: "+91 20 4987 2231",
     email: "info@spinforgeacademy.in",
     verified: true,
-    rating: 4.5,
     facilities: {
       tableCount: 8,
       tableVarieties: "Butterfly Centrefold 25 & Joola 3000-SC",
@@ -83,6 +105,7 @@ export const clubs: Club[] = [
     location: "Kolkata",
     state: "West Bengal",
     address: "18B, Rashbehari Avenue, Gariahat, Kolkata, West Bengal 700029",
+    coordinates: { lat: 22.5185, lng: 88.366 },
     description: "Community club with the largest active membership in eastern India.",
     aboutHighlights: [
       "Open-membership club welcoming players of every skill level.",
@@ -95,7 +118,6 @@ export const clubs: Club[] = [
     phone: "+91 33 2461 8890",
     email: "hello@riversidepaddlers.in",
     verified: true,
-    rating: 4.6,
     facilities: {
       tableCount: 15,
       tableVarieties: "Stiga Optimum 30 & Cornilleau Competition 850",
@@ -127,7 +149,6 @@ export const clubs: Club[] = [
     phone: "+91 44 2615 7742",
     email: "contact@vanguardttc.in",
     verified: false,
-    rating: 4.3,
     facilities: {
       tableCount: 10,
       tableVarieties: "Joola 3000-SC & Butterfly Centrefold 25",
@@ -139,6 +160,69 @@ export const clubs: Club[] = [
       hasParking: true,
       hasROWater: false,
       seatingCapacity: 45,
+    },
+  },
+  {
+    id: "club-northgate",
+    name: "Northgate TTC",
+    location: "New Delhi",
+    state: "Delhi",
+    address: "14, Community Centre, Rajouri Garden, New Delhi, Delhi 110027",
+    description: "A growing club building a competitive circuit across North India.",
+    aboutHighlights: [
+      "New facility opened in 2022 with tournament-standard flooring.",
+      "Weekend beginner clinics run by club-certified coaches.",
+      "Hosts an open-invite league every quarter.",
+      "Flexible membership plans for casual and competitive players alike.",
+    ],
+    playerIds: [],
+    founded: 2022,
+    phone: "+91 11 4567 8890",
+    email: "hello@northgatettc.in",
+    verified: false,
+    facilities: {
+      tableCount: 6,
+      tableVarieties: "Butterfly Centrefold 25",
+      floorType: "Synthetic Floor",
+      floorGrade: "Training Grade",
+      lighting: "850+ Lux",
+      isAirConditioned: false,
+      hasWashroom: true,
+      hasParking: true,
+      hasROWater: true,
+      seatingCapacity: 20,
+    },
+  },
+  {
+    id: "club-skyline",
+    name: "Skyline TTC",
+    location: "Hyderabad",
+    state: "Telangana",
+    address: "22, Jubilee Hills Road No. 5, Hyderabad, Telangana 500033",
+    coordinates: { lat: 17.4319, lng: 78.4073 },
+    description: "A modern club with a strong junior pipeline and city league ties.",
+    aboutHighlights: [
+      "Purpose-built hall with eight tournament-grade tables.",
+      "Feeder program for the city's school and college leagues.",
+      "In-house sports science support for injury prevention.",
+      "Monthly rating tournaments open to all member levels.",
+    ],
+    playerIds: [],
+    founded: 2017,
+    phone: "+91 40 2345 6712",
+    email: "info@skylinettc.in",
+    verified: true,
+    facilities: {
+      tableCount: 8,
+      tableVarieties: "Stiga Optimum 30 & Joola 3000-SC",
+      floorType: "Wooden Floor",
+      floorGrade: "Professional Grade",
+      lighting: "1000+ Lux",
+      isAirConditioned: true,
+      hasWashroom: true,
+      hasParking: true,
+      hasROWater: true,
+      seatingCapacity: 40,
     },
   },
 ];
@@ -337,6 +421,7 @@ export const events: TTEvent[] = [
     status: "UPCOMING",
     tournamentIds: ["trn-open-senior", "trn-open-u21"],
     participatingClubIds: ["club-apex", "club-spinforge", "club-vanguard"],
+    posterUrl: seedPoster("TT Open 2026", "Senior & Under-21 Singles", "12 Sep 2026 · Bengaluru"),
   },
   {
     id: "evt-monsoon-cup",
@@ -348,6 +433,7 @@ export const events: TTEvent[] = [
     status: "LIVE",
     tournamentIds: ["trn-monsoon-open"],
     participatingClubIds: ["club-spinforge", "club-riverside"],
+    posterUrl: seedPoster("Monsoon Cup", "Open Singles", "22 Aug 2026 · Pune"),
   },
   {
     id: "evt-eastern-championship",
@@ -382,6 +468,12 @@ export const tournaments: Tournament[] = [
     ballType: "Plastic 40+, 3-star (match)",
     umpireStatus: "Umpired",
     prizePool: 40000,
+    totalPrizePool: 55000,
+    posterUrl: seedPoster("TT Open 2026", "Senior & Under-21 Singles", "12 Sep 2026 · Bengaluru"),
+    registrationQuestions: [
+      { question: "What is your T-shirt size?", responseType: "Multiple Choice", options: ["S", "M", "L", "XL"] },
+      { question: "Do you need airport pickup?", responseType: "Yes / No" },
+    ],
     poolSize: 4,
   },
   {
@@ -403,6 +495,8 @@ export const tournaments: Tournament[] = [
     ballType: "Plastic 40+, 3-star (match)",
     umpireStatus: "Umpired",
     prizePool: 15000,
+    totalPrizePool: 55000,
+    posterUrl: seedPoster("TT Open 2026", "Senior & Under-21 Singles", "12 Sep 2026 · Bengaluru"),
   },
   {
     id: "trn-monsoon-open",
@@ -423,6 +517,7 @@ export const tournaments: Tournament[] = [
     ballType: "Plastic 40+, 2-star (training)",
     umpireStatus: "Self-officiated",
     prizePool: 25000,
+    posterUrl: seedPoster("Monsoon Cup", "Open Singles", "22 Aug 2026 · Pune"),
     poolSize: 4,
   },
   {

@@ -4,6 +4,7 @@ import Link from "next/link";
 import { useParams, usePathname } from "next/navigation";
 import { MapPin } from "lucide-react";
 import { ExportReportMenu } from "@/components/tournament/ExportReportMenu";
+import { ManageAccessButton } from "@/components/tournament/manage-access-button";
 import { getEvent, getTournament, tournamentCode } from "@/lib/mock-data";
 import type { TournamentStatus } from "@/lib/types";
 
@@ -85,7 +86,10 @@ export default function ManageHostTournamentLayout({ children }: { children: Rea
             Tournament ID #{tournamentCode(tournament)}
           </p>
         </div>
-        <ExportReportMenu tournament={tournament} />
+        <div className="flex flex-wrap items-center gap-2">
+          <ManageAccessButton tournament={tournament} />
+          <ExportReportMenu tournament={tournament} />
+        </div>
       </div>
 
       <div className="mb-8 flex gap-2 border-b border-white/10">

@@ -219,6 +219,26 @@ export function computeAllStandings(
   return map
 }
 
+/**
+ * Force a pool table into an explicit order the organizer set by dragging. Named
+ * players take that order; anyone unnamed (a new entrant, say) keeps their
+ * computed position behind them. Ranks are renumbered 1..n and the tie markers
+ * cleared — the organizer has made the call, so nothing is "tied" any more.
+ */
+export function applyManualOrder(
+  rows: readonly RankedRow[],
+  order: readonly string[] | null | undefined,
+): RankedRow[] {
+  if (!order || order.length === 0) return [...rows]
+  const pos = new Map(order.map((id, i) => [id, i]))
+  const sorted = [...rows].sort((a, b) => {
+    const pa = pos.get(a.playerId) ?? Number.POSITIVE_INFINITY
+    const pb = pos.get(b.playerId) ?? Number.POSITIVE_INFINITY
+    return pa - pb || a.rank - b.rank
+  })
+  return sorted.map((r, i) => ({ ...r, rank: i + 1, tieGroup: null, tieRule: null }))
+}
+
 export function poolComplete(pool: Pool, matches: readonly PoolMatch[]): boolean {
   const list = matches.filter((m) => m.poolId === pool.id)
   return list.length > 0 && list.every((m) => m.played)
