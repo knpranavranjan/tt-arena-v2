@@ -3,17 +3,20 @@
 import { useMemo, useState } from "react";
 import Link from "next/link";
 import { ChevronRight, Search } from "lucide-react";
-import { clubs, getClubPlayers } from "@/lib/mock-data";
+import { getClubPlayers } from "@/lib/mock-data";
+import { useClubRoster } from "@/lib/clubs-store";
 
 const mono = { fontFamily: "var(--font-home-mono)" };
 const display = { fontFamily: "var(--font-home-display)" };
 
 export default function AdminClubsPage() {
+  const clubs = useClubRoster();
   const [search, setSearch] = useState("");
 
+  // Seed catalogue + every real CLUB sign-up.
   const filtered = useMemo(
     () => clubs.filter((c) => c.name.toLowerCase().includes(search.toLowerCase())),
-    [search],
+    [clubs, search],
   );
 
   return (

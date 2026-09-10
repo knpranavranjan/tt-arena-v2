@@ -15,13 +15,18 @@ import { EmptyState } from "@/components/feedback/empty-state";
 import { RevealGroup, RevealItem } from "@/components/motion/reveal";
 import { ArenaPhotoBackdrop } from "@/components/media/arena-photo-backdrop";
 import { arenaFontVariables } from "@/lib/fonts";
-import { clubs } from "@/lib/mock-data";
-
-const states = Array.from(new Set(clubs.map((c) => c.state))).sort();
+import { useClubRoster } from "@/lib/clubs-store";
 
 export default function ClubsPage({ basePath = "/clubs" }: { basePath?: string }) {
+  const clubs = useClubRoster();
   const [search, setSearch] = useState("");
   const [state, setState] = useState("all");
+
+  // Seed catalogue + every real CLUB sign-up.
+  const states = useMemo(
+    () => Array.from(new Set(clubs.map((c) => c.state).filter(Boolean))).sort(),
+    [clubs],
+  );
 
   const filtered = useMemo(() => {
     return clubs.filter((c) => {
@@ -29,7 +34,7 @@ export default function ClubsPage({ basePath = "/clubs" }: { basePath?: string }
       if (state !== "all" && c.state !== state) return false;
       return true;
     });
-  }, [search, state]);
+  }, [clubs, search, state]);
 
   return (
     <div className={`relative ${arenaFontVariables}`} style={{ fontFamily: "var(--font-home-body)" }}>

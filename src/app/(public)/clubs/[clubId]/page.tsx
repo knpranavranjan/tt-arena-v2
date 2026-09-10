@@ -1,4 +1,6 @@
-import type { ReactNode } from "react";
+"use client";
+
+import { use, useMemo, type ReactNode } from "react";
 import { notFound } from "next/navigation";
 import Image from "next/image";
 import Link from "next/link";
@@ -24,25 +26,51 @@ import {
   Users,
 } from "lucide-react";
 import { arenaFontVariables } from "@/lib/fonts";
-import { getClub, getClubPlayers, events, tournaments } from "@/lib/mock-data";
+import { getClub, getClubPlayers } from "@/lib/mock-data";
+import { useClubRoster, useCreatedClubs } from "@/lib/clubs-store";
+import { useAllEvents, useAllTournaments } from "@/lib/hosted-tournaments";
 import { formatDate, initials } from "@/lib/format";
 import { JoinClubButton } from "@/components/club/join-club-button";
 import { LiveRating } from "@/components/players/live-rating";
 import type { Player, TTEvent } from "@/lib/types";
 
-export default async function ClubProfilePage({
+export default function ClubProfilePage({
   params,
 }: {
   params: Promise<{ clubId: string }>;
 }) {
-  const { clubId } = await params;
-  const club = getClub(clubId);
+  const { clubId } = use(params);
+  const roster = useClubRoster();
+  const { isLoading } = useCreatedClubs();
+  const allEvents = useAllEvents();
+  const allTournaments = useAllTournaments();
+
+  // Seed catalogue + every real CLUB sign-up.
+  const club = useMemo(
+    () => roster.find((c) => c.id === clubId) ?? getClub(clubId),
+    [roster, clubId],
+  );
+
+  const clubPlayers = useMemo(
+    () => (club ? getClubPlayers(club.id).sort((a, b) => b.rating - a.rating) : []),
+    [club],
+  );
+  const clubEvents = useMemo(
+    () =>
+      club
+        ? [...allEvents]
+            .filter((e) => e.participatingClubIds.includes(club.id))
+            .sort((a, b) => (a.status === "LIVE" ? -1 : b.status === "LIVE" ? 1 : 0))
+        : [],
+    [club, allEvents],
+  );
+
+  // Don't 404 a real sign-up before the created-clubs roster has loaded.
+  if (!club && isLoading) {
+    return <div className="min-h-screen bg-[#050a12]" />;
+  }
   if (!club) notFound();
 
-  const clubPlayers = getClubPlayers(club.id).sort((a, b) => b.rating - a.rating);
-  const clubEvents = [...events]
-    .filter((e) => e.participatingClubIds.includes(club.id))
-    .sort((a, b) => (a.status === "LIVE" ? -1 : b.status === "LIVE" ? 1 : 0));
   // The club chose its map spot at sign-up: an exact "current location" pin, or
   // (the default) the address itself. Either way it feeds the same map query.
   const mapQuery = club.coordinates
@@ -225,9 +253,13 @@ export default async function ClubProfilePage({
                 className="mt-3 max-h-[340px] space-y-2 overflow-y-auto pr-1"
                 style={{ scrollbarWidth: "thin", scrollbarColor: "rgba(255,255,255,0.18) transparent" }}
               >
-                {clubEvents.map((e) => (
-                  <EventRow key={e.id} event={e} />
-                ))}
+                {clubEvents.map((e) => {
+                  const evTournaments = allTournaments.filter((t) => e.tournamentIds.includes(t.id));
+                  const target =
+                    evTournaments.find((t) => t.status === "REGISTRATION_OPEN") ?? evTournaments[0];
+                  const href = target ? `/tournaments/${target.id}` : `/events/${e.id}`;
+                  return <EventRow key={e.id} event={e} href={href} />;
+                })}
               </div>
             )}
           </section>
@@ -326,7 +358,7 @@ function PlayerRow({ player }: { player: Player }) {
   );
 }
 
-function EventRow({ event }: { event: TTEvent }) {
+function EventRow({ event, href }: { event: TTEvent; href: string }) {
   const statusClass =
     event.status === "LIVE"
       ? "bg-[#ff2448] text-white"
@@ -334,12 +366,6 @@ function EventRow({ event }: { event: TTEvent }) {
         ? "border border-white/20 text-[#e2e2e8]"
         : "bg-white/10 text-[#8b8b93]";
   const statusLabel = event.status === "LIVE" ? "Live Now" : event.status === "UPCOMING" ? "Upcoming" : "Completed";
-
-  // Send visitors straight to the tournament page (registration, format, results) —
-  // prefer the category currently open for registration, else just the first one.
-  const eventTournaments = tournaments.filter((t) => event.tournamentIds.includes(t.id));
-  const targetTournament = eventTournaments.find((t) => t.status === "REGISTRATION_OPEN") ?? eventTournaments[0];
-  const href = targetTournament ? `/tournaments/${targetTournament.id}` : `/events/${event.id}`;
 
   return (
     <Link
