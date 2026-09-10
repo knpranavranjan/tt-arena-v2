@@ -200,3 +200,24 @@ export function useTournamentAssistants() {
   if (!ctx) throw new Error("useTournamentAssistants must be used within TournamentAssistantsProvider");
   return ctx;
 }
+
+/**
+ * A match-console grant is **event-wide**: being handed one category unlocks
+ * every category of that event. Given the raw granted tournament ids and the
+ * full tournament list, returns the set of *all* tournament ids the grantee can
+ * open — the granted ones plus every sibling that shares their event. Also
+ * covers legacy single-category grants made before grants fanned out.
+ */
+export function expandGrantsToEvent(
+  grantedIds: Iterable<string>,
+  tournaments: readonly { id: string; eventId: string }[],
+): Set<string> {
+  const granted = new Set(grantedIds);
+  const grantedEventIds = new Set<string>();
+  for (const t of tournaments) if (granted.has(t.id)) grantedEventIds.add(t.eventId);
+  const out = new Set<string>();
+  for (const t of tournaments) {
+    if (granted.has(t.id) || grantedEventIds.has(t.eventId)) out.add(t.id);
+  }
+  return out;
+}

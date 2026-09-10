@@ -1,14 +1,16 @@
 "use client";
 
+import { useMemo } from "react";
 import Link from "next/link";
 import { useParams } from "next/navigation";
 import { ArrowLeft, Lock, MapPin } from "lucide-react";
 
 import { MatchesTab } from "@/components/tournament-console/MatchesTab";
 import { useAuth } from "@/lib/auth";
-import { useAllTournaments } from "@/lib/hosted-tournaments";
-import { useTournamentAssistants } from "@/lib/tournament-assistants";
+import { useAllEvents, useAllTournaments } from "@/lib/hosted-tournaments";
+import { expandGrantsToEvent, useTournamentAssistants } from "@/lib/tournament-assistants";
 import { effectiveStatus, useTournamentStatus } from "@/lib/tournament-status";
+import { eventTitle } from "@/lib/tournament-manage";
 import { getEvent, tournamentCode } from "@/lib/mock-data";
 import type { TournamentStatus } from "@/lib/types";
 
@@ -32,6 +34,12 @@ function statusMeta(status: TournamentStatus): { label: string; className: strin
     case "COMPLETED":
       return { label: "Completed", className: "border border-white/20 bg-[#111318]/80 text-[#e2e2e8]", live: false };
   }
+}
+
+/** "<Event> — <Category>" -> "<Category>"; bare name falls back to `category`. */
+function categoryLabel(name: string, fallback: string) {
+  const i = name.lastIndexOf(" — ");
+  return i > 0 ? name.slice(i + 3) : fallback;
 }
 
 function NoAccess({ message }: { message: string }) {
@@ -60,25 +68,49 @@ export default function AssistTournamentMatchesPage() {
   const tournamentId = Array.isArray(params.tournamentId) ? params.tournamentId[0] : params.tournamentId;
 
   const { user, isLoading: authLoading } = useAuth();
-  const { isAssistant, isLoading: accessLoading } = useTournamentAssistants();
+  const { assignmentsFor, isLoading: accessLoading } = useTournamentAssistants();
   const allTournaments = useAllTournaments();
+  const allEvents = useAllEvents();
   const { overrides } = useTournamentStatus();
+
+  const tournament = useMemo(
+    () => (tournamentId ? allTournaments.find((t) => t.id === tournamentId) : undefined),
+    [tournamentId, allTournaments],
+  );
+
+  // Every category of this event, in a stable order — the switcher jumps
+  // between them and access covers all of them.
+  const siblings = useMemo(
+    () =>
+      tournament
+        ? allTournaments
+            .filter((t) => t.eventId === tournament.eventId)
+            .sort((a, b) => a.name.localeCompare(b.name))
+        : [],
+    [tournament, allTournaments],
+  );
+
+  // A grant on any one category of this event unlocks the whole event.
+  const accessible = useMemo(
+    () => expandGrantsToEvent(assignmentsFor(user?.uniqueId), allTournaments),
+    [assignmentsFor, user?.uniqueId, allTournaments],
+  );
 
   if (authLoading || accessLoading) {
     return <div className="mx-auto h-64 w-full max-w-6xl animate-pulse rounded-[8px] border border-white/10 bg-white/[0.02]" />;
   }
 
-  if (!tournamentId || !isAssistant(tournamentId, user?.uniqueId)) {
+  if (!tournamentId || !accessible.has(tournamentId)) {
     return <NoAccess message="You don't have access to this tournament's Matches console." />;
   }
 
-  const tournament = allTournaments.find((t) => t.id === tournamentId);
   if (!tournament) {
     return <NoAccess message="This tournament no longer exists." />;
   }
 
+  const event = allEvents.find((e) => e.id === tournament.eventId);
   const meta = statusMeta(effectiveStatus(tournament, overrides));
-  const location = getEvent(tournament.eventId)?.location ?? tournament.venue;
+  const location = event?.location ?? getEvent(tournament.eventId)?.location ?? tournament.venue;
 
   return (
     <div className="mx-auto w-full max-w-6xl" style={{ fontFamily: "var(--font-home-body)" }}>
@@ -110,13 +142,38 @@ export default function AssistTournamentMatchesPage() {
             className="text-xl font-extrabold uppercase leading-tight tracking-tight text-[#e2e2e8] sm:text-2xl"
             style={display}
           >
-            {tournament.name}
+            {eventTitle(tournament, event?.name)}
           </h1>
           <p className="mt-1.5 text-xs uppercase tracking-wide text-[#5a5a60]" style={mono}>
             Tournament ID #{tournamentCode(tournament)} · Assistant access
           </p>
         </div>
       </div>
+
+      {siblings.length > 1 && (
+        <div className="mb-6 flex flex-wrap items-center gap-2">
+          <span className="text-[10px] font-semibold uppercase tracking-widest text-[#5a5a60]" style={mono}>
+            Category
+          </span>
+          {siblings.map((s) => {
+            const active = s.id === tournament.id;
+            return (
+              <Link
+                key={s.id}
+                href={`/assist/${s.id}`}
+                className={`rounded-[2px] border px-3 py-1.5 text-[11px] font-semibold uppercase tracking-wide transition-colors ${
+                  active
+                    ? "border-[#ff2448] bg-[#ff2448]/10 text-[#ff8f86]"
+                    : "border-white/15 text-[#c2c6d7] hover:border-white/30 hover:bg-white/5"
+                }`}
+                style={mono}
+              >
+                {categoryLabel(s.name, s.category)}
+              </Link>
+            );
+          })}
+        </div>
+      )}
 
       <div className="mb-8 flex gap-2 border-b border-white/10">
         <span
@@ -128,7 +185,7 @@ export default function AssistTournamentMatchesPage() {
         </span>
       </div>
 
-      <MatchesTab tournament={tournament} />
+      <MatchesTab key={tournament.id} tournament={tournament} />
     </div>
   );
 }

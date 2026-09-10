@@ -2,15 +2,17 @@
 
 import { useMemo } from "react";
 import Link from "next/link";
-import { Calendar, ChevronRight, MapPin, Radio } from "lucide-react";
+import { Calendar, ChevronRight, Layers, MapPin, Radio } from "lucide-react";
 
 import { useAuth } from "@/lib/auth";
-import { useAllTournaments } from "@/lib/hosted-tournaments";
-import { useTournamentAssistants } from "@/lib/tournament-assistants";
+import { useAllEvents, useAllTournaments } from "@/lib/hosted-tournaments";
+import { expandGrantsToEvent, useTournamentAssistants } from "@/lib/tournament-assistants";
 import { effectiveStatus, useTournamentStatus } from "@/lib/tournament-status";
+import { mostActiveStatus } from "@/lib/event-groups";
+import { eventTitle } from "@/lib/tournament-manage";
 import { getEvent, tournamentCode } from "@/lib/mock-data";
 import { formatDate } from "@/lib/format";
-import type { TournamentStatus } from "@/lib/types";
+import type { Tournament, TournamentStatus } from "@/lib/types";
 
 const mono = { fontFamily: "var(--font-home-mono)" };
 const display = { fontFamily: "var(--font-home-display)" };
@@ -34,18 +36,51 @@ function statusMeta(status: TournamentStatus): { label: string; className: strin
   }
 }
 
+interface SharedEvent {
+  eventId: string;
+  name: string;
+  date: string;
+  location: string;
+  categories: Tournament[];
+  status: TournamentStatus;
+  /** The category the "Open Matches" link lands on. */
+  primary: Tournament;
+}
+
 export default function AssistIndexPage() {
   const { user } = useAuth();
   const { assignmentsFor, isLoading } = useTournamentAssistants();
   const allTournaments = useAllTournaments();
+  const allEvents = useAllEvents();
   const { overrides } = useTournamentStatus();
 
-  const shared = useMemo(() => {
-    const ids = new Set(assignmentsFor(user?.uniqueId));
-    return allTournaments
-      .filter((t) => ids.has(t.id))
+  // A grant is event-wide: one shared category unlocks every category of that
+  // event. Collapse to one card per event, with a category switcher inside.
+  const shared = useMemo<SharedEvent[]>(() => {
+    const accessible = expandGrantsToEvent(assignmentsFor(user?.uniqueId), allTournaments);
+    const byEvent = new Map<string, Tournament[]>();
+    for (const t of allTournaments) {
+      if (!accessible.has(t.id)) continue;
+      const list = byEvent.get(t.eventId) ?? [];
+      list.push(t);
+      byEvent.set(t.eventId, list);
+    }
+    return [...byEvent.entries()]
+      .map(([eventId, cats]) => {
+        const ordered = [...cats].sort((a, b) => a.name.localeCompare(b.name));
+        const ev = allEvents.find((e) => e.id === eventId);
+        return {
+          eventId,
+          name: eventTitle(ordered[0], ev?.name),
+          date: ev?.date ?? ordered[0].date,
+          location: ev?.location ?? getEvent(eventId)?.location ?? ordered[0].venue,
+          categories: ordered,
+          status: mostActiveStatus(ordered.map((c) => effectiveStatus(c, overrides))),
+          primary: ordered[0],
+        };
+      })
       .sort((a, b) => new Date(b.date).getTime() - new Date(a.date).getTime());
-  }, [assignmentsFor, user?.uniqueId, allTournaments]);
+  }, [assignmentsFor, user?.uniqueId, allTournaments, allEvents, overrides]);
 
   return (
     <div style={{ fontFamily: "var(--font-home-body)" }} className="mx-auto w-full max-w-6xl">
@@ -57,8 +92,8 @@ export default function AssistIndexPage() {
           Assisting
         </h1>
         <p className="mt-1 text-sm text-[#8b8b93]">
-          Tournaments a host has shared with you. Open one to run its Matches console — players,
-          pools, scoring and the knockout draw, live for everyone.
+          Tournaments a host has shared with you. Open one to run its Matches console — every
+          category, its players, pools, scoring and the knockout draw, live for everyone.
         </p>
       </div>
 
@@ -75,13 +110,12 @@ export default function AssistIndexPage() {
         </div>
       ) : (
         <div className="space-y-3">
-          {shared.map((t) => {
-            const meta = statusMeta(effectiveStatus(t, overrides));
-            const location = getEvent(t.eventId)?.location ?? t.venue;
+          {shared.map((ev) => {
+            const meta = statusMeta(ev.status);
             return (
               <Link
-                key={t.id}
-                href={`/assist/${t.id}`}
+                key={ev.eventId}
+                href={`/assist/${ev.primary.id}`}
                 className="flex flex-col gap-3 rounded-[8px] border border-white/10 bg-white/[0.03] p-5 transition-colors hover:border-white/20 sm:flex-row sm:items-center sm:justify-between"
               >
                 <div className="min-w-0">
@@ -94,18 +128,25 @@ export default function AssistIndexPage() {
                       {meta.label}
                     </span>
                     <span className="text-[11px] uppercase tracking-wide text-[#5a5a60]" style={mono}>
-                      #{tournamentCode(t)}
+                      #{tournamentCode(ev.primary)}
+                    </span>
+                    <span
+                      className="inline-flex items-center gap-1 rounded-[2px] border border-white/10 px-2 py-1 text-[10px] font-semibold uppercase tracking-wide text-[#c2c6d7]"
+                      style={mono}
+                    >
+                      <Layers className="h-3 w-3" strokeWidth={2} />
+                      {ev.categories.length} {ev.categories.length === 1 ? "category" : "categories"}
                     </span>
                   </div>
-                  <p className="truncate text-base font-semibold text-[#e2e2e8]">{t.name}</p>
+                  <p className="truncate text-base font-semibold text-[#e2e2e8]">{ev.name}</p>
                   <div className="mt-1.5 flex flex-wrap items-center gap-x-3 gap-y-1 text-xs text-[#8b8b93]">
                     <span className="flex items-center gap-1">
                       <Calendar className="h-3.5 w-3.5" strokeWidth={1.75} />
-                      {formatDate(t.date)}
+                      {formatDate(ev.date)}
                     </span>
                     <span className="flex items-center gap-1">
                       <MapPin className="h-3.5 w-3.5" strokeWidth={1.75} />
-                      {location}
+                      {ev.location}
                     </span>
                   </div>
                 </div>

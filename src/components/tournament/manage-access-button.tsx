@@ -13,6 +13,7 @@ import {
 import { useAuth } from "@/lib/auth";
 import { ownsTournament } from "@/lib/tournament-owner";
 import { usePlatformAccounts } from "@/lib/platform-directory";
+import { useAllTournaments } from "@/lib/hosted-tournaments";
 import { useTournamentAssistants } from "@/lib/tournament-assistants";
 import { eventTitle } from "@/lib/tournament-manage";
 import type { Tournament } from "@/lib/types";
@@ -38,8 +39,24 @@ export function ManageAccessButton({ tournament }: { tournament: Tournament }) {
   const { user } = useAuth();
   const { assistantsFor, grant, revoke } = useTournamentAssistants();
   const { all, search } = usePlatformAccounts();
+  const allTournaments = useAllTournaments();
   const [open, setOpen] = useState(false);
   const [query, setQuery] = useState("");
+
+  // Access is event-wide — one grant covers every category of this event. Fan
+  // grant/revoke out over all sibling categories so the store stays consistent
+  // however it's read.
+  const eventCategoryIds = useMemo(() => {
+    const ids = allTournaments.filter((t) => t.eventId === tournament.eventId).map((t) => t.id);
+    return ids.length ? ids : [tournament.id];
+  }, [allTournaments, tournament.eventId, tournament.id]);
+
+  const grantAll = (person: { uniqueId: string; name: string; role: string; personId?: string }) => {
+    for (const id of eventCategoryIds) grant(id, person);
+  };
+  const revokeAll = (uniqueId: string) => {
+    for (const id of eventCategoryIds) revoke(id, uniqueId);
+  };
 
   const assistants = assistantsFor(tournament.id);
 
@@ -90,10 +107,10 @@ export function ManageAccessButton({ tournament }: { tournament: Tournament }) {
             <DialogTitle>Match console access</DialogTitle>
             <DialogDescription>
               Assistants can open and run the Matches workspace for{" "}
-              <span className="text-foreground">{eventTitle(tournament)}</span> — every step from
-              players to the champion. They can&apos;t see the overview, registrations or exports.
-              Pick anyone below, or type their <span className="text-foreground">SPINID</span> to jump
-              to them.
+              <span className="text-foreground">{eventTitle(tournament)}</span> —{" "}
+              <span className="text-foreground">every category</span>, every step from players to the
+              champion. They can&apos;t see the overview, registrations or exports. Pick anyone below,
+              or type their <span className="text-foreground">SPINID</span> to jump to them.
             </DialogDescription>
           </DialogHeader>
 
@@ -121,7 +138,7 @@ export function ManageAccessButton({ tournament }: { tournament: Tournament }) {
                   <button
                     type="button"
                     onClick={() => {
-                      grant(tournament.id, {
+                      grantAll({
                         uniqueId: acc.uniqueId,
                         name: acc.name,
                         role: acc.role,
@@ -176,7 +193,7 @@ export function ManageAccessButton({ tournament }: { tournament: Tournament }) {
                     </span>
                     <button
                       type="button"
-                      onClick={() => revoke(tournament.id, a.uniqueId)}
+                      onClick={() => revokeAll(a.uniqueId)}
                       className="flex shrink-0 items-center gap-1 rounded-md px-2 py-1 text-xs font-semibold text-muted-foreground transition-colors hover:bg-destructive/10 hover:text-destructive"
                     >
                       <Trash2 className="h-3.5 w-3.5" strokeWidth={2} />
