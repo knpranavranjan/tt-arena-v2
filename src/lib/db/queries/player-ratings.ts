@@ -18,6 +18,9 @@ type RatingChangeEntry = {
   newRating: number;
   delta: number;
   matchesCounted: number;
+  wins: number;
+  losses: number;
+  matchesPlayed: number;
 };
 
 /** The full `StoredRatings` shape the client store expects. */
@@ -45,6 +48,9 @@ export async function getRatingsState() {
       newRating: r.newRating,
       delta: r.delta,
       matchesCounted: r.matchesCounted,
+      wins: r.wins ?? 0,
+      losses: r.losses ?? 0,
+      matchesPlayed: r.matchesPlayed ?? 0,
     });
   }
   // Oldest first, matching the store's contract.
@@ -58,7 +64,13 @@ export async function getRatingsState() {
 /** Persist a computed set of rating changes for one `${tournamentId}:${categoryId}`. */
 export async function applyRatingChanges(
   key: string,
-  changes: { playerId: string; newRating: number; entry: RatingChangeEntry }[],
+  changes: {
+    playerId: string;
+    newRating: number;
+    entry: RatingChangeEntry;
+    /** true = record the W/L log row only; don't move the player's rating. */
+    logOnly?: boolean;
+  }[],
 ) {
   const db = getDb();
   const [seen] = await db
@@ -68,13 +80,15 @@ export async function applyRatingChanges(
   if (seen) return { applied: false as const, reason: "already applied" };
 
   for (const c of changes) {
-    await db
-      .insert(playerRatingOverrides)
-      .values({ playerId: c.playerId, rating: c.newRating, updatedAt: new Date() })
-      .onConflictDoUpdate({
-        target: playerRatingOverrides.playerId,
-        set: { rating: c.newRating, updatedAt: new Date() },
-      });
+    if (!c.logOnly) {
+      await db
+        .insert(playerRatingOverrides)
+        .values({ playerId: c.playerId, rating: c.newRating, updatedAt: new Date() })
+        .onConflictDoUpdate({
+          target: playerRatingOverrides.playerId,
+          set: { rating: c.newRating, updatedAt: new Date() },
+        });
+    }
 
     await db.insert(ratingChangeLog).values({
       id: globalThis.crypto?.randomUUID?.() ?? `rcl-${Date.now()}-${Math.random().toString(36).slice(2, 8)}`,

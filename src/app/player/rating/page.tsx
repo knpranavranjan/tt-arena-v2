@@ -13,7 +13,7 @@ export default function PlayerRatingPage() {
   const ratings = usePlayerRatings();
   if (!player) return null;
 
-  const rating = ratings.getRating(player.id);
+  const rating = ratings.getRating(player.id) || player.rating;
   const appliedHistory = ratings.getHistory(player.id);
 
   // Once the rating algorithm has actually run for this player, chart their

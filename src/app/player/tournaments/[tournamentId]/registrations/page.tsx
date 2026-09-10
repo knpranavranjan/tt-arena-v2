@@ -5,7 +5,9 @@ import { useParams } from "next/navigation";
 import { ChevronLeft, ChevronRight, Search } from "lucide-react";
 import { Avatar, AvatarFallback } from "@/components/ui/avatar";
 import { useRegistrations } from "@/lib/registrations";
-import { derivedPlayerPhone, getPlayer, getTournament, getTournamentPlayers } from "@/lib/mock-data";
+import { useAllTournaments } from "@/lib/hosted-tournaments";
+import { usePlayerRoster } from "@/lib/players-store";
+import { buildEventRegistrants } from "@/lib/tournament-manage";
 import { formatCurrency, initials } from "@/lib/format";
 
 const mono = { fontFamily: "var(--font-home-mono)" };
@@ -18,6 +20,7 @@ interface RegistrantRow {
   name: string;
   clubName: string | null;
   phone: string;
+  divisions: string[];
   entries: number;
   amountPaid: number;
   timeOfReg: string;
@@ -46,73 +49,53 @@ const PAGE_SIZE = 10;
 export default function ManageTournamentRegistrationsPage() {
   const params = useParams<{ tournamentId: string }>();
   const tournamentId = Array.isArray(params.tournamentId) ? params.tournamentId[0] : params.tournamentId;
-  const tournament = tournamentId ? getTournament(tournamentId) : undefined;
+  const allTournaments = useAllTournaments();
+  const tournament = tournamentId ? allTournaments.find((t) => t.id === tournamentId) : undefined;
   const { registrations, isLoading } = useRegistrations();
+  const roster = usePlayerRoster();
 
   const [search, setSearch] = useState("");
   const [statusFilter, setStatusFilter] = useState<RowStatus | "all">("all");
   const [payoutFilter, setPayoutFilter] = useState<PayoutStatus | "all">("all");
   const [page, setPage] = useState(1);
 
+  // Registrations are event-wide — every category of this event, one row per
+  // player, with the category(ies) they registered for.
+  const siblings = useMemo(
+    () => (tournament ? allTournaments.filter((t) => t.eventId === tournament.eventId) : []),
+    [tournament, allTournaments],
+  );
+
   const rows = useMemo<RegistrantRow[]>(() => {
     if (!tournament) return [];
-
-    // Payouts aren't modeled — they only make sense once a tournament has
-    // wrapped, so anything still in progress is simply "Not Applicable"; a
-    // completed tournament gets a stable seeded Paid/Pending split.
-    function payoutFor(seed: number): PayoutStatus {
-      if (tournament!.status !== "COMPLETED") return "Not Applicable";
+    const anyCompleted = siblings.some((t) => t.status === "COMPLETED");
+    const payoutFor = (playerId: string): PayoutStatus => {
+      if (!anyCompleted) return "Not Applicable";
+      const seed = Number(playerId.replace(/\D/g, "")) || 1;
       return seed % 3 === 0 ? "Pending" : "Paid";
-    }
+    };
 
-    const deadline = new Date(tournament.registrationDeadline).getTime();
-    const seedRows: RegistrantRow[] = getTournamentPlayers(tournament).map((player, i) => {
-      const seed = Number(player.id.replace(/\D/g, "")) || i + 1;
-      const daysBefore = 1 + (seed % 10);
-      return {
-        playerId: player.id,
-        name: player.name,
-        clubName: player.clubName,
-        phone: derivedPlayerPhone(player),
-        entries: 1,
-        amountPaid: tournament.entryFee,
-        timeOfReg: new Date(deadline - daysBefore * 86_400_000).toISOString(),
-        status: "REGISTERED",
-        payoutStatus: payoutFor(seed),
-      };
-    });
-
-    // Live demo registrations (from the public "Register Now" flow) that
-    // aren't already part of the tournament's seeded roster — this is what
-    // surfaces a real "Payment Pending" row for a manager to follow up on.
-    const seedIds = new Set(seedRows.map((r) => r.playerId));
-    const liveRows: RegistrantRow[] = registrations
-      .filter((r) => r.tournamentId === tournament.id && !seedIds.has(r.playerId))
-      .map((r) => {
-        const player = getPlayer(r.playerId);
-        const seed = Number(r.playerId.replace(/\D/g, "")) || 1;
-        return {
-          playerId: r.playerId,
-          name: r.playerName,
-          clubName: player?.clubName ?? null,
-          phone: player ? derivedPlayerPhone(player) : "—",
-          entries: 1,
-          amountPaid: r.status === "REGISTERED" ? tournament.entryFee : 0,
-          timeOfReg: r.createdAt,
-          status: r.status,
-          payoutStatus: payoutFor(seed),
-        };
-      });
-
-    return [...seedRows, ...liveRows].sort(
-      (a, b) => new Date(b.timeOfReg).getTime() - new Date(a.timeOfReg).getTime(),
-    );
-  }, [tournament, registrations]);
+    return buildEventRegistrants(siblings, registrations, roster).map((r) => ({
+      playerId: r.playerId,
+      name: r.name,
+      clubName: r.clubName,
+      phone: r.phone,
+      divisions: r.divisions,
+      entries: r.entries,
+      amountPaid: r.amountPaid,
+      timeOfReg: r.timeOfReg,
+      status: r.status,
+      payoutStatus: payoutFor(r.playerId),
+    }));
+  }, [tournament, siblings, registrations, roster]);
 
   const filtered = rows.filter((r) => {
     if (search) {
       const q = search.toLowerCase();
-      if (!r.name.toLowerCase().includes(q) && !r.phone.toLowerCase().includes(q)) return false;
+      const inDivisions = r.divisions.some((d) => d.toLowerCase().includes(q));
+      if (!r.name.toLowerCase().includes(q) && !r.phone.toLowerCase().includes(q) && !inDivisions) {
+        return false;
+      }
     }
     if (statusFilter !== "all" && r.status !== statusFilter) return false;
     if (payoutFilter !== "all" && r.payoutStatus !== payoutFilter) return false;
@@ -137,7 +120,7 @@ export default function ManageTournamentRegistrationsPage() {
           <Search className="pointer-events-none absolute left-4 top-1/2 h-4 w-4 -translate-y-1/2 text-[#8b8b93]" />
           <input
             type="text"
-            placeholder="Search by name or phone…"
+            placeholder="Search by name, phone or category…"
             value={search}
             onChange={(e) => updateFilter(setSearch, e.target.value)}
             className="w-full rounded-[4px] border border-white/10 bg-[#1a1c20] py-3 pl-11 pr-4 text-sm text-[#e2e2e8] placeholder:text-[#5a5a60] focus:border-[#ff2448] focus:outline-none focus:ring-1 focus:ring-[#ff2448]"
@@ -174,11 +157,12 @@ export default function ManageTournamentRegistrationsPage() {
       ) : (
         <>
           <div className="overflow-x-auto rounded-[8px] border border-white/10">
-            <table className="w-full min-w-[760px] border-collapse text-sm">
+            <table className="w-full min-w-[820px] border-collapse text-sm">
               <thead>
                 <tr className="border-b border-white/10 text-left text-[11px] uppercase tracking-wide text-[#8b8b93]" style={mono}>
                   <th className="px-4 py-3 font-semibold">Name</th>
                   <th className="px-4 py-3 font-semibold">Phone</th>
+                  <th className="px-4 py-3 font-semibold">Category</th>
                   <th className="px-4 py-3 font-semibold">Entries</th>
                   <th className="px-4 py-3 font-semibold">Amount Paid</th>
                   <th className="px-4 py-3 font-semibold">Time of Reg.</th>
@@ -203,6 +187,19 @@ export default function ManageTournamentRegistrationsPage() {
                       </div>
                     </td>
                     <td className="whitespace-nowrap px-4 py-3.5 text-[#c2c6d7]">{r.phone}</td>
+                    <td className="px-4 py-3.5">
+                      <div className="flex flex-wrap gap-1">
+                        {r.divisions.map((d) => (
+                          <span
+                            key={d}
+                            className="inline-flex items-center rounded-[2px] border border-white/10 bg-white/[0.04] px-2 py-0.5 text-[10px] font-semibold uppercase tracking-wide text-[#c2c6d7]"
+                            style={mono}
+                          >
+                            {d}
+                          </span>
+                        ))}
+                      </div>
+                    </td>
                     <td className="px-4 py-3.5 tabular-nums text-[#c2c6d7]">{r.entries}</td>
                     <td className="whitespace-nowrap px-4 py-3.5 tabular-nums text-[#e2e2e8]">
                       {formatCurrency(r.amountPaid)}

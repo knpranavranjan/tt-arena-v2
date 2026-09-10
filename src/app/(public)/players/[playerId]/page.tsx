@@ -1,4 +1,6 @@
-import type { ReactNode } from "react";
+"use client";
+
+import { use, useMemo, type ReactNode } from "react";
 import { notFound } from "next/navigation";
 import Image from "next/image";
 import { MapPin, Trophy } from "lucide-react";
@@ -7,23 +9,37 @@ import { PlayerClubsList } from "@/components/player/player-clubs-list";
 import { TournamentHistoryCard } from "@/components/player/tournament-history-card";
 import { arenaFontVariables } from "@/lib/fonts";
 import { getPlayer } from "@/lib/mock-data";
+import { useCreatedPlayers, usePlayerRoster } from "@/lib/players-store";
+import { usePlayerRecord } from "@/lib/player-ratings";
 import { formatDate, initials } from "@/lib/format";
 
 const mono = { fontFamily: "var(--font-home-mono)" };
 const display = { fontFamily: "var(--font-home-display)" };
 
-export default async function PlayerProfilePage({
+export default function PlayerProfilePage({
   params,
 }: {
   params: Promise<{ playerId: string }>;
 }) {
-  const { playerId } = await params;
-  const player = getPlayer(playerId);
-  if (!player) notFound();
+  const { playerId } = use(params);
+  const roster = usePlayerRoster();
+  const { isLoading: rosterLoading } = useCreatedPlayers();
+  const player = useMemo(
+    () => roster.find((p) => p.id === playerId) ?? getPlayer(playerId),
+    [roster, playerId],
+  );
 
-  const winPct = player.wins + player.losses > 0
-    ? Math.round((player.wins / (player.wins + player.losses)) * 100)
-    : 0;
+  const baseline = useMemo(
+    () => (player ? { wins: player.wins, losses: player.losses } : undefined),
+    [player],
+  );
+  const record = usePlayerRecord(player?.id ?? "", baseline);
+
+  // Don't 404 a real sign-up before the created-players roster has loaded.
+  if (!player && rosterLoading) {
+    return <div className="min-h-screen bg-[#050a12]" />;
+  }
+  if (!player) notFound();
 
   return (
     <div className={arenaFontVariables} style={{ fontFamily: "var(--font-home-body)" }}>
@@ -65,6 +81,7 @@ export default async function PlayerProfilePage({
               </span>
               <LiveRating
                 playerId={player.id}
+                fallbackRating={player.rating}
                 className="mt-1 block text-4xl font-extrabold tabular-nums tracking-tighter text-[#e2e2e8]"
                 style={display}
               />
@@ -72,11 +89,11 @@ export default async function PlayerProfilePage({
           </div>
         </section>
 
-        {/* Stat tiles */}
+        {/* Stat tiles — live from published tournament results */}
         <div className="grid gap-4 sm:grid-cols-3">
-          <StatBlock label="Matches Played" value={player.wins + player.losses} />
-          <StatBlock label="Wins" value={player.wins} accent="text-emerald-400" />
-          <StatBlock label="Losses" value={player.losses} accent="text-[#ff2448]" />
+          <StatBlock label="Matches Played" value={record.played} />
+          <StatBlock label="Wins" value={record.wins} accent="text-emerald-400" />
+          <StatBlock label="Losses" value={record.losses} accent="text-[#ff2448]" />
         </div>
 
         {/* Player information */}
@@ -85,11 +102,10 @@ export default async function PlayerProfilePage({
             Player Information
           </h2>
           <div className="grid gap-5 rounded-2xl border border-white/5 bg-[#0c0e12] p-6 sm:grid-cols-2">
-            <InfoRow label="Win Rate" value={`${winPct}%`} />
+            <InfoRow label="Win Rate" value={`${record.winRate}%`} />
             <InfoRow label="Date of Birth" value={formatDate(player.dateOfBirth)} />
             <InfoRow label="Clubs" value={<PlayerClubsList player={player} />} />
             <InfoRow label="State" value={player.state} />
-            <InfoRow label="Category" value={player.category} />
           </div>
         </section>
 

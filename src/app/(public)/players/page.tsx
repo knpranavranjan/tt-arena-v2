@@ -13,12 +13,11 @@ import {
 import { EmptyState } from "@/components/feedback/empty-state";
 import { RevealGroup, RevealItem } from "@/components/motion/reveal";
 import { arenaFontVariables } from "@/lib/fonts";
-import { clubs, players, getWeeklyDelta, playerSrId } from "@/lib/mock-data";
+import { clubs, getWeeklyDelta, playerSrId } from "@/lib/mock-data";
+import { usePlayerRoster } from "@/lib/players-store";
 import { usePlayerRatings } from "@/lib/player-ratings";
 import { initials } from "@/lib/format";
-import type { Gender } from "@/lib/types";
-
-const states = Array.from(new Set(players.map((p) => p.state))).sort();
+import type { Gender, Player } from "@/lib/types";
 
 export default function PlayersPage({ basePath = "/players" }: { basePath?: string }) {
   const [search, setSearch] = useState("");
@@ -26,9 +25,18 @@ export default function PlayersPage({ basePath = "/players" }: { basePath?: stri
   const [state, setState] = useState("all");
   const [gender, setGender] = useState("all");
   const ratings = usePlayerRatings();
+  const roster = usePlayerRoster();
+
+  // Created players have no rating override yet — fall back to their profile rating.
+  const ratingOf = (p: Player) => ratings.getRating(p.id) || p.rating;
+
+  const states = useMemo(
+    () => Array.from(new Set(roster.map((p) => p.state).filter(Boolean))).sort(),
+    [roster],
+  );
 
   const filtered = useMemo(() => {
-    const result = players.filter((p) => {
+    const result = roster.filter((p) => {
       if (search) {
         const q = search.toLowerCase().trim();
         if (
@@ -43,8 +51,9 @@ export default function PlayersPage({ basePath = "/players" }: { basePath?: stri
       if (gender !== "all" && p.gender !== (gender as Gender)) return false;
       return true;
     });
-    return [...result].sort((a, b) => ratings.getRating(b.id) - ratings.getRating(a.id));
-  }, [search, club, state, gender, ratings]);
+    return [...result].sort((a, b) => ratingOf(b) - ratingOf(a));
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [search, club, state, gender, ratings, roster]);
 
   return (
     <div className={arenaFontVariables} style={{ fontFamily: "var(--font-home-body)" }}>
@@ -218,7 +227,7 @@ export default function PlayersPage({ basePath = "/players" }: { basePath?: stri
                         className="px-6 py-5 text-right text-base font-bold text-[#e2e2e8]"
                         style={{ fontFamily: "var(--font-home-mono)" }}
                       >
-                        {ratings.getRating(player.id)}
+                        {ratingOf(player)}
                       </td>
                       <td className="px-6 py-5 text-right">
                         <span
@@ -277,7 +286,7 @@ export default function PlayersPage({ basePath = "/players" }: { basePath?: stri
                           Rating
                         </span>
                         <span className="text-lg font-bold text-[#ff8f86]" style={{ fontFamily: "var(--font-home-mono)" }}>
-                          {ratings.getRating(player.id)}
+                          {ratingOf(player)}
                         </span>
                       </div>
                       <span

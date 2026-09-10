@@ -2,9 +2,15 @@
 
 import { useMemo, useState } from "react";
 import Link from "next/link";
-import { Calendar, ChevronRight, MapPin, Search, Trophy } from "lucide-react";
+import { Calendar, ChevronRight, Layers, MapPin, Search, Trophy } from "lucide-react";
+import { useAuth } from "@/lib/auth";
 import { useCurrentPlayer } from "@/lib/session-data";
-import { tournaments, tournamentCode } from "@/lib/mock-data";
+import { tournamentCode } from "@/lib/mock-data";
+import { ownsTournament } from "@/lib/tournament-owner";
+import { useAllEvents, useAllTournaments } from "@/lib/hosted-tournaments";
+import { applyEventEdit, applyTournamentEdit, useTournamentEdits } from "@/lib/tournament-edits";
+import { effectiveStatus, useTournamentStatus } from "@/lib/tournament-status";
+import { buildEventGroups, categoryCountLabel, mostActiveStatus } from "@/lib/event-groups";
 import { formatDate } from "@/lib/format";
 import type { TournamentStatus } from "@/lib/types";
 
@@ -42,24 +48,38 @@ function statusMeta(status: TournamentStatus): { label: string; className: strin
 }
 
 export default function PlayerTournamentsPage() {
+  const { user } = useAuth();
   const player = useCurrentPlayer();
+  const allTournaments = useAllTournaments();
+  const allEvents = useAllEvents();
+  const { overrides } = useTournamentStatus();
+  const { tournamentEdit, eventEdit } = useTournamentEdits();
   const [search, setSearch] = useState("");
   const [status, setStatus] = useState<TournamentStatus | "all">("all");
 
-  // Tournaments this player created via "Host a Tournament" — the form
-  // stamps `organizer` with the hosting player's own name, so that's the
-  // real ownership signal (distinct from tournaments they merely registered
-  // to play in).
-  const hostedTournaments = useMemo(() => {
-    if (!player) return [];
-    return tournaments
-      .filter((t) => t.organizer === player.name)
+  // One card per event this account submitted through "Host a Tournament".
+  // Ownership is the account's SPINID (`organizerId`), never the display name —
+  // a different login with the same name is a different person. Categories the
+  // host adds are folded into their event, so a 2-category submission is a
+  // single row, not two.
+  const groups = useMemo(() => {
+    if (!user) return [];
+    const mine = allTournaments
+      .filter((t) => ownsTournament(t, user))
+      .map((t) => applyTournamentEdit(t, tournamentEdit(t.id)));
+    const editedEvents = allEvents.map((e) => applyEventEdit(e, eventEdit(e.id)));
+    return buildEventGroups(mine, editedEvents)
+      .map((g) => ({
+        ...g,
+        status: mostActiveStatus(g.categories.map((c) => effectiveStatus(c, overrides))),
+        capacity: g.categories.reduce((sum, c) => sum + c.maxPlayers, 0),
+      }))
       .sort((a, b) => new Date(b.date).getTime() - new Date(a.date).getTime());
-  }, [player]);
+  }, [user, allTournaments, allEvents, overrides, tournamentEdit, eventEdit]);
 
-  const filtered = hostedTournaments.filter((t) => {
-    if (search && !t.name.toLowerCase().includes(search.toLowerCase())) return false;
-    if (status !== "all" && t.status !== status) return false;
+  const filtered = groups.filter((g) => {
+    if (search && !g.name.toLowerCase().includes(search.toLowerCase())) return false;
+    if (status !== "all" && g.status !== status) return false;
     return true;
   });
 
@@ -105,10 +125,10 @@ export default function PlayerTournamentsPage() {
         <div className="rounded-[8px] border border-dashed border-white/15 p-12 text-center">
           <Trophy className="mx-auto mb-3 h-8 w-8 text-[#8b8b93]" strokeWidth={1.5} />
           <p className="text-sm font-semibold text-[#e2e2e8]">
-            {hostedTournaments.length === 0 ? "You haven't hosted a tournament yet" : "No tournaments found"}
+            {groups.length === 0 ? "You haven't hosted a tournament yet" : "No tournaments found"}
           </p>
           <p className="mt-1 text-xs text-[#8b8b93]">
-            {hostedTournaments.length === 0 ? (
+            {groups.length === 0 ? (
               <>
                 Set one up from{" "}
                 <Link href="/host-tournament" className="text-[#ff8f86] hover:text-[#ff2448]">
@@ -123,12 +143,12 @@ export default function PlayerTournamentsPage() {
         </div>
       ) : (
         <div className="space-y-3">
-          {filtered.map((t) => {
-            const meta = statusMeta(t.status);
+          {filtered.map((g) => {
+            const meta = statusMeta(g.status);
             return (
               <Link
-                key={t.id}
-                href={`/player/tournaments/${t.id}`}
+                key={g.eventId}
+                href={`/player/tournaments/${g.primary.id}`}
                 className="flex flex-col gap-3 rounded-[8px] border border-white/10 bg-white/[0.03] p-5 transition-colors hover:border-white/20 sm:flex-row sm:items-center sm:justify-between"
               >
                 <div className="min-w-0">
@@ -141,21 +161,28 @@ export default function PlayerTournamentsPage() {
                       {meta.label}
                     </span>
                     <span className="text-[11px] uppercase tracking-wide text-[#5a5a60]" style={mono}>
-                      #{tournamentCode(t)}
+                      #{tournamentCode(g.primary)}
+                    </span>
+                    <span
+                      className="inline-flex items-center gap-1 rounded-[2px] border border-white/10 px-2 py-1 text-[10px] font-semibold uppercase tracking-wide text-[#c2c6d7]"
+                      style={mono}
+                    >
+                      <Layers className="h-3 w-3" strokeWidth={2} />
+                      {categoryCountLabel(g)}
                     </span>
                   </div>
-                  <p className="truncate text-base font-semibold text-[#e2e2e8]">{t.name}</p>
+                  <p className="truncate text-base font-semibold text-[#e2e2e8]">{g.name}</p>
                   <div className="mt-1.5 flex flex-wrap items-center gap-x-3 gap-y-1 text-xs text-[#8b8b93]">
                     <span className="flex items-center gap-1">
                       <Calendar className="h-3.5 w-3.5" strokeWidth={1.75} />
-                      {formatDate(t.date)}
+                      {formatDate(g.date)}
                     </span>
                     <span className="flex items-center gap-1">
                       <MapPin className="h-3.5 w-3.5" strokeWidth={1.75} />
-                      {t.venue}
+                      {g.venue}
                     </span>
                     <span>
-                      {t.registeredPlayerIds.length}/{t.maxPlayers} registered
+                      {g.registeredCount}/{g.capacity} registered
                     </span>
                   </div>
                 </div>

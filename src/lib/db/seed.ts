@@ -15,6 +15,8 @@ import { seedAccounts, seedHostingPlans, seedMembershipFees } from "@/lib/db/see
 import { hashPassword } from "@/lib/auth/password";
 
 const ALL_TABLES = [
+  t.players,
+  t.clubs,
   t.accounts,
   t.events,
   t.tournaments,

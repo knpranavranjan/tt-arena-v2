@@ -88,7 +88,12 @@ export interface Tournament {
   eventId: string;
   name: string;
   venue: string;
+  /** Display name of the host. NOT unique — a player and a club can share a
+   *  name. Never use this to decide ownership; use `organizerId`. */
   organizer: string;
+  /** SPINID of the account that created this via "Host a Tournament" — the
+   *  canonical, unique owner identity. Absent on the seed catalogue. */
+  organizerId?: string;
   date: string;
   registrationDeadline: string;
   maxPlayers: number;
@@ -125,7 +130,10 @@ export type EventStatus = "UPCOMING" | "LIVE" | "COMPLETED";
 export interface TTEvent {
   id: string;
   name: string;
+  /** Display name of the host — NOT unique. Use `organizerId` for ownership. */
   organizer: string;
+  /** SPINID of the account that created this. Absent on the seed catalogue. */
+  organizerId?: string;
   venue: string;
   date: string;
   location: string;

@@ -1,9 +1,13 @@
 "use client";
 
-import { useState } from "react";
+import { useMemo, useState } from "react";
 import Link from "next/link";
-import { Calendar, ChevronRight, MapPin, Plus, Search, Trophy } from "lucide-react";
-import { tournaments, tournamentCode } from "@/lib/mock-data";
+import { Calendar, ChevronRight, Layers, MapPin, Plus, Search, Trophy } from "lucide-react";
+import { tournamentCode } from "@/lib/mock-data";
+import { useAllEvents, useAllTournaments } from "@/lib/hosted-tournaments";
+import { applyEventEdit, applyTournamentEdit, useTournamentEdits } from "@/lib/tournament-edits";
+import { effectiveStatus, useTournamentStatus } from "@/lib/tournament-status";
+import { buildEventGroups, categoryCountLabel, mostActiveStatus } from "@/lib/event-groups";
 import { formatDate } from "@/lib/format";
 import type { TournamentStatus } from "@/lib/types";
 
@@ -41,16 +45,31 @@ function statusMeta(status: TournamentStatus): { label: string; className: strin
 }
 
 export default function HostTournamentsPage() {
+  const allTournaments = useAllTournaments();
+  const allEvents = useAllEvents();
+  const { overrides } = useTournamentStatus();
+  const { tournamentEdit, eventEdit } = useTournamentEdits();
   const [search, setSearch] = useState("");
   const [status, setStatus] = useState<TournamentStatus | "all">("all");
 
-  const filtered = tournaments
-    .filter((t) => {
-      if (search && !t.name.toLowerCase().includes(search.toLowerCase())) return false;
-      if (status !== "all" && t.status !== status) return false;
-      return true;
-    })
-    .sort((a, b) => new Date(b.date).getTime() - new Date(a.date).getTime());
+  // One card per event — categories a host adds are folded into their event.
+  const groups = useMemo(() => {
+    const edited = allTournaments.map((t) => applyTournamentEdit(t, tournamentEdit(t.id)));
+    const editedEvents = allEvents.map((e) => applyEventEdit(e, eventEdit(e.id)));
+    return buildEventGroups(edited, editedEvents)
+      .map((g) => ({
+        ...g,
+        status: mostActiveStatus(g.categories.map((c) => effectiveStatus(c, overrides))),
+        capacity: g.categories.reduce((sum, c) => sum + c.maxPlayers, 0),
+      }))
+      .sort((a, b) => new Date(b.date).getTime() - new Date(a.date).getTime());
+  }, [allTournaments, allEvents, overrides, tournamentEdit, eventEdit]);
+
+  const filtered = groups.filter((g) => {
+    if (search && !g.name.toLowerCase().includes(search.toLowerCase())) return false;
+    if (status !== "all" && g.status !== status) return false;
+    return true;
+  });
 
   return (
     <div style={{ fontFamily: "var(--font-home-body)" }} className="mx-auto w-full max-w-6xl">
@@ -106,12 +125,12 @@ export default function HostTournamentsPage() {
         </div>
       ) : (
         <div className="space-y-3">
-          {filtered.map((t) => {
-            const meta = statusMeta(t.status);
+          {filtered.map((g) => {
+            const meta = statusMeta(g.status);
             return (
               <Link
-                key={t.id}
-                href={`/host/tournaments/${t.id}`}
+                key={g.eventId}
+                href={`/host/tournaments/${g.primary.id}`}
                 className="flex flex-col gap-3 rounded-[8px] border border-white/10 bg-white/[0.03] p-5 transition-colors hover:border-white/20 sm:flex-row sm:items-center sm:justify-between"
               >
                 <div className="min-w-0">
@@ -124,21 +143,28 @@ export default function HostTournamentsPage() {
                       {meta.label}
                     </span>
                     <span className="text-[11px] uppercase tracking-wide text-[#5a5a60]" style={mono}>
-                      #{tournamentCode(t)}
+                      #{tournamentCode(g.primary)}
+                    </span>
+                    <span
+                      className="inline-flex items-center gap-1 rounded-[2px] border border-white/10 px-2 py-1 text-[10px] font-semibold uppercase tracking-wide text-[#c2c6d7]"
+                      style={mono}
+                    >
+                      <Layers className="h-3 w-3" strokeWidth={2} />
+                      {categoryCountLabel(g)}
                     </span>
                   </div>
-                  <p className="truncate text-base font-semibold text-[#e2e2e8]">{t.name}</p>
+                  <p className="truncate text-base font-semibold text-[#e2e2e8]">{g.name}</p>
                   <div className="mt-1.5 flex flex-wrap items-center gap-x-3 gap-y-1 text-xs text-[#8b8b93]">
                     <span className="flex items-center gap-1">
                       <Calendar className="h-3.5 w-3.5" strokeWidth={1.75} />
-                      {formatDate(t.date)}
+                      {formatDate(g.date)}
                     </span>
                     <span className="flex items-center gap-1">
                       <MapPin className="h-3.5 w-3.5" strokeWidth={1.75} />
-                      {t.venue}
+                      {g.venue}
                     </span>
                     <span>
-                      {t.registeredPlayerIds.length}/{t.maxPlayers} registered
+                      {g.registeredCount}/{g.capacity} registered
                     </span>
                   </div>
                 </div>

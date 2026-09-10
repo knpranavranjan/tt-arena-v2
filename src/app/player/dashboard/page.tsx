@@ -11,24 +11,27 @@ import {
   TrendingUp,
   Users,
 } from "lucide-react";
+import { useAuth } from "@/lib/auth";
 import { useCurrentPlayer } from "@/lib/session-data";
+import { ownsTournament } from "@/lib/tournament-owner";
+import { usePlayerRoster } from "@/lib/players-store";
+import { ageFromDob } from "@/lib/player-profile";
+import { careerRecord } from "@/lib/player-record";
 import { SrIdBadge } from "@/components/layout/sr-id-badge";
 import { usePlayerRatings } from "@/lib/player-ratings";
 import { useRegistrations } from "@/lib/registrations";
 import { useJoinRequests } from "@/lib/join-requests";
 import { arenaFontVariables } from "@/lib/fonts";
-import { players, tournaments, getClub, getClubPlayers, getTournament, getWeeklyDelta } from "@/lib/mock-data";
+import { getClub, getClubPlayers, getWeeklyDelta } from "@/lib/mock-data";
+import { useAllEvents, useAllTournaments } from "@/lib/hosted-tournaments";
+import { buildEventGroups, categoryCountLabel, mostActiveStatus } from "@/lib/event-groups";
+import { eventTitle } from "@/lib/tournament-manage";
+import { effectiveStatus, useTournamentStatus } from "@/lib/tournament-status";
 import { formatDate } from "@/lib/format";
 import type { Tournament, TournamentStatus } from "@/lib/types";
 import { ScrollArea } from "@/components/ui/scroll-area";
 import { TournamentHistoryCard } from "@/components/player/tournament-history-card";
 import { HostArenaCta } from "@/components/home/host-arena-cta";
-
-function ageFromDob(dob: string) {
-  const birth = new Date(dob);
-  const diff = Date.now() - birth.getTime();
-  return Math.floor(diff / (1000 * 60 * 60 * 24 * 365.25));
-}
 
 function tournamentStatusMeta(status: TournamentStatus): { label: string; textClass: string; accent: string } {
   switch (status) {
@@ -49,62 +52,111 @@ function tournamentStatusMeta(status: TournamentStatus): { label: string; textCl
   }
 }
 
-function TournamentHostingCard({ tournament }: { tournament: Tournament }) {
-  const meta = tournamentStatusMeta(tournament.status);
+function TournamentHostingCard({
+  href,
+  name,
+  status,
+  date,
+  venue,
+  categoryLabel,
+}: {
+  href: string;
+  name: string;
+  status: TournamentStatus;
+  date: string;
+  venue: string;
+  categoryLabel: string;
+}) {
+  const meta = tournamentStatusMeta(status);
   return (
     <Link
-      href={`/tournaments/${tournament.id}`}
+      href={href}
       className="block rounded-[6px] border border-white/10 bg-white/[0.03] p-3.5 transition-colors hover:border-white/20"
       style={{ borderLeftWidth: 3, borderLeftColor: meta.accent }}
     >
-      <p className={`text-[10px] font-bold uppercase tracking-wide ${meta.textClass}`} style={{ fontFamily: "var(--font-home-mono)" }}>
-        {meta.label}
-      </p>
-      <p className="mt-1.5 text-sm font-semibold text-[#e2e2e8]">{tournament.name}</p>
+      <div className="flex items-center gap-2">
+        <p className={`text-[10px] font-bold uppercase tracking-wide ${meta.textClass}`} style={{ fontFamily: "var(--font-home-mono)" }}>
+          {meta.label}
+        </p>
+        <span className="text-[10px] uppercase tracking-wide text-[#5a5a60]" style={{ fontFamily: "var(--font-home-mono)" }}>
+          &middot; {categoryLabel}
+        </span>
+      </div>
+      <p className="mt-1.5 text-sm font-semibold text-[#e2e2e8]">{name}</p>
       <p className="mt-1 text-xs text-[#8b8b93]">
-        {formatDate(tournament.date)} &middot; {tournament.venue}
+        {formatDate(date)} &middot; {venue}
       </p>
     </Link>
   );
 }
 
 export default function PlayerDashboardPage() {
+  const { user } = useAuth();
   const player = useCurrentPlayer();
+  const roster = usePlayerRoster();
+  const allTournaments = useAllTournaments();
+  const allEvents = useAllEvents();
+  const { overrides } = useTournamentStatus();
   const ratings = usePlayerRatings();
   const { registrations } = useRegistrations();
   const { requests: joinRequests } = useJoinRequests();
   if (!player) return null;
 
-  const rating = ratings.getRating(player.id);
+  // `getRating` only knows the seed roster + applied results; a brand-new
+  // profile falls back to its provisional rating from sign-up.
+  const ratingOf = (id: string, fallback = 0) => ratings.getRating(id) || fallback;
+  const rating = ratingOf(player.id, player.rating);
   const rank =
-    [...players].sort((a, b) => ratings.getRating(b.id) - ratings.getRating(a.id)).findIndex((p) => p.id === player.id) +
-    1;
+    [...roster]
+      .sort((a, b) => ratingOf(b.id, b.rating) - ratingOf(a.id, a.rating))
+      .findIndex((p) => p.id === player.id) + 1;
+  const age = ageFromDob(player.dateOfBirth);
   // Reflect the real change from this player's last rated tournament once
   // there is one; otherwise fall back to the demo's cosmetic weekly delta.
   const lastRatingChange = ratings.getHistory(player.id).at(-1);
   const delta = lastRatingChange ? lastRatingChange.delta : getWeeklyDelta(player);
-  const totalMatches = player.wins + player.losses;
-  const winPct = totalMatches > 0 ? Math.round((player.wins / totalMatches) * 100) : 0;
+  // Career record — seed baseline plus every published tournament result.
+  const record = careerRecord({ wins: player.wins, losses: player.losses }, ratings.getHistory(player.id));
+  const winPct = record.winRate;
 
   const circumference = 2 * Math.PI * 45;
   const winDashoffset = circumference * (1 - winPct / 100);
 
-  // A tournament shows up here either from the seeded roster or the moment a
-  // live registration's payment is confirmed — a player can be in both lists
-  // at once, so de-dupe by tournament id.
-  const seededRegistered = tournaments.filter((t) => t.registeredPlayerIds.includes(player.id));
-  const seededRegisteredIds = new Set(seededRegistered.map((t) => t.id));
+  // A tournament shows up here from its own roster or the moment a live
+  // registration's payment is confirmed. Collapse to one row per event — the
+  // player only cares about the tournament, not which category record it is.
+  const rosterRegistered = allTournaments.filter((t) => t.registeredPlayerIds.includes(player.id));
+  const rosterRegisteredIds = new Set(rosterRegistered.map((t) => t.id));
   const liveRegistered = registrations
-    .filter((r) => r.playerId === player.id && r.status === "REGISTERED" && !seededRegisteredIds.has(r.tournamentId))
-    .map((r) => getTournament(r.tournamentId))
+    .filter((r) => r.playerId === player.id && r.status === "REGISTERED" && !rosterRegisteredIds.has(r.tournamentId))
+    .map((r) => allTournaments.find((t) => t.id === r.tournamentId))
     .filter((t): t is Tournament => Boolean(t));
-  const registered = [...seededRegistered, ...liveRegistered];
+  const registeredByEvent = new Map<string, { key: string; name: string; date: string; venue: string }>();
+  for (const t of [...rosterRegistered, ...liveRegistered]) {
+    if (registeredByEvent.has(t.eventId)) continue;
+    const ev = allEvents.find((e) => e.id === t.eventId);
+    registeredByEvent.set(t.eventId, {
+      key: t.eventId,
+      name: eventTitle(t, ev?.name),
+      date: ev?.date ?? t.date,
+      venue: ev?.venue ?? t.venue,
+    });
+  }
+  const registered = [...registeredByEvent.values()];
 
-  // Tournaments this player submitted through "Host a Tournament" — the form
-  // stamps `organizer` with the hosting player's own name, so that's the real
-  // ownership signal (distinct from `registered`, which is tournaments they
-  // signed up to play in).
-  const hostedTournaments = tournaments.filter((t) => t.organizer === player.name);
+  // Tournaments this account submitted through "Host a Tournament" — matched by
+  // the creator's SPINID (`organizerId`), never the display name (distinct from
+  // `registered`, which is tournaments they signed up to play in). One entry
+  // per event: categories are folded in.
+  const hostedGroups = buildEventGroups(
+    allTournaments.filter((t) => ownsTournament(t, user)),
+    allEvents,
+  )
+    .map((g) => ({
+      ...g,
+      status: mostActiveStatus(g.categories.map((c) => effectiveStatus(c, overrides))),
+    }))
+    .sort((a, b) => new Date(b.date).getTime() - new Date(a.date).getTime());
 
   // A player isn't limited to one club: their seeded home club (if any) plus
   // every club whose join request a club admin has accepted.
@@ -136,7 +188,7 @@ export default function PlayerDashboardPage() {
               {player.name}
             </h1>
             <div className="flex flex-wrap items-center gap-4 text-[#c2c6d7]">
-              <span>{ageFromDob(player.dateOfBirth)} • {player.gender === "MALE" ? "Male" : "Female"}</span>
+              <span>{age !== null ? `${age} • ` : ""}{player.gender === "MALE" ? "Male" : "Female"}</span>
               <span className="flex items-center gap-1">
                 <MapPin className="h-[18px] w-[18px]" strokeWidth={1.5} />
                 {player.state}
@@ -197,8 +249,8 @@ export default function PlayerDashboardPage() {
             </div>
             <div className="flex flex-col gap-1">
               <div className="text-xl font-bold leading-none">
-                <span className="text-[#0ea5ff]">{player.wins}W</span> <span className="text-[#c2c6d7]">•</span>{" "}
-                <span className="text-[#ff2448]">{player.losses}L</span>
+                <span className="text-[#0ea5ff]">{record.wins}W</span> <span className="text-[#c2c6d7]">•</span>{" "}
+                <span className="text-[#ff2448]">{record.losses}L</span>
               </div>
               <span className="text-xs font-semibold uppercase tracking-widest text-[#c2c6d7]" style={{ fontFamily: "var(--font-home-mono)" }}>
                 Win / Loss
@@ -285,7 +337,7 @@ export default function PlayerDashboardPage() {
                 <div className="flex flex-col">
                   {registered.map((t, i) => (
                     <div
-                      key={t.id}
+                      key={t.key}
                       className={`flex items-center gap-4 p-4 ${i !== registered.length - 1 ? "border-b border-white/5" : ""}`}
                     >
                       <div className="flex h-9 w-9 shrink-0 items-center justify-center rounded-full bg-[#ff2448]/15 text-[#ff2448]">
@@ -311,7 +363,7 @@ export default function PlayerDashboardPage() {
             <h2 className="mb-4 text-xs font-bold uppercase tracking-widest text-[#ff2448]" style={{ fontFamily: "var(--font-home-mono)" }}>
               Tournaments You&apos;re Hosting
             </h2>
-            {hostedTournaments.length === 0 ? (
+            {hostedGroups.length === 0 ? (
               <p className="text-sm text-[#8b8b93]">
                 No tournaments right now. Get started from{" "}
                 <Link href="/host-tournament" className="text-[#ff8f86] hover:text-[#ff2448]">
@@ -321,8 +373,16 @@ export default function PlayerDashboardPage() {
               </p>
             ) : (
               <div className="max-h-[360px] space-y-2 overflow-y-auto pr-1">
-                {hostedTournaments.map((t) => (
-                  <TournamentHostingCard key={t.id} tournament={t} />
+                {hostedGroups.map((g) => (
+                  <TournamentHostingCard
+                    key={g.eventId}
+                    href={`/player/tournaments/${g.primary.id}`}
+                    name={g.name}
+                    status={g.status}
+                    date={g.date}
+                    venue={g.venue}
+                    categoryLabel={categoryCountLabel(g)}
+                  />
                 ))}
               </div>
             )}

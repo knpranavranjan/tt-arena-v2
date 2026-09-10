@@ -1,8 +1,16 @@
 "use client";
 
+import { useMemo } from "react";
 import { useParams } from "next/navigation";
 import { CircleDollarSign, RotateCcw, Users, Wallet, type LucideIcon } from "lucide-react";
-import { getCategoryBreakdown, getTournament } from "@/lib/mock-data";
+import { useAllTournaments } from "@/lib/hosted-tournaments";
+import { useRegistrations } from "@/lib/registrations";
+import { usePlayerRoster } from "@/lib/players-store";
+import {
+  buildEventRegistrants,
+  eventCategoryBreakdown,
+  eventOverviewTotals,
+} from "@/lib/tournament-manage";
 import { formatCurrency } from "@/lib/format";
 
 const mono = { fontFamily: "var(--font-home-mono)" };
@@ -17,14 +25,30 @@ function formatCompactCurrency(amount: number) {
 export default function ManageTournamentOverviewPage() {
   const params = useParams<{ tournamentId: string }>();
   const tournamentId = Array.isArray(params.tournamentId) ? params.tournamentId[0] : params.tournamentId;
-  const tournament = tournamentId ? getTournament(tournamentId) : undefined;
-  if (!tournament) return null;
+  const allTournaments = useAllTournaments();
+  const { registrations } = useRegistrations();
+  const roster = usePlayerRoster();
 
-  const totalRegistrations = tournament.registeredPlayerIds.length;
-  const feeCollected = totalRegistrations * tournament.entryFee;
-  const feeRefunded = 0;
-  const payoutPending = 0;
-  const breakdown = getCategoryBreakdown(tournament);
+  const tournament = tournamentId ? allTournaments.find((t) => t.id === tournamentId) : undefined;
+  // Overview is event-wide: every category of this event.
+  const siblings = useMemo(
+    () => (tournament ? allTournaments.filter((t) => t.eventId === tournament.eventId) : []),
+    [tournament, allTournaments],
+  );
+
+  const registrants = useMemo(
+    () => buildEventRegistrants(siblings, registrations, roster),
+    [siblings, registrations, roster],
+  );
+  const totals = useMemo(() => eventOverviewTotals(registrants), [registrants]);
+  const breakdown = useMemo(
+    () => eventCategoryBreakdown(siblings, registrations, roster),
+    [siblings, registrations, roster],
+  );
+
+  const totalSpots = siblings.reduce((sum, t) => sum + (t.maxPlayers || 32), 0);
+
+  if (!tournament) return null;
 
   return (
     <div className="space-y-10">
@@ -32,18 +56,18 @@ export default function ManageTournamentOverviewPage() {
         <StatCard
           icon={Users}
           label="Total Registrations"
-          value={String(totalRegistrations)}
-          subtext={`of ${tournament.maxPlayers} spots`}
+          value={String(totals.totalRegistrations)}
+          subtext={`of ${totalSpots} spots`}
         />
         <StatCard
           icon={CircleDollarSign}
           label="Fee Collected"
-          value={formatCompactCurrency(feeCollected)}
-          subtext={formatCurrency(feeCollected)}
+          value={formatCompactCurrency(totals.feeCollected)}
+          subtext={formatCurrency(totals.feeCollected)}
           accent
         />
-        <StatCard icon={RotateCcw} label="Fee Refunded" value={formatCompactCurrency(feeRefunded)} subtext={formatCurrency(feeRefunded)} />
-        <StatCard icon={Wallet} label="Payout Pending" value={formatCompactCurrency(payoutPending)} subtext={formatCurrency(payoutPending)} />
+        <StatCard icon={RotateCcw} label="Fee Refunded" value={formatCompactCurrency(totals.feeRefunded)} subtext={formatCurrency(totals.feeRefunded)} />
+        <StatCard icon={Wallet} label="Payout Pending" value={formatCompactCurrency(totals.payoutPending)} subtext={formatCurrency(totals.payoutPending)} />
       </section>
 
       <section>
@@ -51,7 +75,7 @@ export default function ManageTournamentOverviewPage() {
           Categories Breakdown
         </h2>
         {breakdown.length === 0 ? (
-          <p className="text-sm text-[#8b8b93]">No registrations yet — categories will appear here once players sign up.</p>
+          <p className="text-sm text-[#8b8b93]">No categories on this event yet.</p>
         ) : (
           <div className="overflow-x-auto rounded-[8px] border border-white/10">
             <table className="w-full min-w-[560px] border-collapse text-sm">
@@ -65,7 +89,8 @@ export default function ManageTournamentOverviewPage() {
               </thead>
               <tbody>
                 {breakdown.map((row) => {
-                  const fillPercent = Math.min(100, Math.round((row.spotsFilled / row.spotsTotal) * 100));
+                  const fillPercent =
+                    row.spotsTotal > 0 ? Math.min(100, Math.round((row.spotsFilled / row.spotsTotal) * 100)) : 0;
                   return (
                     <tr key={row.category} className="border-b border-white/10 last:border-0">
                       <td className="px-4 py-3.5 font-medium text-[#e2e2e8]">{row.category}</td>

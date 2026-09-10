@@ -4,8 +4,14 @@ import Link from "next/link";
 import { useParams, usePathname } from "next/navigation";
 import { MapPin } from "lucide-react";
 import { ExportReportMenu } from "@/components/tournament/ExportReportMenu";
+import { ManageAccessButton } from "@/components/tournament/manage-access-button";
+import { useAuth } from "@/lib/auth";
 import { useCurrentClub } from "@/lib/session-data";
-import { getClubPlayers, getEvent, getTournament, tournamentCode } from "@/lib/mock-data";
+import { tournamentCode } from "@/lib/mock-data";
+import { ownsTournament } from "@/lib/tournament-owner";
+import { useAllEvents, useAllTournaments, useHostedTournaments } from "@/lib/hosted-tournaments";
+import { applyEventEdit, applyTournamentEdit, useTournamentEdits } from "@/lib/tournament-edits";
+import { effectiveStatus, isLive, useTournamentStatus } from "@/lib/tournament-status";
 import type { TournamentStatus } from "@/lib/types";
 
 const mono = { fontFamily: "var(--font-home-mono)" };
@@ -30,14 +36,33 @@ function statusMeta(status: TournamentStatus): { label: string; className: strin
   }
 }
 
-export default function ManageTournamentLayout({ children }: { children: React.ReactNode }) {
+/** "<Event> — <Category>" -> "<Category>"; bare name falls back to `category`. */
+function categoryLabel(name: string, fallback: string) {
+  const i = name.lastIndexOf(" — ");
+  return i > 0 ? name.slice(i + 3) : fallback;
+}
+
+export default function ManageClubTournamentLayout({ children }: { children: React.ReactNode }) {
+  const { user } = useAuth();
   const club = useCurrentClub();
+  const allTournaments = useAllTournaments();
+  const allEvents = useAllEvents();
+  const { isLoading: hostedLoading } = useHostedTournaments();
+  const { overrides } = useTournamentStatus();
+  const { tournamentEdit, eventEdit } = useTournamentEdits();
   const pathname = usePathname();
   const params = useParams<{ tournamentId: string }>();
   const tournamentId = Array.isArray(params.tournamentId) ? params.tournamentId[0] : params.tournamentId;
-  const tournament = tournamentId ? getTournament(tournamentId) : undefined;
+
+  const raw = tournamentId ? allTournaments.find((t) => t.id === tournamentId) : undefined;
+  const tournament = raw ? applyTournamentEdit(raw, tournamentEdit(raw.id)) : undefined;
 
   if (!club) return null;
+
+  // Don't flash "not found" while host-created tournaments are still loading.
+  if (!tournament && hostedLoading) {
+    return <div className="mx-auto h-64 w-full max-w-6xl animate-pulse rounded-[8px] bg-white/5" />;
+  }
 
   if (!tournament) {
     return (
@@ -56,18 +81,39 @@ export default function ManageTournamentLayout({ children }: { children: React.R
     );
   }
 
-  const clubPlayerIds = new Set(getClubPlayers(club.id).map((p) => p.id));
-  const belongsToClub = tournament.registeredPlayerIds.some((id) => clubPlayerIds.has(id));
-  if (!belongsToClub) return null;
+  // Only the account that submitted this tournament (via "Host a Tournament")
+  // can manage it. Ownership is the SPINID stamped at creation — never the
+  // display name, which is not unique across accounts.
+  if (!ownsTournament(tournament, user)) return null;
 
-  const meta = statusMeta(tournament.status);
-  const location = getEvent(tournament.eventId)?.location ?? tournament.venue;
+  const status = effectiveStatus(tournament, overrides);
+  const meta = statusMeta(status);
+  const rawEvent = allEvents.find((e) => e.id === tournament.eventId);
+  const event = rawEvent ? applyEventEdit(rawEvent, eventEdit(rawEvent.id)) : undefined;
+  const location = event?.location ?? tournament.venue;
   const basePath = `/club/tournaments/${tournament.id}`;
+
+  // Sibling categories of the same event — the list view collapses them to one
+  // card, so offer a switcher here to jump between them.
+  const siblings = allTournaments
+    .filter((t) => t.eventId === tournament.eventId)
+    .map((t) => applyTournamentEdit(t, tournamentEdit(t.id)))
+    .sort((a, b) => a.name.localeCompare(b.name));
+
+  const subPath = pathname.startsWith(basePath) ? pathname.slice(basePath.length) : "";
+
   const tabs = [
     { href: basePath, label: "Overview" },
     { href: `${basePath}/registrations`, label: "Registrations" },
     { href: `${basePath}/matches`, label: "Matches" },
+    // Editing published details only makes sense once the tournament is live —
+    // before that the host resubmits the form.
+    ...(isLive(status) ? [{ href: `${basePath}/tournament`, label: "Tournament" }] : []),
   ];
+
+  // Overview / Registrations / Tournament are all event-wide — the category
+  // picker only matters inside the per-category Matches console.
+  const showCategorySwitcher = siblings.length > 1 && subPath.startsWith("/matches");
 
   return (
     <div className="mx-auto w-full max-w-6xl" style={{ fontFamily: "var(--font-home-body)" }}>
@@ -87,14 +133,42 @@ export default function ManageTournamentLayout({ children }: { children: React.R
             </span>
           </div>
           <h1 className="text-xl font-extrabold uppercase leading-tight tracking-tight text-[#e2e2e8] sm:text-2xl" style={display}>
-            {tournament.name}
+            {event?.name ?? tournament.name}
           </h1>
           <p className="mt-1.5 text-xs uppercase tracking-wide text-[#5a5a60]" style={mono}>
             Tournament ID #{tournamentCode(tournament)}
           </p>
         </div>
-        <ExportReportMenu tournament={tournament} />
+        <div className="flex flex-wrap items-center gap-2">
+          <ManageAccessButton tournament={tournament} />
+          <ExportReportMenu tournament={tournament} />
+        </div>
       </div>
+
+      {showCategorySwitcher && (
+        <div className="mb-6 flex flex-wrap items-center gap-2">
+          <span className="text-[10px] font-semibold uppercase tracking-widest text-[#5a5a60]" style={mono}>
+            Category
+          </span>
+          {siblings.map((s) => {
+            const active = s.id === tournament.id;
+            return (
+              <Link
+                key={s.id}
+                href={`/club/tournaments/${s.id}${subPath}`}
+                className={`rounded-[2px] border px-3 py-1.5 text-[11px] font-semibold uppercase tracking-wide transition-colors ${
+                  active
+                    ? "border-[#ff2448] bg-[#ff2448]/10 text-[#ff8f86]"
+                    : "border-white/15 text-[#c2c6d7] hover:border-white/30 hover:bg-white/5"
+                }`}
+                style={mono}
+              >
+                {categoryLabel(s.name, s.category)}
+              </Link>
+            );
+          })}
+        </div>
+      )}
 
       <div className="mb-8 flex gap-2 border-b border-white/10">
         {tabs.map((tab) => {

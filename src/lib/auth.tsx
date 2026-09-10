@@ -5,6 +5,8 @@ import { useRouter } from "next/navigation";
 import type { Role } from "@/lib/types";
 import { appUsers } from "@/lib/mock-data";
 import { USE_DB, apiSend } from "@/lib/data-backend";
+import type { PlayerProfileInput } from "@/lib/player-profile";
+import type { ClubProfileInput } from "@/lib/club-profile";
 
 export interface SessionUser {
   id: string;
@@ -45,6 +47,10 @@ interface AuthContextValue {
     password: string;
     role: Role;
     email: string;
+    /** Player-only sign-up profile; completed later at onboarding if partial. */
+    profile?: PlayerProfileInput;
+    /** Club-only sign-up profile. */
+    clubProfile?: ClubProfileInput;
   }) => Promise<AuthResult>;
   /** Sign in with a SPINID *or* email, plus password. */
   signIn: (input: { identifier: string; password: string }) => Promise<AuthResult>;
@@ -159,12 +165,12 @@ export function AuthProvider({ children }: { children: ReactNode }) {
   );
 
   const register = useCallback<AuthContextValue["register"]>(
-    async ({ name, password, role, email }) => {
+    async ({ name, password, role, email, profile, clubProfile }) => {
       if (USE_DB) {
         try {
           const res = await apiSend<
             { ok: true; account: Parameters<typeof sessionFromAccount>[0] } | { ok: false; error: string }
-          >("/api/accounts", "POST", { op: "register", name, password, role, email });
+          >("/api/accounts", "POST", { op: "register", name, password, role, email, profile, clubProfile });
           if (!res.ok) return res;
           persist(sessionFromAccount(res.account));
           return { ok: true, role: res.account.role, uniqueId: res.account.uniqueId };
@@ -198,7 +204,14 @@ export function AuthProvider({ children }: { children: ReactNode }) {
         password,
         role,
         email: mail,
-        linkedId: null,
+        // A PLAYER / CLUB owns a profile row (created by the register page right
+        // after this resolves); HOST / ADMIN link later or not at all.
+        linkedId:
+          role === "PLAYER"
+            ? `p-usr-${uniqueId.toLowerCase()}`
+            : role === "CLUB"
+              ? `club-usr-${uniqueId.toLowerCase()}`
+              : null,
         createdAt: new Date().toISOString(),
       };
       window.localStorage.setItem(ACCOUNTS_KEY, JSON.stringify([...accounts, account]));

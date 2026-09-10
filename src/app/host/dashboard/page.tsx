@@ -1,10 +1,12 @@
 "use client";
 
+import { useMemo } from "react";
 import Link from "next/link";
 import { CheckCircle2, Plus, Trophy, Users, Zap, type LucideIcon } from "lucide-react";
 import { arenaFontVariables } from "@/lib/fonts";
 import { SrIdBadge } from "@/components/layout/sr-id-badge";
-import { tournaments } from "@/lib/mock-data";
+import { useAllTournaments } from "@/lib/hosted-tournaments";
+import { effectiveStatus, useTournamentStatus } from "@/lib/tournament-status";
 import { formatDate } from "@/lib/format";
 import type { Tournament, TournamentStatus } from "@/lib/types";
 
@@ -34,7 +36,7 @@ function TournamentHostingCard({ tournament }: { tournament: Tournament }) {
   const meta = tournamentStatusMeta(tournament.status);
   return (
     <Link
-      href={`/tournaments/${tournament.id}`}
+      href={`/host/tournaments/${tournament.id}`}
       className="block rounded-[6px] border border-white/10 bg-white/[0.03] p-3.5 transition-colors hover:border-white/20"
       style={{ borderLeftWidth: 3, borderLeftColor: meta.accent }}
     >
@@ -66,11 +68,21 @@ function StatCard({ icon: Icon, label, value, accent }: { icon: LucideIcon; labe
 }
 
 export default function HostDashboardPage() {
-  const activeTournaments = [...tournaments]
+  const allTournaments = useAllTournaments();
+  const { overrides } = useTournamentStatus();
+
+  // Seed catalogue + everything hosted through the form, with admin approval
+  // (a status override) applied — so an approved host-created event shows up
+  // here the moment it goes live, not just in the static seed list.
+  const withStatus = useMemo(
+    () => allTournaments.map((t) => ({ ...t, status: effectiveStatus(t, overrides) })),
+    [allTournaments, overrides],
+  );
+  const activeTournaments = [...withStatus]
     .filter((t) => t.status !== "DRAFT" && t.status !== "COMPLETED")
     .sort((a, b) => new Date(a.date).getTime() - new Date(b.date).getTime());
-  const completedTournaments = tournaments.filter((t) => t.status === "COMPLETED");
-  const totalRegistrations = tournaments.reduce((sum, t) => sum + t.registeredPlayerIds.length, 0);
+  const completedTournaments = withStatus.filter((t) => t.status === "COMPLETED");
+  const totalRegistrations = withStatus.reduce((sum, t) => sum + t.registeredPlayerIds.length, 0);
 
   return (
     <div className={arenaFontVariables} style={{ fontFamily: "var(--font-home-body)" }}>
@@ -103,7 +115,7 @@ export default function HostDashboardPage() {
       </div>
 
       <div className="mb-10 grid grid-cols-2 gap-4 lg:grid-cols-4">
-        <StatCard icon={Trophy} label="Total Tournaments" value={String(tournaments.length)} />
+        <StatCard icon={Trophy} label="Total Tournaments" value={String(withStatus.length)} />
         <StatCard icon={Zap} label="Active Tournaments" value={String(activeTournaments.length)} accent />
         <StatCard icon={Users} label="Total Registered Players" value={String(totalRegistrations)} />
         <StatCard icon={CheckCircle2} label="Completed" value={String(completedTournaments.length)} />

@@ -2,8 +2,11 @@
 
 import { useMemo, useState } from "react";
 import { toast } from "sonner";
+import { useAuth } from "@/lib/auth";
 import { useCurrentClub } from "@/lib/session-data";
-import { tournaments, platformHostingFee } from "@/lib/mock-data";
+import { ownsTournament } from "@/lib/tournament-owner";
+import { useAllTournaments } from "@/lib/hosted-tournaments";
+import { platformHostingFee } from "@/lib/mock-data";
 import {
   MembershipSection,
   PaymentHistoryTable,
@@ -18,16 +21,20 @@ import {
 } from "@/components/settings/settings-ui";
 
 export default function ClubSettingsPage() {
+  const { user } = useAuth();
   const club = useCurrentClub();
+  const allTournaments = useAllTournaments();
   const [name, setName] = useState(club?.name ?? "");
   const [email, setEmail] = useState(club?.email ?? "");
   const [newTournamentAlerts, setNewTournamentAlerts] = useState(true);
   const [joinRequestAlerts, setJoinRequestAlerts] = useState(true);
 
+  // One hosting-fee line per tournament this account created — matched by
+  // SPINID (`organizerId`), never the display name.
   const paymentRows = useMemo<PaymentRow[]>(() => {
-    if (!club) return [];
-    return tournaments
-      .filter((t) => t.organizer === club.name)
+    if (!user) return [];
+    return allTournaments
+      .filter((t) => ownsTournament(t, user))
       .map((t) => ({
         id: `${t.id}-hosting-fee`,
         description: `Hosting fee — ${t.name}`,
@@ -36,7 +43,7 @@ export default function ClubSettingsPage() {
         status: "Paid" as const,
       }))
       .sort((a, b) => new Date(b.date).getTime() - new Date(a.date).getTime());
-  }, [club]);
+  }, [user, allTournaments]);
 
   if (!club) return null;
 

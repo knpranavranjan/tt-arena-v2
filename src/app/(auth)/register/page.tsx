@@ -4,6 +4,9 @@ import { useEffect, useRef, useState } from "react";
 import Link from "next/link";
 import { useRouter } from "next/navigation";
 import { useAuth, dashboardPathForRole } from "@/lib/auth";
+import { USE_DB } from "@/lib/data-backend";
+import { useCreatedPlayers } from "@/lib/players-store";
+import { useCreatedClubs } from "@/lib/clubs-store";
 import {
   ClubLocationPicker,
   DEFAULT_CLUB_LOCATION,
@@ -54,6 +57,8 @@ export default function RegisterPage() {
   const [error, setError] = useState<string | null>(null);
   const [done, setDone] = useState<{ uniqueId: string; role: Role } | null>(null);
   const { register } = useAuth();
+  const { createLocalPlayer } = useCreatedPlayers();
+  const { createLocalClub } = useCreatedClubs();
   const router = useRouter();
 
   // Close the skill-level listbox on outside click / Escape.
@@ -76,11 +81,50 @@ export default function RegisterPage() {
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
     setError(null);
-    const res = await register({ name, password, role, email });
+
+    if (role === "PLAYER" && (!dob || !gender)) {
+      setError("Date of birth and gender are required to set up your player profile.");
+      return;
+    }
+
+    const playerProfile =
+      role === "PLAYER"
+        ? {
+            dateOfBirth: dob,
+            gender: gender || undefined,
+            state: location,
+            phone: phone || undefined,
+            skillLevel: skillLevel || undefined,
+          }
+        : undefined;
+    const clubProfileInput =
+      role === "CLUB"
+        ? {
+            location,
+            address: location,
+            state: location,
+            phone: phone || undefined,
+            coordinates:
+              clubLocation.mode === "current"
+                ? { lat: Number(clubLocation.lat) || 0, lng: Number(clubLocation.lng) || 0 }
+                : undefined,
+          }
+        : undefined;
+
+    const res = await register({ name, password, role, email, profile: playerProfile, clubProfile: clubProfileInput });
     if (!res.ok) {
       setError(res.error);
       return;
     }
+
+    // localStorage mode: the DB path already created the profile row server-side.
+    if (!USE_DB && role === "PLAYER") {
+      createLocalPlayer({ spinId: res.uniqueId, name, input: playerProfile });
+    }
+    if (!USE_DB && role === "CLUB") {
+      createLocalClub({ spinId: res.uniqueId, name, input: clubProfileInput });
+    }
+
     setDone({ uniqueId: res.uniqueId, role: res.role });
   };
 

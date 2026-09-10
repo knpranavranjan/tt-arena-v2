@@ -3,7 +3,9 @@
 import { useMemo, useState } from "react";
 import { toast } from "sonner";
 import { useAuth } from "@/lib/auth";
-import { tournaments, platformHostingFee } from "@/lib/mock-data";
+import { ownsTournament } from "@/lib/tournament-owner";
+import { useAllTournaments } from "@/lib/hosted-tournaments";
+import { platformHostingFee } from "@/lib/mock-data";
 import {
   PaymentHistoryTable,
   PasswordSection,
@@ -18,15 +20,18 @@ import {
 
 export default function HostSettingsPage() {
   const { user } = useAuth();
+  const allTournaments = useAllTournaments();
   const [name, setName] = useState(user?.name ?? "");
   const [email, setEmail] = useState(user?.email ?? "");
   const [newTournamentAlerts, setNewTournamentAlerts] = useState(true);
   const [registrationUpdates, setRegistrationUpdates] = useState(true);
 
+  // One hosting-fee line per tournament this account created — matched by
+  // SPINID (`organizerId`), never the display name.
   const paymentRows = useMemo<PaymentRow[]>(() => {
     if (!user) return [];
-    return tournaments
-      .filter((t) => t.organizer === user.name)
+    return allTournaments
+      .filter((t) => ownsTournament(t, user))
       .map((t) => ({
         id: `${t.id}-hosting-fee`,
         description: `Hosting fee — ${t.name}`,
@@ -35,7 +40,7 @@ export default function HostSettingsPage() {
         status: "Paid" as const,
       }))
       .sort((a, b) => new Date(b.date).getTime() - new Date(a.date).getTime());
-  }, [user]);
+  }, [user, allTournaments]);
 
   if (!user) return null;
 

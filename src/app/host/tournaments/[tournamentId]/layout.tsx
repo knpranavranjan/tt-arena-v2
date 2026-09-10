@@ -6,6 +6,7 @@ import { MapPin } from "lucide-react";
 import { ExportReportMenu } from "@/components/tournament/ExportReportMenu";
 import { ManageAccessButton } from "@/components/tournament/manage-access-button";
 import { getEvent, getTournament, tournamentCode } from "@/lib/mock-data";
+import { useAllEvents, useAllTournaments, useHostedTournaments } from "@/lib/hosted-tournaments";
 import { effectiveStatus, isLive, useTournamentStatus } from "@/lib/tournament-status";
 import { applyEventEdit, applyTournamentEdit, useTournamentEdits } from "@/lib/tournament-edits";
 import type { TournamentStatus } from "@/lib/types";
@@ -36,14 +37,23 @@ export default function ManageHostTournamentLayout({ children }: { children: Rea
   const pathname = usePathname();
   const params = useParams<{ tournamentId: string }>();
   const tournamentId = Array.isArray(params.tournamentId) ? params.tournamentId[0] : params.tournamentId;
-  const seedTournament = tournamentId ? getTournament(tournamentId) : undefined;
+  const allTournaments = useAllTournaments();
+  const allEvents = useAllEvents();
+  const { isLoading: hostedLoading } = useHostedTournaments();
+  const rawTournament = tournamentId
+    ? allTournaments.find((t) => t.id === tournamentId) ?? getTournament(tournamentId)
+    : undefined;
   const { overrides } = useTournamentStatus();
   const { tournamentEdit, eventEdit } = useTournamentEdits();
 
   // Fold in any host edits so the manage header matches what players see.
-  const tournament = seedTournament
-    ? applyTournamentEdit(seedTournament, tournamentEdit(seedTournament.id))
+  const tournament = rawTournament
+    ? applyTournamentEdit(rawTournament, tournamentEdit(rawTournament.id))
     : undefined;
+
+  if (!tournament && hostedLoading) {
+    return <div className="mx-auto h-64 w-full max-w-6xl animate-pulse rounded-[8px] bg-white/5" />;
+  }
 
   if (!tournament) {
     return (
@@ -64,10 +74,18 @@ export default function ManageHostTournamentLayout({ children }: { children: Rea
 
   const status = effectiveStatus(tournament, overrides);
   const meta = statusMeta(status);
-  const seedEvent = getEvent(tournament.eventId);
-  const event = seedEvent ? applyEventEdit(seedEvent, eventEdit(seedEvent.id)) : undefined;
+  const rawEvent = allEvents.find((e) => e.id === tournament.eventId) ?? getEvent(tournament.eventId);
+  const event = rawEvent ? applyEventEdit(rawEvent, eventEdit(rawEvent.id)) : undefined;
   const location = event?.location ?? tournament.venue;
   const basePath = `/host/tournaments/${tournament.id}`;
+
+  // Sibling categories of this event — the list view collapses them to one card.
+  const siblings = allTournaments
+    .filter((t) => t.eventId === tournament.eventId)
+    .map((t) => applyTournamentEdit(t, tournamentEdit(t.id)))
+    .sort((a, b) => a.name.localeCompare(b.name));
+  const subPath = pathname.startsWith(basePath) ? pathname.slice(basePath.length) : "";
+
   const tabs = [
     { href: basePath, label: "Overview" },
     { href: `${basePath}/registrations`, label: "Registrations" },
@@ -76,6 +94,10 @@ export default function ManageHostTournamentLayout({ children }: { children: Rea
     // live — before that the host resubmits the form.
     ...(isLive(status) ? [{ href: `${basePath}/tournament`, label: "Tournament" }] : []),
   ];
+
+  // Overview / Registrations / Tournament are all event-wide — the category
+  // picker only matters inside the per-category Matches console.
+  const showCategorySwitcher = siblings.length > 1 && subPath.startsWith("/matches");
 
   return (
     <div className="mx-auto w-full max-w-6xl" style={{ fontFamily: "var(--font-home-body)" }}>
@@ -106,6 +128,32 @@ export default function ManageHostTournamentLayout({ children }: { children: Rea
           <ExportReportMenu tournament={tournament} />
         </div>
       </div>
+
+      {showCategorySwitcher && (
+        <div className="mb-6 flex flex-wrap items-center gap-2">
+          <span className="text-[10px] font-semibold uppercase tracking-widest text-[#5a5a60]" style={mono}>
+            Category
+          </span>
+          {siblings.map((s) => {
+            const active = s.id === tournament.id;
+            const label = s.name.lastIndexOf(" — ") > 0 ? s.name.slice(s.name.lastIndexOf(" — ") + 3) : s.category;
+            return (
+              <Link
+                key={s.id}
+                href={`/host/tournaments/${s.id}${subPath}`}
+                className={`rounded-[2px] border px-3 py-1.5 text-[11px] font-semibold uppercase tracking-wide transition-colors ${
+                  active
+                    ? "border-[#ff2448] bg-[#ff2448]/10 text-[#ff8f86]"
+                    : "border-white/15 text-[#c2c6d7] hover:border-white/30 hover:bg-white/5"
+                }`}
+                style={mono}
+              >
+                {label}
+              </Link>
+            );
+          })}
+        </div>
+      )}
 
       <div className="mb-8 flex gap-2 border-b border-white/10">
         {tabs.map((tab) => {

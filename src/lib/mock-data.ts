@@ -716,6 +716,8 @@ export function getAppUser(id: string) {
  * so `p-1` (the demo player account) is `SRP01`, `p-12` is `SRP12`, etc.
  */
 export function playerSrId(playerId: string): string {
+  // Real sign-ups: id is `p-usr-<spinid>` (e.g. `p-usr-srp02`).
+  if (playerId.startsWith("p-usr-")) return playerId.slice("p-usr-".length).toUpperCase();
   const n = Number.parseInt(playerId.replace(/^p-/, ""), 10);
   return Number.isFinite(n) ? `SRP${String(n).padStart(2, "0")}` : "";
 }

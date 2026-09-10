@@ -152,6 +152,9 @@ export default function HostTournamentPage() {
   function submitTournament() {
     const validCategories = categories.filter((c) => c.name.trim());
     const organizerName = club?.name ?? player?.name ?? user?.name ?? "Tournament Host";
+    // The account's SPINID is the unique owner key — `organizerName` is only a
+    // label and can collide between accounts (a player and a club, say).
+    const organizerId = user?.uniqueId;
     const sharedEventId = makeId("evt-host");
     const createdIds: string[] = [];
 
@@ -180,6 +183,7 @@ export default function HostTournamentPage() {
         name: `${name} — ${cat.name}`,
         venue,
         organizer: organizerName,
+        organizerId,
         date,
         registrationDeadline: date,
         maxPlayers: 32,
@@ -204,6 +208,7 @@ export default function HostTournamentPage() {
       id: sharedEventId,
       name,
       organizer: organizerName,
+      organizerId,
       venue,
       date,
       location,

@@ -12,7 +12,12 @@ import {
 } from '@/lib/tournament/knockout'
 import { describeTieBreakOrder } from '@/lib/tournament/standings'
 import { useActiveTournament } from '@/lib/matches-store'
-import { buildRatingMatchInputs, usePlayerRatings, type RatingChangeEntry } from '@/lib/player-ratings'
+import {
+  buildRatingMatchInputs,
+  perPlayerRecords,
+  usePlayerRatings,
+  type RatingChangeEntry,
+} from '@/lib/player-ratings'
 
 export default function Champion() {
   const {
@@ -154,6 +159,7 @@ export default function Champion() {
         date: tournament.date,
         players: players.map((p) => ({ id: p.id, name: p.name })),
         matches,
+        records: perPlayerRecords(matches),
       })
       if (outcome.applied) {
         toast.success(

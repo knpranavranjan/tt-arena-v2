@@ -1,15 +1,15 @@
 "use client";
 
-import { useState } from "react";
+import { useMemo, useState } from "react";
 import Link from "next/link";
 import { motion, useReducedMotion } from "framer-motion";
 import { ArrowRight, ArrowUp } from "lucide-react";
-import { players, getWeeklyDelta } from "@/lib/mock-data";
+import { getWeeklyDelta } from "@/lib/mock-data";
+import { usePlayerRoster } from "@/lib/players-store";
+import type { Player } from "@/lib/types";
 import { abbreviateName, initials } from "@/lib/format";
 
-const ranked = [...players].sort((a, b) => b.rating - a.rating).slice(0, 8);
-
-function RankCard({ rank, player }: { rank: number; player: (typeof ranked)[number] }) {
+function RankCard({ rank, player }: { rank: number; player: Player }) {
   return (
     <Link
       href={`/players/${player.id}`}
@@ -43,6 +43,11 @@ function RankCard({ rank, player }: { rank: number; player: (typeof ranked)[numb
 export function LiveRankingsTicker() {
   const reduceMotion = useReducedMotion();
   const [paused, setPaused] = useState(false);
+  const roster = usePlayerRoster();
+  const ranked = useMemo(
+    () => [...roster].sort((a, b) => b.rating - a.rating).slice(0, 8),
+    [roster],
+  );
 
   return (
     <section

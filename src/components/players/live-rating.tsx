@@ -11,17 +11,21 @@ import { usePlayerRatings } from "@/lib/player-ratings";
  */
 export function LiveRating({
   playerId,
+  fallbackRating,
   className,
   style,
 }: {
   playerId: string;
+  /** Shown when the ratings store has nothing for this id (e.g. a real
+   *  sign-up not in the seed roster) — usually the player's profile rating. */
+  fallbackRating?: number;
   className?: string;
   style?: CSSProperties;
 }) {
   const ratings = usePlayerRatings();
   return (
     <span className={className} style={style}>
-      {ratings.getRating(playerId)}
+      {ratings.getRating(playerId) || fallbackRating || 0}
     </span>
   );
 }

@@ -3,14 +3,21 @@
 import Image from "next/image";
 import Link from "next/link";
 import { Check, ShieldCheck, Trophy, X } from "lucide-react";
+import { useMemo } from "react";
 import { arenaFontVariables } from "@/lib/fonts";
+import { useAuth } from "@/lib/auth";
 import { useCurrentClub } from "@/lib/session-data";
+import { ownsTournament } from "@/lib/tournament-owner";
 import { SrIdBadge } from "@/components/layout/sr-id-badge";
 import { useJoinRequests } from "@/lib/join-requests";
 import { usePlayerRatings } from "@/lib/player-ratings";
 import { LiveRating } from "@/components/players/live-rating";
 import { abbreviateName, formatDate } from "@/lib/format";
-import { getClubPlayers, getPlayer, tournaments } from "@/lib/mock-data";
+import { getClubPlayers, getPlayer } from "@/lib/mock-data";
+import { useAllTournaments } from "@/lib/hosted-tournaments";
+import { effectiveStatus, useTournamentStatus } from "@/lib/tournament-status";
+import { mostActiveStatus } from "@/lib/event-groups";
+import { eventTitle } from "@/lib/tournament-manage";
 import type { Player, Tournament, TournamentStatus } from "@/lib/types";
 
 const mono = { fontFamily: "var(--font-home-mono)" };
@@ -59,16 +66,43 @@ function tournamentStatusMeta(status: TournamentStatus): { label: string; textCl
 }
 
 export default function ClubDashboardPage() {
+  const { user } = useAuth();
   const club = useCurrentClub();
   const { pendingForClub, updateStatus } = useJoinRequests();
   const ratings = usePlayerRatings();
+  const allTournaments = useAllTournaments();
+  const { overrides } = useTournamentStatus();
+
+  // Tournaments this account hosts — matched by the creator's SPINID
+  // (`organizerId`), never the display name. Admin approval is a status
+  // override, so an approved event surfaces here the moment it goes live.
+  // One card per event: fold the per-category rows into their shared event.
+  const { activeTournaments, completedTournaments, hostedEventCount } = useMemo(() => {
+    if (!user) return { activeTournaments: [], completedTournaments: [], hostedEventCount: 0 };
+    const byEvent = new Map<string, Tournament[]>();
+    for (const t of allTournaments) {
+      if (!ownsTournament(t, user)) continue;
+      const list = byEvent.get(t.eventId) ?? [];
+      list.push(t);
+      byEvent.set(t.eventId, list);
+    }
+    const rows = [...byEvent.values()].map((cats) => {
+      const status = mostActiveStatus(cats.map((c) => effectiveStatus(c, overrides)));
+      const primary = [...cats].sort((a, b) => a.name.localeCompare(b.name))[0];
+      return { ...primary, status };
+    });
+    return {
+      activeTournaments: rows
+        .filter((t) => t.status !== "COMPLETED")
+        .sort((a, b) => new Date(a.date).getTime() - new Date(b.date).getTime()),
+      completedTournaments: rows.filter((t) => t.status === "COMPLETED"),
+      hostedEventCount: byEvent.size,
+    };
+  }, [user, allTournaments, overrides]);
+
   if (!club) return null;
 
   const clubPlayers = getClubPlayers(club.id).sort((a, b) => ratings.getRating(b.id) - ratings.getRating(a.id));
-  const playerIds = new Set(clubPlayers.map((p) => p.id));
-  const clubTournaments = tournaments.filter((t) => t.registeredPlayerIds.some((id) => playerIds.has(id)));
-  const activeTournaments = clubTournaments.filter((t) => t.status !== "COMPLETED");
-  const completedTournaments = clubTournaments.filter((t) => t.status === "COMPLETED");
   const pendingRequests = pendingForClub(club.id);
 
   return (
@@ -118,7 +152,7 @@ export default function ClubDashboardPage() {
               Events Hosted
             </p>
             <p className="mt-1 text-2xl font-extrabold text-[#ff2448]" style={display}>
-              {clubTournaments.length}
+              {hostedEventCount}
             </p>
           </div>
         </div>
@@ -305,14 +339,14 @@ function TournamentHostingCard({ tournament }: { tournament: Tournament }) {
   const meta = tournamentStatusMeta(tournament.status);
   return (
     <Link
-      href={`/tournaments/${tournament.id}`}
+      href={`/club/tournaments/${tournament.id}`}
       className="block rounded-[6px] border border-white/10 bg-white/[0.03] p-3.5 transition-colors hover:border-white/20"
       style={{ borderLeftWidth: 3, borderLeftColor: meta.accent }}
     >
       <p className={`text-[10px] font-bold uppercase tracking-wide ${meta.textClass}`} style={mono}>
         {meta.label}
       </p>
-      <p className="mt-1.5 text-sm font-semibold text-[#e2e2e8]">{tournament.name}</p>
+      <p className="mt-1.5 text-sm font-semibold text-[#e2e2e8]">{eventTitle(tournament)}</p>
       <p className="mt-1 text-xs text-[#8b8b93]">
         {formatDate(tournament.date)} &middot; {tournament.venue}
       </p>
@@ -328,7 +362,7 @@ function TournamentHistoryRow({ tournament }: { tournament: Tournament }) {
       className="flex items-center justify-between gap-3 border-b border-white/10 py-3 last:border-0 transition-colors hover:bg-white/[0.02]"
     >
       <div className="min-w-0">
-        <p className="truncate text-sm font-semibold text-[#e2e2e8]">{tournament.name}</p>
+        <p className="truncate text-sm font-semibold text-[#e2e2e8]">{eventTitle(tournament)}</p>
         <p className="mt-0.5 text-xs text-[#8b8b93]">
           {formatDate(tournament.date)} &middot; {tournament.venue} &middot; {tournament.registeredPlayerIds.length} players
         </p>

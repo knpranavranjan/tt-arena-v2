@@ -5,6 +5,7 @@ import { useCallback, useEffect, useMemo, useState } from "react";
 import { SEED_ACCOUNTS } from "@/lib/auth";
 import { players as rosterPlayers, playerSrId } from "@/lib/mock-data";
 import { USE_DB, apiGet } from "@/lib/data-backend";
+import { useCreatedPlayers, type CreatedPlayer } from "@/lib/players-store";
 
 /**
  * Everyone who exists on the platform and can therefore be entered into a
@@ -72,7 +73,7 @@ function useAccountList(): StoredAccount[] {
   return accounts;
 }
 
-function build(accounts: StoredAccount[]): DirectoryPerson[] {
+function build(accounts: StoredAccount[], created: readonly CreatedPlayer[] = []): DirectoryPerson[] {
   // handle map: seed roster player id -> account handle (when one is linked)
   const handleByRosterId = new Map<string, string>();
   for (const a of [...SEED_ACCOUNTS, ...accounts]) {
@@ -90,6 +91,19 @@ function build(accounts: StoredAccount[]): DirectoryPerson[] {
       club: p.clubName ?? "",
       state: p.state,
       hasAccount: handleByRosterId.has(p.id),
+    });
+  }
+
+  // Real player sign-ups (own DB/localStorage profile row) — full identity.
+  for (const p of created) {
+    people.set(p.id, {
+      id: p.id,
+      handle: p.spinId ?? playerSrId(p.id),
+      name: p.name,
+      rating: p.rating,
+      club: p.clubName ?? "",
+      state: p.state ?? "",
+      hasAccount: true,
     });
   }
 
@@ -168,8 +182,9 @@ export function usePlatformAccounts() {
 /** Live directory of platform players, searchable by SPINID only. */
 export function usePlatformDirectory() {
   const accounts = useAccountList();
+  const { createdPlayers } = useCreatedPlayers();
 
-  const all = useMemo(() => build(accounts), [accounts]);
+  const all = useMemo(() => build(accounts, createdPlayers), [accounts, createdPlayers]);
 
   const search = useCallback(
     (query: string, excludeIds: ReadonlySet<string> = new Set()) => {

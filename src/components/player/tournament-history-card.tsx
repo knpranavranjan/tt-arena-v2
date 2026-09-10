@@ -1,6 +1,6 @@
 "use client";
 
-import { useState } from "react";
+import { useMemo, useState } from "react";
 import { ChevronDown, ChevronRight, History } from "lucide-react";
 import { ScrollArea } from "@/components/ui/scroll-area";
 import {
@@ -12,8 +12,11 @@ import {
   DialogTrigger,
 } from "@/components/ui/dialog";
 import { getEvent, getPlayer, getTournament, matches } from "@/lib/mock-data";
+import { useAllEvents, useAllTournaments } from "@/lib/hosted-tournaments";
+import { usePlayerRatings, type RatingChangeEntry } from "@/lib/player-ratings";
+import { eventTitle } from "@/lib/tournament-manage";
 import { formatDate } from "@/lib/format";
-import type { Match, Player, Tournament } from "@/lib/types";
+import type { Match, Player, Tournament, TTEvent } from "@/lib/types";
 
 const mono = { fontFamily: "var(--font-home-mono)" };
 
@@ -26,10 +29,13 @@ interface MatchRow {
 }
 
 interface CategoryGroup {
-  tournament: Tournament;
+  /** A real `Tournament` for seed-match groups; a light stand-in for published ones. */
+  tournament: Pick<Tournament, "id" | "name" | "category">;
   rows: MatchRow[];
   wins: number;
   losses: number;
+  /** Set for published results, where per-match rows aren't recorded. */
+  summaryMatches?: number;
 }
 
 interface EventGroup {
@@ -49,7 +55,7 @@ interface EventGroup {
  * categories (e.g. Senior Singles, Under 21 Singles), each its own draw with
  * its own opponents and results.
  */
-function buildEventGroups(player: Player): EventGroup[] {
+function buildEventGroups(player: Player): Map<string, EventGroup> {
   const played = matches.filter(
     (m) => (m.playerAId === player.id || m.playerBId === player.id) && m.status === "COMPLETED",
   );
@@ -68,7 +74,7 @@ function buildEventGroups(player: Player): EventGroup[] {
     if (!byEvent.has(eventKey)) {
       byEvent.set(eventKey, {
         key: eventKey,
-        name: event?.name ?? tournament.name,
+        name: eventTitle(tournament, event?.name),
         date: event?.date ?? tournament.date,
         venue: event?.venue ?? tournament.venue,
         categories: [],
@@ -108,11 +114,85 @@ function buildEventGroups(player: Player): EventGroup[] {
     eventGroup.matchCount += 1;
   }
 
-  return [...byEvent.values()].sort((a, b) => new Date(b.date).getTime() - new Date(a.date).getTime());
+  return byEvent;
+}
+
+/**
+ * Fold published tournament results (`RatingChangeEntry` rows the console writes
+ * on "Publish results") into the event groups — one group per tournament not
+ * already covered by a seed-match group. Only aggregate W/L is recorded, so
+ * these render as a summary with no per-match drill-down.
+ */
+function mergePublishedHistory(
+  byEvent: Map<string, EventGroup>,
+  history: readonly RatingChangeEntry[],
+  resolveTournament: (id: string) => Tournament | undefined,
+  resolveEvent: (id: string) => TTEvent | undefined,
+) {
+  const seenTournamentIds = new Set<string>();
+  for (const g of byEvent.values()) {
+    for (const c of g.categories) seenTournamentIds.add(c.tournament.id);
+  }
+
+  for (const entry of history) {
+    if (entry.matchesPlayed <= 0) continue;
+    if (seenTournamentIds.has(entry.tournamentId)) continue;
+    seenTournamentIds.add(entry.tournamentId);
+
+    const t = resolveTournament(entry.tournamentId);
+    const event = t ? resolveEvent(t.eventId) : undefined;
+    const key = event?.id ?? t?.id ?? entry.tournamentId;
+
+    let group = byEvent.get(key);
+    if (!group) {
+      group = {
+        key,
+        name: t ? eventTitle(t, event?.name) : eventTitle({ name: entry.tournamentName }),
+        date: event?.date ?? t?.date ?? entry.date,
+        venue: event?.venue ?? t?.venue ?? "",
+        categories: [],
+        wins: 0,
+        losses: 0,
+        matchCount: 0,
+      };
+      byEvent.set(key, group);
+    }
+
+    group.categories.push({
+      tournament: {
+        id: entry.tournamentId,
+        name: entry.tournamentName,
+        category: entry.categoryName,
+      },
+      rows: [],
+      wins: entry.wins,
+      losses: entry.losses,
+      summaryMatches: entry.matchesPlayed,
+    });
+    group.wins += entry.wins;
+    group.losses += entry.losses;
+    group.matchCount += entry.matchesPlayed;
+  }
 }
 
 export function TournamentHistoryCard({ player }: { player: Player }) {
-  const events = buildEventGroups(player);
+  const { getHistory } = usePlayerRatings();
+  const allTournaments = useAllTournaments();
+  const allEvents = useAllEvents();
+
+  const events = useMemo(() => {
+    const byEvent = buildEventGroups(player);
+    mergePublishedHistory(
+      byEvent,
+      getHistory(player.id),
+      (id) => allTournaments.find((t) => t.id === id),
+      (id) => allEvents.find((e) => e.id === id),
+    );
+    return [...byEvent.values()].sort(
+      (a, b) => new Date(b.date).getTime() - new Date(a.date).getTime(),
+    );
+  }, [player, getHistory, allTournaments, allEvents]);
+
   const [expanded, setExpanded] = useState<string | null>(events[0]?.key ?? null);
 
   return (
@@ -168,9 +248,13 @@ export function TournamentHistoryCard({ player }: { player: Player }) {
 
                   {isOpen ? (
                     <div className="flex flex-col gap-2 border-t border-white/5 bg-white/[0.015] px-4 pb-4 pt-3">
-                      {event.categories.map((category) => (
-                        <CategoryDialog key={category.tournament.id} category={category} />
-                      ))}
+                      {event.categories.map((category) =>
+                        category.rows.length === 0 ? (
+                          <CategorySummary key={category.tournament.id} category={category} />
+                        ) : (
+                          <CategoryDialog key={category.tournament.id} category={category} />
+                        ),
+                      )}
                     </div>
                   ) : null}
                 </div>
@@ -179,6 +263,32 @@ export function TournamentHistoryCard({ player }: { player: Player }) {
           </div>
         </ScrollArea>
       )}
+    </div>
+  );
+}
+
+/**
+ * A published category result — only aggregate W/L is on record, so this is a
+ * static summary row (no per-match drill-down like `CategoryDialog`).
+ */
+function CategorySummary({ category }: { category: CategoryGroup }) {
+  const { tournament, wins, losses, summaryMatches } = category;
+  const played = summaryMatches ?? wins + losses;
+  return (
+    <div className="flex w-full items-center justify-between gap-3 rounded-[8px] border border-white/10 bg-[#0c0e12] px-4 py-3">
+      <span className="flex min-w-0 items-center gap-2">
+        <span className="truncate text-xs font-bold uppercase tracking-widest text-[#ff8f86]" style={mono}>
+          {tournament.category}
+        </span>
+        <span className="shrink-0 text-[11px] text-[#7d8795]" style={mono}>
+          {played} match{played === 1 ? "" : "es"}
+        </span>
+      </span>
+      <span className="shrink-0 text-xs font-bold" style={mono}>
+        <span className="text-emerald-400">{wins}W</span>{" "}
+        <span className="text-[#7d8795]">&middot;</span>{" "}
+        <span className="text-[#ff2448]">{losses}L</span>
+      </span>
     </div>
   );
 }

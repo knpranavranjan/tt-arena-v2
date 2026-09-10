@@ -65,8 +65,13 @@ import { normalizeTieBreakOrder } from "@/lib/tie-break";
 import { getCategoryBreakdown, getPlayer, getTournamentPlayers } from "@/lib/mock-data";
 import type { PublishedResult } from "@/lib/published-results";
 import { useRegistrations, type TournamentRegistration } from "@/lib/registrations";
+import { usePlayerRoster } from "@/lib/players-store";
 import { useTournamentStatus } from "@/lib/tournament-status";
 import type { Player as ArenaPlayer, Tournament as ArenaTournament } from "@/lib/types";
+
+/** Resolve a player id to a full record — merged roster (real sign-ups) first,
+ *  seed catalogue second. Defaults to the seed lookup for non-hook call sites. */
+type ResolvePlayer = (id: string) => ArenaPlayer | undefined;
 
 /* ------------------------------------------------------------------ types */
 
@@ -256,9 +261,9 @@ function mapFormat(f: ArenaTournament["format"]): TournamentFormat {
   return "pools_ko";
 }
 
-/** An "Open Doubles" division on every tournament so the pair flow is always
- *  reachable. It draws from the same registrants as the singles categories —
- *  the roster is just paired two-by-two. */
+/** Id used for a doubles division when a host actually creates one (any
+ *  category whose name matches /doubles/i). No longer force-added to every
+ *  tournament — the console only shows the categories the host registered. */
 export const DOUBLES_CATEGORY_ID = "open-doubles";
 
 function categoryFormat(name: string) {
@@ -295,17 +300,6 @@ function baseConfig(t: ArenaTournament): ConsoleTournament {
           },
         ]
   );
-
-  categories.push({
-    id: DOUBLES_CATEGORY_ID,
-    name: "Open Doubles",
-    maxPlayers: 32,
-    code: "XD",
-    entryFee: t.entryFee,
-    prizePool: t.prizePool,
-    level: "",
-    format: "doubles",
-  });
 
   // The host sets a priority order on the "Host a Tournament" form; the ids are
   // a subset of the engine's TieBreakRule union so they map straight through.
@@ -403,30 +397,51 @@ function toConsolePlayer(p: ArenaPlayer): Player {
   return { id: p.id, name: p.name, rating: p.rating, club: p.clubName ?? "", state: p.state };
 }
 
-/** Registered entrants for one category, from the seeded roster + live sign-ups. */
+/** A console player built straight off a registration, when the player record
+ *  can't be resolved (a real sign-up not in this browser's roster snapshot). */
+function playerFromRegistration(r: TournamentRegistration): Player {
+  return { id: r.playerId, name: r.playerName || "Player", rating: 1500, club: "", state: "" };
+}
+
+/**
+ * Registered entrants for one category — the seeded roster plus live sign-ups.
+ *
+ * `soleCategory` is true for a host-created tournament: its console has exactly
+ * one division, so the tournament record *is* that division and every
+ * registration on it belongs here (no player-bracket matching). Seed
+ * tournaments with several bracket categories still match on `player.category`.
+ */
 function rosterFor(
   t: ArenaTournament,
   categoryName: string,
   liveRegs: readonly TournamentRegistration[],
+  resolve: ResolvePlayer = getPlayer,
+  soleCategory = false,
 ): Player[] {
   const seen = new Set<string>();
   const out: Player[] = [];
-  const push = (p: ArenaPlayer | undefined) => {
+  const push = (p: ArenaPlayer | Player | undefined) => {
     if (!p || seen.has(p.id)) return;
     seen.add(p.id);
-    out.push(toConsolePlayer(p));
+    out.push("club" in p ? (p as Player) : toConsolePlayer(p as ArenaPlayer));
   };
 
   const roster = getTournamentPlayers(t);
-  for (const p of roster) if (String(p.category) === categoryName) push(p);
+  for (const p of roster) if (soleCategory || String(p.category) === categoryName) push(p);
+
   for (const r of liveRegs) {
     if (r.tournamentId !== t.id) continue;
-    const p = getPlayer(r.playerId);
-    if (p && String(p.category) === categoryName) push(p);
+    const p = resolve(r.playerId);
+    if (soleCategory) {
+      push(p ?? playerFromRegistration(r));
+    } else if (p && String(p.category) === categoryName) {
+      push(p);
+    }
   }
+
   // Older mock tournaments carry a category label no registrant matches — fall
   // back to the whole roster so the workspace isn't empty.
-  if (out.length === 0) for (const p of roster) push(p);
+  if (out.length === 0 && !soleCategory) for (const p of roster) push(p);
   return out;
 }
 
@@ -456,8 +471,10 @@ function initialDraw(
   t: ArenaTournament,
   category: CategoryEntry,
   liveRegs: readonly TournamentRegistration[],
+  resolve: ResolvePlayer = getPlayer,
+  soleCategory = false,
 ): CategoryDraw {
-  const roster = rosterFor(t, category.name, liveRegs);
+  const roster = rosterFor(t, category.name, liveRegs, resolve, soleCategory);
   if (category.format === "doubles") {
     const { teams, unpaired } = pairRoster(roster, `${t.id}:${category.id}`);
     return emptyDraw(category.id, teams, unpaired);
@@ -465,11 +482,16 @@ function initialDraw(
   return emptyDraw(category.id, roster);
 }
 
-function initialState(t: ArenaTournament, liveRegs: readonly TournamentRegistration[]): StoredMatches {
+function initialState(
+  t: ArenaTournament,
+  liveRegs: readonly TournamentRegistration[],
+  resolve: ResolvePlayer = getPlayer,
+): StoredMatches {
   const config = baseConfig(t);
+  const soleCategory = config.categories.length === 1;
   const draws: Record<string, CategoryDraw> = {};
   for (const c of config.categories) {
-    draws[c.id] = initialDraw(t, c, liveRegs);
+    draws[c.id] = initialDraw(t, c, liveRegs, resolve, soleCategory);
   }
   return {
     stage: "players",
@@ -503,15 +525,34 @@ function reconcile(
   config: ReturnType<typeof baseConfig>,
   t: ArenaTournament,
   liveRegs: readonly TournamentRegistration[],
+  resolve: ResolvePlayer = getPlayer,
   keepNav?: { stage: Stage; activeCategoryId: string },
 ): StoredMatches {
-  if (!stored || !stored.draws) return initialState(t, liveRegs);
+  const soleCategory = config.categories.length === 1;
+  if (!stored || !stored.draws) return initialState(t, liveRegs, resolve);
   const draws: Record<string, CategoryDraw> = {};
   for (const c of config.categories) {
     const saved = stored.draws[c.id];
-    draws[c.id] = saved
-      ? { ...saved, unpaired: saved.unpaired ?? [] }
-      : initialDraw(t, c, liveRegs);
+    if (!saved) {
+      draws[c.id] = initialDraw(t, c, liveRegs, resolve, soleCategory);
+      continue;
+    }
+    // While still setting up (no pools/bracket yet), keep the entry list in
+    // step with registrations — pull in anyone who has since signed up.
+    const settingUp = !saved.pools && !saved.bracket && c.format !== "doubles";
+    if (settingUp) {
+      const have = new Set(saved.players.map((p) => p.id));
+      const added = rosterFor(t, c.name, liveRegs, resolve, soleCategory).filter(
+        (p) => !have.has(p.id),
+      );
+      draws[c.id] = {
+        ...saved,
+        unpaired: saved.unpaired ?? [],
+        players: added.length ? [...saved.players, ...added] : saved.players,
+      };
+    } else {
+      draws[c.id] = { ...saved, unpaired: saved.unpaired ?? [] };
+    }
   }
   const wantActive = keepNav?.activeCategoryId ?? stored.activeCategoryId;
   const activeCategoryId = draws[wantActive] ? wantActive : config.categories[0].id;
@@ -563,12 +604,25 @@ export function MatchesProvider({
   children: React.ReactNode;
 }) {
   const { registrations } = useRegistrations();
+  const roster = usePlayerRoster();
   const status = useTournamentStatus();
 
   const config = useMemo(() => baseConfig(arenaTournament), [arenaTournament]);
 
+  // Resolve a player id against the merged roster (real sign-ups carry their
+  // own profile row) first, then the seed catalogue.
+  const rosterMap = useMemo(() => new Map(roster.map((p) => [p.id, p])), [roster]);
+  const resolvePlayer = useCallback<ResolvePlayer>(
+    (id) => rosterMap.get(id) ?? getPlayer(id),
+    [rosterMap],
+  );
+  const resolveRef = useRef(resolvePlayer);
+  useEffect(() => {
+    resolveRef.current = resolvePlayer;
+  });
+
   const [state, setState] = useState<StoredMatches>(() =>
-    initialState(arenaTournament, registrations),
+    initialState(arenaTournament, registrations, resolvePlayer),
   );
   const [hydrated, setHydrated] = useState(false);
 
@@ -584,7 +638,7 @@ export function MatchesProvider({
   useEffect(() => {
     const stored = readAll()[arenaTournament.id];
     if (stored && stored.draws) {
-      setState(reconcile(stored, config, arenaTournament, regsRef.current));
+      setState(reconcile(stored, config, arenaTournament, regsRef.current, resolveRef.current));
     }
     setHydrated(true);
     // eslint-disable-next-line react-hooks/exhaustive-deps
@@ -603,7 +657,7 @@ export function MatchesProvider({
       const stored = readAll()[arenaTournament.id];
       if (!stored || !stored.draws) return;
       setState((cur) => {
-        const next = reconcile(stored, config, arenaTournament, regsRef.current, {
+        const next = reconcile(stored, config, arenaTournament, regsRef.current, resolveRef.current, {
           stage: cur.stage,
           activeCategoryId: cur.activeCategoryId,
         });
@@ -891,7 +945,13 @@ export function MatchesProvider({
           if (!draw) return s;
           const category = categories.find((c) => c.id === s.activeCategoryId);
           if (!category) return s;
-          const fresh = rosterFor(arenaTournament, category.name, registrations);
+          const fresh = rosterFor(
+            arenaTournament,
+            category.name,
+            registrations,
+            resolveRef.current,
+            categories.length === 1,
+          );
           const have = new Set(draw.players.map((p) => p.id));
           const added = fresh.filter((p) => !have.has(p.id));
           if (added.length === 0) return s;

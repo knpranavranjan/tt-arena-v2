@@ -11,8 +11,10 @@ import {
   DialogTitle,
 } from "@/components/ui/dialog";
 import { useAuth } from "@/lib/auth";
+import { ownsTournament } from "@/lib/tournament-owner";
 import { usePlatformAccounts } from "@/lib/platform-directory";
 import { useTournamentAssistants } from "@/lib/tournament-assistants";
+import { eventTitle } from "@/lib/tournament-manage";
 import type { Tournament } from "@/lib/types";
 
 const mono = { fontFamily: "var(--font-home-mono)" };
@@ -25,26 +27,42 @@ const roleLabel: Record<string, string> = {
 };
 
 /**
- * Host-only control on the manage-tournament header. Grants any platform login
- * (player / club / host — the host decides) full access to *this* tournament's
- * Matches console via /assist, and revokes it. Renders nothing for non-hosts.
+ * Control on the manage-tournament header. Grants any platform login
+ * (player / club / host) full access to *this* tournament's Matches console
+ * via /assist, and revokes it. Shown to a HOST account, and to whoever created
+ * this tournament through "Host a Tournament" — ownership is the creator's
+ * SPINID (`organizerId`), never the display name, matching the rest of the
+ * manage view.
  */
 export function ManageAccessButton({ tournament }: { tournament: Tournament }) {
   const { user } = useAuth();
   const { assistantsFor, grant, revoke } = useTournamentAssistants();
-  const { search } = usePlatformAccounts();
+  const { all, search } = usePlatformAccounts();
   const [open, setOpen] = useState(false);
   const [query, setQuery] = useState("");
 
   const assistants = assistantsFor(tournament.id);
 
   const excluded = useMemo(
-    () => new Set([...assistants.map((a) => a.uniqueId), ...(user ? [user.uniqueId] : [])]),
+    () =>
+      new Set(
+        [...assistants.map((a) => a.uniqueId), ...(user ? [user.uniqueId] : [])].map((h) =>
+          h.toLowerCase(),
+        ),
+      ),
     [assistants, user],
   );
-  const results = useMemo(() => search(query, excluded), [search, query, excluded]);
 
-  if (user?.role !== "HOST") return null;
+  // With a query, filter by SPINID. Empty query browses every platform login,
+  // so the host can pick anyone whose SPINID is in the system.
+  const results = useMemo(() => {
+    if (query.trim()) return search(query, excluded);
+    return [...all]
+      .filter((a) => !excluded.has(a.uniqueId.toLowerCase()))
+      .sort((a, b) => a.uniqueId.localeCompare(b.uniqueId));
+  }, [all, search, query, excluded]);
+
+  if (user?.role !== "HOST" && !ownsTournament(tournament, user)) return null;
 
   return (
     <>
@@ -72,9 +90,10 @@ export function ManageAccessButton({ tournament }: { tournament: Tournament }) {
             <DialogTitle>Match console access</DialogTitle>
             <DialogDescription>
               Assistants can open and run the Matches workspace for{" "}
-              <span className="text-foreground">{tournament.name}</span> — every step from players to
-              the champion. They can&apos;t see the overview, registrations or exports. Grant access
-              by <span className="text-foreground">SPINID</span> only — ask the person for theirs.
+              <span className="text-foreground">{eventTitle(tournament)}</span> — every step from
+              players to the champion. They can&apos;t see the overview, registrations or exports.
+              Pick anyone below, or type their <span className="text-foreground">SPINID</span> to jump
+              to them.
             </DialogDescription>
           </DialogHeader>
 
@@ -85,7 +104,7 @@ export function ManageAccessButton({ tournament }: { tournament: Tournament }) {
                 autoFocus
                 value={query}
                 onChange={(e) => setQuery(e.target.value.toUpperCase())}
-                placeholder="Enter a SPINID — e.g. SRP07"
+                placeholder="Search by SPINID — e.g. SRP07"
                 className="w-full bg-transparent text-sm text-foreground outline-none placeholder:text-muted-foreground"
               />
             </div>
@@ -94,7 +113,7 @@ export function ManageAccessButton({ tournament }: { tournament: Tournament }) {
                 <li className="px-3 py-3 text-xs text-muted-foreground">
                   {query.trim()
                     ? `No account has the SPINID “${query.trim()}”. Check the SPINID and try again.`
-                    : "Type the person's SPINID to give them access."}
+                    : "No other accounts on the platform yet."}
                 </li>
               )}
               {results.map((acc) => (

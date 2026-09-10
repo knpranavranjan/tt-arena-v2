@@ -6,6 +6,7 @@ import { StatCard } from "@/components/cards/stat-card";
 import { EmptyState } from "@/components/feedback/empty-state";
 import { useCurrentPlayer } from "@/lib/session-data";
 import { tournaments } from "@/lib/mock-data";
+import { eventTitle } from "@/lib/tournament-manage";
 import { formatDate } from "@/lib/format";
 import { Gauge, Swords, Trophy } from "lucide-react";
 
@@ -53,7 +54,7 @@ export default function PlayerResultsPage() {
                 <TableRow key={t.id}>
                   <TableCell>
                     <Link href={`/tournaments/${t.id}`} className="font-medium text-foreground hover:text-primary">
-                      {t.name}
+                      {eventTitle(t)}
                     </Link>
                   </TableCell>
                   <TableCell className="text-muted-foreground">{formatDate(t.date)}</TableCell>

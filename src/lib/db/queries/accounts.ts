@@ -1,6 +1,10 @@
 import { getDb } from "@/lib/db/client";
 import { accounts } from "@/lib/db/schema";
 import { hashPassword, verifyPassword } from "@/lib/auth/password";
+import { createPlayer, ensurePlayerForAccount } from "@/lib/db/queries/players";
+import { createClub, ensureClubForAccount } from "@/lib/db/queries/clubs";
+import type { PlayerProfileInput } from "@/lib/player-profile";
+import type { ClubProfileInput } from "@/lib/club-profile";
 
 type Role = "PLAYER" | "CLUB" | "HOST" | "ADMIN";
 
@@ -52,6 +56,10 @@ export async function registerAccount(input: {
   password: string;
   role: Role;
   email: string;
+  /** Player-only: sign-up profile fields. Missing pieces are filled at onboarding. */
+  profile?: PlayerProfileInput;
+  /** Club-only: sign-up profile fields. */
+  clubProfile?: ClubProfileInput;
 }): Promise<RegisterResult> {
   const name = input.name.trim();
   const email = input.email.trim();
@@ -75,6 +83,22 @@ export async function registerAccount(input: {
   const { hash, salt } = await hashPassword(input.password);
   const id = `acc-${uniqueId.toLowerCase()}`;
 
+  // A PLAYER account owns a player profile row from the moment it exists, so
+  // every /player/* surface has something to render. Other roles link later
+  // (a club to its club record, a host to nothing).
+  let linkedId: string | null = null;
+  if (input.role === "PLAYER") {
+    const player = await createPlayer({ spinId: uniqueId, name, input: input.profile });
+    linkedId = player.id;
+  } else if (input.role === "CLUB") {
+    const club = await createClub({
+      spinId: uniqueId,
+      name,
+      input: { ...input.clubProfile, email },
+    });
+    linkedId = club.id;
+  }
+
   await db.insert(accounts).values({
     id,
     uniqueId,
@@ -83,11 +107,11 @@ export async function registerAccount(input: {
     passwordSalt: salt,
     role: input.role,
     email,
-    linkedId: null,
+    linkedId,
     seed: false,
   });
 
-  return { ok: true, account: { id, uniqueId, name, role: input.role, email, linkedId: null, seed: false } };
+  return { ok: true, account: { id, uniqueId, name, role: input.role, email, linkedId, seed: false } };
 }
 
 export type SignInResult =
@@ -107,5 +131,14 @@ export async function authenticate(identifier: string, password: string): Promis
   if (!acc || !(await verifyPassword(password, acc.passwordHash, acc.passwordSalt))) {
     return { ok: false, error: "Unknown email / SPINID, or wrong password." };
   }
-  return { ok: true, account: toRecord(acc) };
+
+  // Self-heal: PLAYER/CLUB accounts created before profile provisioning existed
+  // have no linkedId — give them a profile row now so their portal isn't blank.
+  const record = toRecord(acc);
+  if (record.role === "PLAYER" && !record.linkedId) {
+    record.linkedId = await ensurePlayerForAccount(record);
+  } else if (record.role === "CLUB" && !record.linkedId) {
+    record.linkedId = await ensureClubForAccount(record);
+  }
+  return { ok: true, account: record };
 }

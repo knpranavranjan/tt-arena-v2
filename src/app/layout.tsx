@@ -4,6 +4,8 @@ import { MotionConfig } from "framer-motion";
 import { TooltipProvider } from "@/components/ui/tooltip";
 import { Toaster } from "@/components/ui/sonner";
 import { AuthProvider } from "@/lib/auth";
+import { PlayersProvider } from "@/lib/players-store";
+import { ClubsProvider } from "@/lib/clubs-store";
 import { JoinRequestsProvider } from "@/lib/join-requests";
 import { RegistrationsProvider } from "@/lib/registrations";
 import { TournamentStatusProvider } from "@/lib/tournament-status";
@@ -46,6 +48,8 @@ export default function RootLayout({ children }: LayoutProps<"/">) {
       <body className="min-h-full flex flex-col">
         <MotionConfig reducedMotion="user">
           <AuthProvider>
+           <PlayersProvider>
+            <ClubsProvider>
             <JoinRequestsProvider>
               <RegistrationsProvider>
                 <TournamentStatusProvider>
@@ -70,6 +74,8 @@ export default function RootLayout({ children }: LayoutProps<"/">) {
                 </TournamentStatusProvider>
               </RegistrationsProvider>
             </JoinRequestsProvider>
+            </ClubsProvider>
+           </PlayersProvider>
           </AuthProvider>
         </MotionConfig>
       </body>

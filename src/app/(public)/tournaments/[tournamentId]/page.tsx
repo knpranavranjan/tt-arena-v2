@@ -9,10 +9,13 @@ import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from "@
 import { Avatar, AvatarFallback } from "@/components/ui/avatar";
 import { TournamentRegisterButton } from "@/components/tournaments/tournament-register-button";
 import { TieBreakRules } from "@/components/tournaments/tie-break-rules";
-import { LiveRating } from "@/components/players/live-rating";
 import { arenaFontVariables } from "@/lib/fonts";
-import { getPlayer, getTournamentPlayers } from "@/lib/mock-data";
+import { getPlayer } from "@/lib/mock-data";
 import { useAllEvents, useAllTournaments, useHostedTournaments } from "@/lib/hosted-tournaments";
+import { useRegistrations } from "@/lib/registrations";
+import { usePlayerRoster } from "@/lib/players-store";
+import { usePlayerRatings } from "@/lib/player-ratings";
+import { buildEventRegistrants } from "@/lib/tournament-manage";
 import { effectiveStatus, useTournamentStatus } from "@/lib/tournament-status";
 import {
   usePublishedResults,
@@ -68,6 +71,9 @@ export default function TournamentDetailsPage({
   const allEvents = useAllEvents();
   const { isLoading } = useHostedTournaments();
   const { overrides } = useTournamentStatus();
+  const { registrations } = useRegistrations();
+  const roster = usePlayerRoster();
+  const ratings = usePlayerRatings();
 
   const tournament = allTournaments.find((t) => t.id === tournamentId);
 
@@ -83,12 +89,30 @@ export default function TournamentDetailsPage({
   );
   const publishedResults = usePublishedResults(siblingCategories);
 
+  const rosterMap = useMemo(() => new Map(roster.map((p) => [p.id, p])), [roster]);
+
+  // Event-wide registered players — from a category roster or a live sign-up —
+  // one row per player with the categories they entered and their rating.
+  const registeredRows = useMemo(() => {
+    return buildEventRegistrants(siblingCategories, registrations, roster)
+      .map((r) => {
+        const rp = rosterMap.get(r.playerId);
+        return {
+          playerId: r.playerId,
+          name: r.name,
+          clubName: rp?.clubName ?? null,
+          categories: r.divisions,
+          rating: ratings.getRating(r.playerId) || rp?.rating || 0,
+        };
+      })
+      .sort((a, b) => b.rating - a.rating);
+  }, [siblingCategories, registrations, roster, rosterMap, ratings]);
+
   // Hosted tournaments hydrate from localStorage — don't 404 before that lands.
   if (isLoading) return <div className="min-h-screen bg-[#050a12]" />;
   if (!tournament) notFound();
 
   const status = effectiveStatus(tournament, overrides);
-  const registeredPlayers = getTournamentPlayers(tournament).sort((a, b) => b.rating - a.rating);
   // The hero shows the event's own name — never the "— <category>" suffix that
   // each category record carries.
   const eventName = allEvents.find((e) => e.id === tournament.eventId)?.name ?? tournament.name;
@@ -228,7 +252,12 @@ export default function TournamentDetailsPage({
               )}
             </div>
 
-            <RegisterCta tournament={tournament} status={status} categories={siblingCategories} />
+            <RegisterCta
+              tournament={tournament}
+              status={status}
+              categories={siblingCategories}
+              registeredCount={registeredRows.length}
+            />
 
             <Link
               href="/events"
@@ -262,59 +291,48 @@ export default function TournamentDetailsPage({
         {/* Registered players / champion */}
         <div id="players" className="mt-16 space-y-12 scroll-mt-24">
           <section>
-            <SectionLabel>Registered Players ({registeredPlayers.length})</SectionLabel>
-            {registeredPlayers.length === 0 ? (
+            <SectionLabel>Registered Players ({registeredRows.length})</SectionLabel>
+            {registeredRows.length === 0 ? (
               <p className="text-sm text-[#8b8b93]">No players registered yet. Registered players will appear here once they sign up.</p>
             ) : (
-              <div className="overflow-x-auto rounded-[8px] border border-white/10">
+              <div className="max-h-72 overflow-y-auto rounded-[8px] border border-white/10">
                 <Table>
-                  <TableHeader>
+                  <TableHeader className="sticky top-0 z-10 bg-[#0c0e12]">
                     <TableRow className="border-white/10 hover:bg-transparent">
                       <TableHead className="text-[#8b8b93]">Player</TableHead>
                       <TableHead className="text-[#8b8b93]">Club</TableHead>
-                      <TableHead className="text-[#8b8b93]">Categories</TableHead>
+                      <TableHead className="text-[#8b8b93]">Category</TableHead>
                       <TableHead className="text-right text-[#8b8b93]">Rating</TableHead>
                     </TableRow>
                   </TableHeader>
                   <TableBody>
-                    {registeredPlayers.map((p) => {
-                      const playerCategories = siblingCategories.filter((c) =>
-                        c.registeredPlayerIds.includes(p.id),
-                      );
-                      return (
-                        <TableRow key={p.id} className="border-white/10 hover:bg-white/[0.03]">
-                          <TableCell>
-                            <Link href={`/players/${p.id}`} className="flex items-center gap-2 font-medium text-[#e2e2e8] hover:text-[#ff8f86]">
-                              <Avatar className="h-7 w-7 border border-white/15">
-                                <AvatarFallback className="bg-white/10 text-xs text-[#c2c6d7]">{initials(p.name)}</AvatarFallback>
-                              </Avatar>
-                              {p.name}
-                            </Link>
-                          </TableCell>
-                          <TableCell className="text-[#8b8b93]">{p.clubName ?? "Unaffiliated"}</TableCell>
-                          <TableCell>
-                            <div className="flex flex-wrap gap-1.5">
-                              {playerCategories.map((c) => (
-                                <span
-                                  key={c.id}
-                                  className={`rounded-[2px] border px-2 py-0.5 text-[11px] font-semibold uppercase tracking-wide ${
-                                    c.id === tournament.id
-                                      ? "border-[#ff2448]/40 bg-[#ff2448]/10 text-[#ff8f86]"
-                                      : "border-white/15 bg-white/[0.03] text-[#c2c6d7]"
-                                  }`}
-                                  style={mono}
-                                >
-                                  {c.category}
-                                </span>
-                              ))}
-                            </div>
-                          </TableCell>
-                          <TableCell className="text-right tabular-nums text-[#e2e2e8]">
-                            <LiveRating playerId={p.id} />
-                          </TableCell>
-                        </TableRow>
-                      );
-                    })}
+                    {registeredRows.map((p) => (
+                      <TableRow key={p.playerId} className="border-white/10 hover:bg-white/[0.03]">
+                        <TableCell>
+                          <Link href={`/players/${p.playerId}`} className="flex items-center gap-2 font-medium text-[#e2e2e8] hover:text-[#ff8f86]">
+                            <Avatar className="h-7 w-7 border border-white/15">
+                              <AvatarFallback className="bg-white/10 text-xs text-[#c2c6d7]">{initials(p.name)}</AvatarFallback>
+                            </Avatar>
+                            {p.name}
+                          </Link>
+                        </TableCell>
+                        <TableCell className="text-[#8b8b93]">{p.clubName ?? "Unaffiliated"}</TableCell>
+                        <TableCell>
+                          <div className="flex flex-wrap gap-1.5">
+                            {p.categories.map((c) => (
+                              <span
+                                key={c}
+                                className="rounded-[2px] border border-white/15 bg-white/[0.03] px-2 py-0.5 text-[11px] font-semibold uppercase tracking-wide text-[#c2c6d7]"
+                                style={mono}
+                              >
+                                {c}
+                              </span>
+                            ))}
+                          </div>
+                        </TableCell>
+                        <TableCell className="text-right tabular-nums text-[#e2e2e8]">{p.rating || "—"}</TableCell>
+                      </TableRow>
+                    ))}
                   </TableBody>
                 </Table>
               </div>
@@ -373,10 +391,12 @@ function RegisterCta({
   tournament,
   status,
   categories,
+  registeredCount,
 }: {
   tournament: Tournament;
   status: TournamentStatus;
   categories: Tournament[];
+  registeredCount: number;
 }) {
   if (status === "REGISTRATION_OPEN") {
     return <TournamentRegisterButton tournament={tournament} categories={categories} />;
@@ -397,9 +417,7 @@ function RegisterCta({
           <ArrowRight className="h-3.5 w-3.5" strokeWidth={2} />
         </a>
       ) : (
-        <p className="mt-2 text-xs text-[#8b8b93]">
-          {tournament.registeredPlayerIds.length} registered
-        </p>
+        <p className="mt-2 text-xs text-[#8b8b93]">{registeredCount} registered</p>
       )}
     </div>
   );

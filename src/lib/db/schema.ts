@@ -29,6 +29,68 @@ import {
 import type { RegistrationQuestion } from "@/lib/types";
 import type { TieBreakCriterionId } from "@/lib/tie-break";
 
+/* ------------------------------------------------------------------ players */
+
+/**
+ * Player profiles created by real sign-ups. The seed roster
+ * (`src/lib/mock-data.ts: players`) still lives in code and is merged with
+ * these rows at read time (`usePlayerRoster`). A row is created the moment a
+ * PLAYER account registers; `profileComplete` flips true once date of birth
+ * and gender are on file (the onboarding step, or the sign-up form when it
+ * already collected them).
+ */
+export const players = pgTable("players", {
+  /** `p-usr-<spinid>` — namespaced so it never collides with a seed `p-1`. */
+  id: text().primaryKey(),
+  /** The owning account's SPINID, e.g. `SRP02`. */
+  spinId: text().notNull(),
+  name: text().notNull(),
+  clubId: text(),
+  clubName: text(),
+  state: text().notNull().default(""),
+  category: text().notNull().default("Senior"),
+  gender: text().notNull().default("MALE"),
+  rating: integer().notNull().default(1200),
+  dateOfBirth: text().notNull().default(""),
+  wins: integer().notNull().default(0),
+  losses: integer().notNull().default(0),
+  recentForm: jsonb().$type<("W" | "L")[]>().notNull().default([]),
+  playStyle: text(),
+  phone: text(),
+  skillLevel: text(),
+  profileComplete: boolean().notNull().default(false),
+  createdAt: timestamp({ withTimezone: true }).notNull().defaultNow(),
+});
+
+/* ------------------------------------------------------------------ clubs */
+
+/**
+ * Club profiles created by real CLUB sign-ups. Like `players`, the seed club
+ * catalogue stays in `mock-data.ts` and is merged at read time
+ * (`useClubRoster`). A row is created the moment a CLUB account registers;
+ * `profileComplete` flips true once state and founding year are on file.
+ */
+export const clubs = pgTable("clubs", {
+  /** `club-usr-<spinid>` — namespaced so it never collides with a seed club id. */
+  id: text().primaryKey(),
+  spinId: text().notNull(),
+  name: text().notNull(),
+  location: text().notNull().default(""),
+  state: text().notNull().default(""),
+  address: text().notNull().default(""),
+  description: text().notNull().default(""),
+  aboutHighlights: jsonb().$type<string[]>().notNull().default([]),
+  logoUrl: text(),
+  founded: integer().notNull().default(0),
+  phone: text().notNull().default(""),
+  email: text().notNull().default(""),
+  verified: boolean().notNull().default(false),
+  coordinates: jsonb().$type<{ lat: number; lng: number } | null>(),
+  facilities: jsonb().$type<Record<string, unknown>>().notNull().default({}),
+  profileComplete: boolean().notNull().default(false),
+  createdAt: timestamp({ withTimezone: true }).notNull().defaultNow(),
+});
+
 /* ------------------------------------------------------------------ accounts */
 
 export const accounts = pgTable(
@@ -64,6 +126,8 @@ export const events = pgTable("events", {
   id: text().primaryKey(),
   name: text().notNull(),
   organizer: text().notNull(),
+  /** SPINID of the creating account — the unique owner identity. */
+  organizerId: text(),
   venue: text().notNull(),
   date: text().notNull(),
   location: text().notNull(),
@@ -82,6 +146,8 @@ export const tournaments = pgTable("tournaments", {
   name: text().notNull(),
   venue: text().notNull(),
   organizer: text().notNull(),
+  /** SPINID of the creating account — the unique owner identity. */
+  organizerId: text(),
   date: text().notNull(),
   registrationDeadline: text().notNull(),
   maxPlayers: integer().notNull().default(32),
@@ -186,7 +252,12 @@ export const ratingChangeLog = pgTable("rating_change_log", {
   previousRating: integer().notNull(),
   newRating: integer().notNull(),
   delta: integer().notNull(),
+  /** Matches the rating engine counted (may exclude some, e.g. walkovers). */
   matchesCounted: integer().notNull(),
+  /** Actual match record for this player in this category. */
+  wins: integer().notNull().default(0),
+  losses: integer().notNull().default(0),
+  matchesPlayed: integer().notNull().default(0),
 });
 
 /** Idempotency guard — `${tournamentId}:${categoryId}` already applied. */
@@ -244,6 +315,8 @@ export const notificationReads = pgTable(
 /* ------------------------------------------------------------------ exports - */
 
 export const schema = {
+  players,
+  clubs,
   accounts,
   events,
   tournaments,
@@ -261,6 +334,8 @@ export const schema = {
   notificationReads,
 };
 
+export type PlayerRow = typeof players.$inferSelect;
+export type ClubRow = typeof clubs.$inferSelect;
 export type AccountRow = typeof accounts.$inferSelect;
 export type EventRow = typeof events.$inferSelect;
 export type TournamentRow = typeof tournaments.$inferSelect;

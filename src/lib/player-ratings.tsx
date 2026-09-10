@@ -10,6 +10,7 @@ import {
 import { allBracketMatches } from "@/lib/tournament/knockout";
 import type { Bracket, PoolMatch } from "@/lib/tournament/types";
 import { getPlayer } from "@/lib/mock-data";
+import { careerRecord, type PlayerRecord } from "@/lib/player-record";
 import { USE_DB, apiGet, apiSend } from "@/lib/data-backend";
 
 /**
@@ -37,7 +38,35 @@ export interface RatingChangeEntry {
   previousRating: number;
   newRating: number;
   delta: number;
+  /** Matches the rating engine counted (may exclude some). */
   matchesCounted: number;
+  /** This player's actual match record for this category. */
+  wins: number;
+  losses: number;
+  matchesPlayed: number;
+}
+
+/** Per-player win/loss tally for one category, keyed by player id. */
+export type PlayerMatchRecords = Record<
+  string,
+  { wins: number; losses: number; played: number }
+>;
+
+/** Tally wins/losses per player from a flat list of completed matches. */
+export function perPlayerRecords(matches: readonly FullEngineMatchInput[]): PlayerMatchRecords {
+  const out: PlayerMatchRecords = {};
+  const bump = (id: string, won: boolean) => {
+    const rec = (out[id] ??= { wins: 0, losses: 0, played: 0 });
+    rec.played += 1;
+    if (won) rec.wins += 1;
+    else rec.losses += 1;
+  };
+  for (const m of matches) {
+    if (!m.winnerId || !m.playerAId || !m.playerBId) continue;
+    bump(m.playerAId, m.winnerId === m.playerAId);
+    bump(m.playerBId, m.winnerId === m.playerBId);
+  }
+  return out;
 }
 
 interface StoredRatings {
@@ -56,6 +85,8 @@ interface ApplyTournamentResultsInput {
   date: string;
   players: { id: string; name: string }[];
   matches: FullEngineMatchInput[];
+  /** Per-player W/L for this category; defaults to a tally of `matches`. */
+  records?: PlayerMatchRecords;
 }
 
 interface ApplyTournamentResultsOutcome {
@@ -177,16 +208,36 @@ export function PlayerRatingsProvider({ children }: { children: ReactNode }) {
       }));
 
       const result = calculateFullTournamentRating({ players: engineInput, matches: input.matches });
+      const records = input.records ?? perPlayerRecords(input.matches);
 
       const nextOverrides = { ...current.overrides };
       const nextHistory = { ...current.history };
       const changes: RatingChangeEntry[] = [];
-      const serverChanges: { playerId: string; newRating: number; entry: RatingChangeEntry }[] = [];
+      const serverChanges: {
+        playerId: string;
+        newRating: number;
+        entry: RatingChangeEntry;
+        logOnly?: boolean;
+      }[] = [];
       const appliedAt = new Date().toISOString();
 
       for (const p of result.players) {
-        if (p.finalRating === null || p.preTournamentRating === null) continue;
-        if (p.finalRating === p.preTournamentRating) continue;
+        const rec = records[p.playerId] ?? { wins: 0, losses: 0, played: 0 };
+        const ratingChanged =
+          p.finalRating !== null &&
+          p.preTournamentRating !== null &&
+          p.finalRating !== p.preTournamentRating;
+
+        // Record a row for anyone whose rating moved OR who actually played —
+        // the W/L record is what feeds the player pages / dashboard.
+        if (!ratingChanged && rec.played === 0) continue;
+
+        const prev =
+          p.preTournamentRating ??
+          current.overrides[p.playerId] ??
+          getPlayer(p.playerId)?.rating ??
+          0;
+        const next = p.finalRating ?? prev;
 
         const entry: RatingChangeEntry = {
           tournamentId: input.tournamentId,
@@ -195,16 +246,19 @@ export function PlayerRatingsProvider({ children }: { children: ReactNode }) {
           categoryName: input.categoryName,
           date: input.date,
           appliedAt,
-          previousRating: p.preTournamentRating,
-          newRating: p.finalRating,
-          delta: p.finalRating - p.preTournamentRating,
+          previousRating: prev,
+          newRating: next,
+          delta: next - prev,
           matchesCounted: p.finalPassDeltas.length,
+          wins: rec.wins,
+          losses: rec.losses,
+          matchesPlayed: rec.played,
         };
 
-        nextOverrides[p.playerId] = p.finalRating;
+        if (ratingChanged) nextOverrides[p.playerId] = next;
         nextHistory[p.playerId] = [...(nextHistory[p.playerId] ?? []), entry];
         changes.push(entry);
-        serverChanges.push({ playerId: p.playerId, newRating: p.finalRating, entry });
+        serverChanges.push({ playerId: p.playerId, newRating: next, entry, logOnly: !ratingChanged });
       }
 
       persist({
@@ -236,6 +290,19 @@ export function usePlayerRatings() {
   const ctx = useContext(Ctx);
   if (!ctx) throw new Error("usePlayerRatings must be used within PlayerRatingsProvider");
   return ctx;
+}
+
+/**
+ * A player's live career record — seed baseline plus every published tournament.
+ * Pass the player's static `{ wins, losses }` as the baseline (0/0 for real
+ * sign-ups).
+ */
+export function usePlayerRecord(
+  playerId: string,
+  base?: { wins?: number; losses?: number } | null,
+): PlayerRecord {
+  const { getHistory } = usePlayerRatings();
+  return useMemo(() => careerRecord(base, getHistory(playerId)), [base, getHistory, playerId]);
 }
 
 /** Build rating-engine match inputs from a category draw's pool + knockout matches. */
