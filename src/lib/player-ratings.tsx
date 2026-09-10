@@ -10,6 +10,7 @@ import {
 import { allBracketMatches } from "@/lib/tournament/knockout";
 import type { Bracket, PoolMatch } from "@/lib/tournament/types";
 import { getPlayer } from "@/lib/mock-data";
+import { USE_DB, apiGet, apiSend } from "@/lib/data-backend";
 
 /**
  * Player ratings, kept the same way tournament-status.tsx keeps admin
@@ -99,6 +100,19 @@ export function PlayerRatingsProvider({ children }: { children: ReactNode }) {
   const [isLoading, setIsLoading] = useState(true);
 
   useEffect(() => {
+    if (USE_DB) {
+      apiGet<StoredRatings>("/api/player-ratings")
+        .then((s) =>
+          setState({
+            overrides: s.overrides ?? {},
+            history: s.history ?? {},
+            appliedKeys: Array.isArray(s.appliedKeys) ? s.appliedKeys : [],
+          }),
+        )
+        .catch((e) => console.error("player-ratings load", e))
+        .finally(() => setIsLoading(false));
+      return;
+    }
     setState(readStorage());
     setIsLoading(false);
     const onStorage = (e: StorageEvent) => {
@@ -110,6 +124,7 @@ export function PlayerRatingsProvider({ children }: { children: ReactNode }) {
 
   const persist = useCallback((next: StoredRatings) => {
     setState(next);
+    if (USE_DB) return;
     try {
       window.localStorage.setItem(STORAGE_KEY, JSON.stringify(next));
     } catch {
@@ -138,7 +153,9 @@ export function PlayerRatingsProvider({ children }: { children: ReactNode }) {
   const applyTournamentResults = useCallback(
     (input: ApplyTournamentResultsInput): ApplyTournamentResultsOutcome => {
       const key = `${input.tournamentId}:${input.categoryId}`;
-      const current = readStorage();
+      // localStorage mode re-reads fresh (survives a tight double-call); DB mode
+      // uses the hydrated state and leans on the server's key guard.
+      const current = USE_DB ? state : readStorage();
 
       if (current.appliedKeys.includes(key)) {
         return {
@@ -164,6 +181,7 @@ export function PlayerRatingsProvider({ children }: { children: ReactNode }) {
       const nextOverrides = { ...current.overrides };
       const nextHistory = { ...current.history };
       const changes: RatingChangeEntry[] = [];
+      const serverChanges: { playerId: string; newRating: number; entry: RatingChangeEntry }[] = [];
       const appliedAt = new Date().toISOString();
 
       for (const p of result.players) {
@@ -186,6 +204,7 @@ export function PlayerRatingsProvider({ children }: { children: ReactNode }) {
         nextOverrides[p.playerId] = p.finalRating;
         nextHistory[p.playerId] = [...(nextHistory[p.playerId] ?? []), entry];
         changes.push(entry);
+        serverChanges.push({ playerId: p.playerId, newRating: p.finalRating, entry });
       }
 
       persist({
@@ -194,9 +213,15 @@ export function PlayerRatingsProvider({ children }: { children: ReactNode }) {
         appliedKeys: [...current.appliedKeys, key],
       });
 
+      if (USE_DB) {
+        apiSend("/api/player-ratings", "POST", { key, changes: serverChanges }).catch((e) =>
+          console.error("player-ratings apply", e),
+        );
+      }
+
       return { applied: true, changes, warnings: result.warnings };
     },
-    [persist],
+    [persist, state],
   );
 
   const value = useMemo<PlayerRatingsContextValue>(

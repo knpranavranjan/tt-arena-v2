@@ -711,6 +711,15 @@ export function getAppUser(id: string) {
   return appUsers.find((u) => u.id === id);
 }
 
+/**
+ * The permanent SPINID for a roster player — `SRP` plus the player's number,
+ * so `p-1` (the demo player account) is `SRP01`, `p-12` is `SRP12`, etc.
+ */
+export function playerSrId(playerId: string): string {
+  const n = Number.parseInt(playerId.replace(/^p-/, ""), 10);
+  return Number.isFinite(n) ? `SRP${String(n).padStart(2, "0")}` : "";
+}
+
 export function getWeeklyDelta(player: Player) {
   const seed = Number(player.id.replace("p-", "")) || 1;
   return 10 + ((seed * 17) % 80);

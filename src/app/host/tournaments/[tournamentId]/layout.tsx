@@ -6,6 +6,8 @@ import { MapPin } from "lucide-react";
 import { ExportReportMenu } from "@/components/tournament/ExportReportMenu";
 import { ManageAccessButton } from "@/components/tournament/manage-access-button";
 import { getEvent, getTournament, tournamentCode } from "@/lib/mock-data";
+import { effectiveStatus, isLive, useTournamentStatus } from "@/lib/tournament-status";
+import { applyEventEdit, applyTournamentEdit, useTournamentEdits } from "@/lib/tournament-edits";
 import type { TournamentStatus } from "@/lib/types";
 
 const mono = { fontFamily: "var(--font-home-mono)" };
@@ -34,7 +36,14 @@ export default function ManageHostTournamentLayout({ children }: { children: Rea
   const pathname = usePathname();
   const params = useParams<{ tournamentId: string }>();
   const tournamentId = Array.isArray(params.tournamentId) ? params.tournamentId[0] : params.tournamentId;
-  const tournament = tournamentId ? getTournament(tournamentId) : undefined;
+  const seedTournament = tournamentId ? getTournament(tournamentId) : undefined;
+  const { overrides } = useTournamentStatus();
+  const { tournamentEdit, eventEdit } = useTournamentEdits();
+
+  // Fold in any host edits so the manage header matches what players see.
+  const tournament = seedTournament
+    ? applyTournamentEdit(seedTournament, tournamentEdit(seedTournament.id))
+    : undefined;
 
   if (!tournament) {
     return (
@@ -53,13 +62,19 @@ export default function ManageHostTournamentLayout({ children }: { children: Rea
     );
   }
 
-  const meta = statusMeta(tournament.status);
-  const location = getEvent(tournament.eventId)?.location ?? tournament.venue;
+  const status = effectiveStatus(tournament, overrides);
+  const meta = statusMeta(status);
+  const seedEvent = getEvent(tournament.eventId);
+  const event = seedEvent ? applyEventEdit(seedEvent, eventEdit(seedEvent.id)) : undefined;
+  const location = event?.location ?? tournament.venue;
   const basePath = `/host/tournaments/${tournament.id}`;
   const tabs = [
     { href: basePath, label: "Overview" },
     { href: `${basePath}/registrations`, label: "Registrations" },
     { href: `${basePath}/matches`, label: "Matches" },
+    // Editing the published details only makes sense once the tournament is
+    // live — before that the host resubmits the form.
+    ...(isLive(status) ? [{ href: `${basePath}/tournament`, label: "Tournament" }] : []),
   ];
 
   return (

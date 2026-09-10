@@ -3,13 +3,14 @@
 import { useCallback, useEffect, useMemo, useState } from "react";
 
 import { SEED_ACCOUNTS } from "@/lib/auth";
-import { players as rosterPlayers } from "@/lib/mock-data";
+import { players as rosterPlayers, playerSrId } from "@/lib/mock-data";
+import { USE_DB, apiGet } from "@/lib/data-backend";
 
 /**
  * Everyone who exists on the platform and can therefore be entered into a
  * tournament: the seeded player roster plus anyone who has registered an
- * account. `id` is the stable rating identity; `handle` is the unique login id
- * the host types to find them.
+ * account. `id` is the stable rating identity; `handle` is the SPINID the host
+ * types to find them.
  */
 export interface DirectoryPerson {
   id: string;
@@ -50,6 +51,27 @@ function readAccounts(): StoredAccount[] {
   }
 }
 
+/** The platform's account list, from the DB (`/api/accounts`) or localStorage. */
+function useAccountList(): StoredAccount[] {
+  const [accounts, setAccounts] = useState<StoredAccount[]>([]);
+  useEffect(() => {
+    if (USE_DB) {
+      apiGet<StoredAccount[]>("/api/accounts")
+        .then(setAccounts)
+        .catch((e) => console.error("platform-directory accounts load", e));
+      return;
+    }
+    // eslint-disable-next-line react-hooks/set-state-in-effect
+    setAccounts(readAccounts());
+    const onStorage = (e: StorageEvent) => {
+      if (e.key === ACCOUNTS_KEY) setAccounts(readAccounts());
+    };
+    window.addEventListener("storage", onStorage);
+    return () => window.removeEventListener("storage", onStorage);
+  }, []);
+  return accounts;
+}
+
 function build(accounts: StoredAccount[]): DirectoryPerson[] {
   // handle map: seed roster player id -> account handle (when one is linked)
   const handleByRosterId = new Map<string, string>();
@@ -62,7 +84,7 @@ function build(accounts: StoredAccount[]): DirectoryPerson[] {
   for (const p of rosterPlayers) {
     people.set(p.id, {
       id: p.id,
-      handle: handleByRosterId.get(p.id) ?? p.id,
+      handle: handleByRosterId.get(p.id) ?? playerSrId(p.id),
       name: p.name,
       rating: p.rating,
       club: p.clubName ?? "",
@@ -109,20 +131,11 @@ function buildAccounts(accounts: StoredAccount[]): PlatformAccount[] {
 
 /**
  * Every platform login, regardless of role — the set a tournament host can hand
- * match-console access to. Searchable by unique id or name.
+ * match-console access to. Searchable by SPINID only (never by name), so access
+ * is only ever granted to an ID the host was deliberately given.
  */
 export function usePlatformAccounts() {
-  const [accounts, setAccounts] = useState<StoredAccount[]>([]);
-
-  useEffect(() => {
-    // eslint-disable-next-line react-hooks/set-state-in-effect
-    setAccounts(readAccounts());
-    const onStorage = (e: StorageEvent) => {
-      if (e.key === ACCOUNTS_KEY) setAccounts(readAccounts());
-    };
-    window.addEventListener("storage", onStorage);
-    return () => window.removeEventListener("storage", onStorage);
-  }, []);
+  const accounts = useAccountList();
 
   const all = useMemo(() => buildAccounts(accounts), [accounts]);
 
@@ -131,19 +144,18 @@ export function usePlatformAccounts() {
       const excl = new Set([...excludeHandles].map((h) => h.toLowerCase()));
       const pool = all.filter((a) => !excl.has(a.uniqueId.toLowerCase()));
       const q = query.trim().toLowerCase();
-      if (!q) return pool.slice(0, 8);
+      if (!q) return [];
       return pool
         .map((a) => {
           const handle = a.uniqueId.toLowerCase();
-          const name = a.name.toLowerCase();
           let score = -1;
-          if (handle === q || name === q) score = 0;
-          else if (handle.startsWith(q) || name.startsWith(q)) score = 1;
-          else if (handle.includes(q) || name.includes(q)) score = 2;
+          if (handle === q) score = 0;
+          else if (handle.startsWith(q)) score = 1;
+          else if (handle.includes(q)) score = 2;
           return { a, score };
         })
         .filter((r) => r.score >= 0)
-        .sort((x, y) => x.score - y.score || x.a.name.localeCompare(y.a.name))
+        .sort((x, y) => x.score - y.score || x.a.uniqueId.localeCompare(y.a.uniqueId))
         .slice(0, 12)
         .map((r) => r.a);
     },
@@ -153,19 +165,9 @@ export function usePlatformAccounts() {
   return { all, search };
 }
 
-/** Live directory of platform players, searchable by handle or name. */
+/** Live directory of platform players, searchable by SPINID only. */
 export function usePlatformDirectory() {
-  const [accounts, setAccounts] = useState<StoredAccount[]>([]);
-
-  useEffect(() => {
-    // eslint-disable-next-line react-hooks/set-state-in-effect
-    setAccounts(readAccounts());
-    const onStorage = (e: StorageEvent) => {
-      if (e.key === ACCOUNTS_KEY) setAccounts(readAccounts());
-    };
-    window.addEventListener("storage", onStorage);
-    return () => window.removeEventListener("storage", onStorage);
-  }, []);
+  const accounts = useAccountList();
 
   const all = useMemo(() => build(accounts), [accounts]);
 
@@ -173,19 +175,18 @@ export function usePlatformDirectory() {
     (query: string, excludeIds: ReadonlySet<string> = new Set()) => {
       const q = query.trim().toLowerCase();
       const pool = all.filter((p) => !excludeIds.has(p.id));
-      if (!q) return pool.slice(0, 8);
+      if (!q) return [];
       return pool
         .map((p) => {
           const handle = p.handle.toLowerCase();
-          const name = p.name.toLowerCase();
           let score = -1;
-          if (handle === q || name === q) score = 0;
-          else if (handle.startsWith(q) || name.startsWith(q)) score = 1;
-          else if (handle.includes(q) || name.includes(q)) score = 2;
+          if (handle === q) score = 0;
+          else if (handle.startsWith(q)) score = 1;
+          else if (handle.includes(q)) score = 2;
           return { p, score };
         })
         .filter((r) => r.score >= 0)
-        .sort((a, b) => a.score - b.score || a.p.name.localeCompare(b.p.name))
+        .sort((a, b) => a.score - b.score || a.p.handle.localeCompare(b.p.handle))
         .slice(0, 12)
         .map((r) => r.p);
     },

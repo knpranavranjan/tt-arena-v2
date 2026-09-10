@@ -15,6 +15,7 @@ import {
   buildBracket,
   championId,
   clearBracketResult,
+  propagate,
   setBracketResult,
   setThirdPlaceEnabled,
 } from "@/lib/tournament/knockout";
@@ -60,6 +61,7 @@ import type {
   TournamentFormat,
 } from "@/lib/tournament/types";
 
+import { normalizeTieBreakOrder } from "@/lib/tie-break";
 import { getCategoryBreakdown, getPlayer, getTournamentPlayers } from "@/lib/mock-data";
 import type { PublishedResult } from "@/lib/published-results";
 import { useRegistrations, type TournamentRegistration } from "@/lib/registrations";
@@ -171,6 +173,8 @@ export interface MatchesActions {
   setQualifierOrder: (ids: string[] | null) => void;
   generateBracket: (qualifiers: readonly Qualifier[]) => void;
   clearBracket: () => void;
+  /** Swap two players between first-round bracket slots (drag & drop). */
+  swapKnockoutPlayers: (playerIdA: string, playerIdB: string) => void;
   setKoResult: (matchId: string, result: Partial<MatchBase>) => void;
   clearKoResult: (matchId: string) => void;
 
@@ -303,6 +307,10 @@ function baseConfig(t: ArenaTournament): ConsoleTournament {
     format: "doubles",
   });
 
+  // The host sets a priority order on the "Host a Tournament" form; the ids are
+  // a subset of the engine's TieBreakRule union so they map straight through.
+  const tieBreakOrder = normalizeTieBreakOrder(t.tieBreakOrder) as ConsoleTournament["tieBreakOrder"];
+
   return {
     id: t.id,
     name: t.name,
@@ -324,7 +332,8 @@ function baseConfig(t: ArenaTournament): ConsoleTournament {
     format: mapFormat(t.format),
     description: t.description ?? "",
     poolSizePreference: t.poolSize && t.poolSize > 1 ? t.poolSize : "auto",
-    tieBreakRule: "head_to_head",
+    tieBreakRule: tieBreakOrder?.[0] ?? "head_to_head",
+    tieBreakOrder,
     qualificationRule: "winners_fill",
     bestOf: parseBestOf(t.matchFormat),
     tables: 6,
@@ -367,7 +376,7 @@ function buildFeeds(state: StoredMatches, config: ConsoleTournament): Record<str
       const map = computeAllStandings(
         draw.pools,
         draw.poolMatches,
-        t.tieBreakRule,
+        t.tieBreakOrder ?? t.tieBreakRule,
         seedOf,
         t.seed,
         points,
@@ -666,12 +675,17 @@ export function MatchesProvider({
 
   const groupPoints: GamePoints = tournament.groupPoints ?? DEFAULT_POINTS;
 
+  // Stable string key for the host's tie-break priority list, so the standings
+  // memo only recomputes when the order actually changes (the `tournament`
+  // object itself is rebuilt every render).
+  const tieBreakKey = (tournament.tieBreakOrder ?? [tournament.tieBreakRule]).join(",");
+
   const standingsByPool = useMemo(() => {
     if (!activeDraw.pools) return new Map<string, RankedRow[]>();
     const computed = computeAllStandings(
       activeDraw.pools,
       activeDraw.poolMatches,
-      tournament.tieBreakRule,
+      tieBreakKey.split(",") as ConsoleTournament["tieBreakRule"][],
       seedOf,
       tournament.seed,
       groupPoints,
@@ -692,7 +706,7 @@ export function MatchesProvider({
     activeDraw.pools,
     activeDraw.poolMatches,
     activeDraw.manualStandingsOrder,
-    tournament.tieBreakRule,
+    tieBreakKey,
     tournament.seed,
     seedOf,
     groupPoints,
@@ -1091,6 +1105,43 @@ export function MatchesProvider({
         }),
 
       clearBracket: () => mutateDraw((draw) => ({ ...draw, bracket: null })),
+
+      swapKnockoutPlayers: (playerIdA, playerIdB) =>
+        mutateDraw((draw) => {
+          if (!draw.bracket || playerIdA === playerIdB) return draw;
+          const first = draw.bracket.rounds[0].map((m) => ({ ...m }));
+          let touched = false;
+          for (const m of first) {
+            let changed = false;
+            if (m.aId === playerIdA) { m.aId = playerIdB; changed = true; }
+            else if (m.aId === playerIdB) { m.aId = playerIdA; changed = true; }
+            if (m.bId === playerIdA) { m.bId = playerIdB; changed = true; }
+            else if (m.bId === playerIdB) { m.bId = playerIdA; changed = true; }
+            if (changed) {
+              touched = true;
+              // A new matchup invalidates any score already entered for it.
+              if (m.played) {
+                m.played = false;
+                m.winnerId = null;
+                m.games = [];
+                m.mode = null;
+                m.duration = null;
+              }
+            }
+          }
+          if (!touched) return draw;
+          const seeding = draw.bracket.seeding.map((s) =>
+            s.playerId === playerIdA
+              ? { ...s, playerId: playerIdB }
+              : s.playerId === playerIdB
+                ? { ...s, playerId: playerIdA }
+                : s,
+          );
+          return {
+            ...draw,
+            bracket: propagate({ ...draw.bracket, rounds: [first, ...draw.bracket.rounds.slice(1)], seeding }),
+          };
+        }),
 
       setKoResult: (matchId, result) =>
         mutateDraw((draw) =>

@@ -82,7 +82,7 @@ export default function EventDetailsPage({
 
       <div className="mt-8">
         <h2 className="mb-3 font-heading text-xl font-semibold text-foreground">Tournament Rules</h2>
-        <TieBreakRules />
+        <TieBreakRules order={eventTournaments[0]?.tieBreakOrder} />
       </div>
 
       <div className="mt-8">

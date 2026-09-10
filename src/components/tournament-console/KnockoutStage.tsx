@@ -13,13 +13,13 @@ import React, { useMemo, useState } from 'react'
 import ScoreEditor from '@/components/tournament-console/ScoreEditor'
 import {
   ActionBar, Badge, Button, Card, CardBody, CardFoot, CardHead, Checkbox, Competitor, Empty,
-  PageHead, Progress, SeedPill,
+  Note, PageHead, Progress, SeedPill,
 } from '@/components/tournament-console/ui'
 import { cn } from '@/lib/utils'
 import { log2, roundName, THIRD_PLACE_STAGE } from '@/lib/tournament/bracketMath'
 import {
   bracketProgress, championId, findBracketMatch, fourthPlaceId, knockoutGameRules, runnerUpId,
-  thirdPlaceId,
+  THIRD_PLACE_ID, thirdPlaceId,
 } from '@/lib/tournament/knockout'
 import { formatGames, gameTally } from '@/lib/tournament/scoring'
 import type { KnockoutMatch } from '@/lib/tournament/types'
@@ -27,7 +27,7 @@ import { useActiveTournament } from '@/lib/matches-store'
 
 export default function KnockoutStage() {
   const {
-    tournament, isDoubles, qualification, playerById, seedOf, bracket, poolsComplete, poolMatches,
+    tournament, isDoubles, qualification, playerById, players, seedOf, bracket, poolsComplete, poolMatches,
     manualQualifierIds, qualifierOrder, releasedStages, actions,
   } = useActiveTournament()
 
@@ -53,15 +53,25 @@ export default function KnockoutStage() {
   const [showQualifiers, setShowQualifiers] = useState(!bracket)
   const [dragIndex, setDragIndex] = useState<number | null>(null)
   const [dropIndex, setDropIndex] = useState<number | null>(null)
+  // Rearrange first-round bracket slots — click to select then click a target
+  // to swap, or drag one onto another.
+  const [bracketDragId, setBracketDragId] = useState<string | null>(null)
+  const [bracketDropId, setBracketDropId] = useState<string | null>(null)
+  const [bracketSelId, setBracketSelId] = useState<string | null>(null)
 
   const qualifiers = qualification?.qualifiers ?? []
   const qualifiedIds = useMemo(() => qualifiers.map((q) => q.playerId), [qualifiers])
   const qualifiedSet = useMemo(() => new Set(qualifiedIds), [qualifiedIds])
 
-  /** Everyone who finished a pool but is not currently in the draw. */
+  /** Group-stage stats per player who finished a pool, for the "not in draw" list. */
+  const entryById = useMemo(
+    () => new Map((qualification?.allEntries ?? []).map((e) => [e.playerId, e])),
+    [qualification],
+  )
+  /** Every entered player who is not currently seeded into the draw. */
   const notQualified = useMemo(
-    () => (qualification?.allEntries ?? []).filter((e) => !qualifiedSet.has(e.playerId)),
-    [qualification, qualifiedSet],
+    () => players.filter((p) => !qualifiedSet.has(p.id)),
+    [players, qualifiedSet],
   )
 
   const locked = Boolean(bracket)
@@ -108,11 +118,71 @@ export default function KnockoutStage() {
       )
     }
 
+    // Any real bracket slot can be rearranged — the swap always resolves back to
+    // the players' first-round positions and re-propagates, so picking someone
+    // from a later round works too. The third-place box is derived, not seeded.
+    const canDrag = match.id !== THIRD_PLACE_ID
+    const selectSlot = () => {
+      if (bracketSelId && bracketSelId !== id) {
+        actions.swapKnockoutPlayers(bracketSelId, id)
+        setBracketSelId(null)
+      } else {
+        setBracketSelId((cur) => (cur === id ? null : id))
+      }
+    }
     return (
       <div
-        title={match.isBye ? 'Advanced on a bye' : undefined}
+        role={canDrag ? 'button' : undefined}
+        title={
+          match.isBye
+            ? 'Advanced on a bye'
+            : canDrag
+              ? 'Click to select, then click another player to swap — or drag them'
+              : undefined
+        }
+        draggable={canDrag}
+        onClick={canDrag ? selectSlot : undefined}
+        onDragStart={
+          canDrag
+            ? (e) => {
+                setBracketDragId(id)
+                setBracketSelId(null)
+                e.dataTransfer.effectAllowed = 'move'
+              }
+            : undefined
+        }
+        onDragOver={
+          canDrag
+            ? (e) => {
+                e.preventDefault()
+                if (bracketDragId && bracketDragId !== id) setBracketDropId(id)
+              }
+            : undefined
+        }
+        onDragLeave={
+          canDrag ? () => setBracketDropId((cur) => (cur === id ? null : cur)) : undefined
+        }
+        onDrop={
+          canDrag
+            ? (e) => {
+                e.preventDefault()
+                if (bracketDragId && bracketDragId !== id) actions.swapKnockoutPlayers(bracketDragId, id)
+                setBracketDragId(null)
+                setBracketDropId(null)
+              }
+            : undefined
+        }
+        onDragEnd={() => {
+          setBracketDragId(null)
+          setBracketDropId(null)
+        }}
         className={cn(
           'flex items-center gap-2 border-b border-line-soft px-2.5 py-1.5 text-[12.5px] last:border-b-0',
+          canDrag && 'cursor-pointer',
+          bracketDragId === id && 'opacity-40',
+          (bracketSelId === id ||
+            (bracketDropId === id && bracketDragId && bracketDragId !== id)) &&
+            'bg-focus-soft ring-2 ring-inset ring-focus',
           isWinner && isFinal
             ? 'bg-gold-soft font-semibold ring-1 ring-inset ring-gold/30'
             : isWinner
@@ -209,6 +279,7 @@ export default function KnockoutStage() {
             onClick={() => {
               actions.clearBracket()
               setEditingId(null)
+              setBracketSelId(null)
             }}
           >
             Reset bracket
@@ -327,7 +398,9 @@ export default function KnockoutStage() {
               <div>
                 <div className="mb-2 flex items-center gap-2">
                   <h3 className="text-[13px] font-semibold">Not in the draw</h3>
-                  <span className="text-[11.5px] text-ink-faint">group W–L · point diff — add to seed them in</span>
+                  <span className="text-[11.5px] text-ink-faint">
+                    every other entered player — add anyone to seed them in
+                  </span>
                   <Badge tone="outline" className="ml-auto">
                     {notQualified.length}
                   </Badge>
@@ -335,35 +408,41 @@ export default function KnockoutStage() {
 
                 {notQualified.length === 0 ? (
                   <p className="rounded-[10px] border border-line-soft bg-subtle px-3.5 py-2.5 text-[12.5px] text-ink-faint">
-                    Every player who finished a pool is already in the draw.
+                    Every entered player is already in the draw.
                   </p>
                 ) : (
                   <ul className="flex max-h-[420px] flex-col gap-1.5 overflow-y-auto pr-1">
-                    {notQualified.map((e) => (
-                      <li
-                        key={e.playerId}
-                        className="flex items-center gap-2 rounded-[10px] border border-line-soft bg-canvas px-2.5 py-2 text-[12.5px]"
-                      >
-                        <SeedPill seed={seedOf(e.playerId)} />
-                        {isDoubles ? (
-                          <Competitor
-                            player={playerById.get(e.playerId)}
-                            size={16}
-                            className="flex-1"
-                            nameClassName="text-ink-muted"
-                          />
-                        ) : (
-                          <span className="min-w-0 flex-1 truncate text-ink-muted">{name(e.playerId)}</span>
-                        )}
-                        <span className="tabular shrink-0 text-[11.5px] text-ink-faint">
-                          {e.poolName} · {e.row ? `${e.row.won}–${e.row.lost}` : '—'} ·{' '}
-                          {e.row ? `${e.row.pointDiff > 0 ? '+' : ''}${e.row.pointDiff}` : '—'}
-                        </span>
-                        <Button size="xs" onClick={() => addQualifier(e.playerId)}>
-                          Add
-                        </Button>
-                      </li>
-                    ))}
+                    {notQualified.map((p) => {
+                      const e = entryById.get(p.id)
+                      return (
+                        <li
+                          key={p.id}
+                          className="flex items-center gap-2 rounded-[10px] border border-line-soft bg-canvas px-2.5 py-2 text-[12.5px]"
+                        >
+                          <SeedPill seed={seedOf(p.id)} />
+                          {isDoubles ? (
+                            <Competitor
+                              player={playerById.get(p.id)}
+                              size={16}
+                              className="flex-1"
+                              nameClassName="text-ink-muted"
+                            />
+                          ) : (
+                            <span className="min-w-0 flex-1 truncate text-ink-muted">{name(p.id)}</span>
+                          )}
+                          <span className="tabular shrink-0 text-[11.5px] text-ink-faint">
+                            {e
+                              ? `${e.poolName} · ${e.row ? `${e.row.won}–${e.row.lost}` : '—'} · ${
+                                  e.row ? `${e.row.pointDiff > 0 ? '+' : ''}${e.row.pointDiff}` : '—'
+                                }`
+                              : 'no pool'}
+                          </span>
+                          <Button size="xs" onClick={() => addQualifier(p.id)}>
+                            Add
+                          </Button>
+                        </li>
+                      )
+                    })}
                   </ul>
                 )}
               </div>
@@ -433,8 +512,19 @@ export default function KnockoutStage() {
             </CardBody>
           </Card>
 
+          {bracketSelId ? (
+            <Note tone="info" className="mt-4">
+              <strong className="font-semibold">{name(bracketSelId)}</strong> selected — click another
+              player to swap them, or click the player again to cancel. Any match the swap affects is
+              cleared for re-scoring.
+            </Note>
+          ) : null}
+
           <Card className="mt-4">
-            <CardHead title="Bracket" desc="Enter each match's score, check it, then confirm to advance the winner." />
+            <CardHead
+              title="Bracket"
+              desc="Click any player, then click another to swap them (or drag one onto the other) — later rounds re-derive automatically. Enter each match's score, check it, then confirm to advance the winner."
+            />
             <CardBody>
               <div className="overflow-x-auto px-1 pb-4 pt-2">
                 <div className="flex min-w-min items-stretch gap-6">

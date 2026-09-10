@@ -2,6 +2,7 @@
 
 import { createContext, useCallback, useContext, useEffect, useMemo, useState, type ReactNode } from "react";
 
+import { USE_DB, apiGet, apiSend } from "@/lib/data-backend";
 import type { Tournament, TournamentStatus } from "@/lib/types";
 
 // Admin approval / lifecycle overrides for tournaments. `mock-data.tournaments`
@@ -44,6 +45,13 @@ export function TournamentStatusProvider({ children }: { children: ReactNode }) 
   const [isLoading, setIsLoading] = useState(true);
 
   useEffect(() => {
+    if (USE_DB) {
+      apiGet<OverrideMap>("/api/tournament-status")
+        .then(setOverrides)
+        .catch((e) => console.error("tournament-status load", e))
+        .finally(() => setIsLoading(false));
+      return;
+    }
     setOverrides(readStorage());
     setIsLoading(false);
     const onStorage = (e: StorageEvent) => {
@@ -56,7 +64,13 @@ export function TournamentStatusProvider({ children }: { children: ReactNode }) 
   const setStatus = useCallback((tournamentId: string, status: TournamentStatus) => {
     setOverrides((current) => {
       const next = { ...current, [tournamentId]: status };
-      window.localStorage.setItem(STORAGE_KEY, JSON.stringify(next));
+      if (USE_DB) {
+        apiSend("/api/tournament-status", "POST", { tournamentId, status }).catch((e) =>
+          console.error("tournament-status save", e),
+        );
+      } else {
+        window.localStorage.setItem(STORAGE_KEY, JSON.stringify(next));
+      }
       return next;
     });
   }, []);

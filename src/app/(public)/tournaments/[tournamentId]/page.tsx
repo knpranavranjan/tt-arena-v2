@@ -12,7 +12,7 @@ import { TieBreakRules } from "@/components/tournaments/tie-break-rules";
 import { LiveRating } from "@/components/players/live-rating";
 import { arenaFontVariables } from "@/lib/fonts";
 import { getPlayer, getTournamentPlayers } from "@/lib/mock-data";
-import { useAllTournaments, useHostedTournaments } from "@/lib/hosted-tournaments";
+import { useAllEvents, useAllTournaments, useHostedTournaments } from "@/lib/hosted-tournaments";
 import { effectiveStatus, useTournamentStatus } from "@/lib/tournament-status";
 import {
   usePublishedResults,
@@ -65,6 +65,7 @@ export default function TournamentDetailsPage({
 }) {
   const { tournamentId } = use(params);
   const allTournaments = useAllTournaments();
+  const allEvents = useAllEvents();
   const { isLoading } = useHostedTournaments();
   const { overrides } = useTournamentStatus();
 
@@ -88,6 +89,9 @@ export default function TournamentDetailsPage({
 
   const status = effectiveStatus(tournament, overrides);
   const registeredPlayers = getTournamentPlayers(tournament).sort((a, b) => b.rating - a.rating);
+  // The hero shows the event's own name — never the "— <category>" suffix that
+  // each category record carries.
+  const eventName = allEvents.find((e) => e.id === tournament.eventId)?.name ?? tournament.name;
 
   return (
     <div className={arenaFontVariables} style={{ fontFamily: "var(--font-home-body)" }}>
@@ -118,7 +122,7 @@ export default function TournamentDetailsPage({
           className="mb-3 text-[32px] font-extrabold uppercase leading-[1.05] tracking-tight text-[#e2e2e8] drop-shadow-[0_2px_16px_rgba(0,0,0,0.6)] sm:text-[44px]"
           style={display}
         >
-          {tournament.name}
+          {eventName}
         </h1>
         <div className="mb-6 flex flex-wrap items-center gap-x-3 gap-y-2 text-sm text-[#c2c6d7]">
           <span className="flex items-center gap-1.5">
@@ -175,7 +179,7 @@ export default function TournamentDetailsPage({
                 <RuleCard label="Ball Type" value={tournament.ballType} />
                 <RuleCard label="Umpire" value={tournament.umpireStatus} />
               </div>
-              <TieBreakRules className="mt-3" />
+              <TieBreakRules className="mt-3" order={tournament.tieBreakOrder} />
             </section>
 
             {tournament.description && (

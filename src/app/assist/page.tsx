@@ -69,8 +69,8 @@ export default function AssistIndexPage() {
           <Radio className="mx-auto mb-3 h-8 w-8 text-[#8b8b93]" strokeWidth={1.5} />
           <p className="text-sm font-semibold text-[#e2e2e8]">Nothing shared with you yet</p>
           <p className="mt-1 text-xs text-[#8b8b93]">
-            A tournament host adds you from their manage page using your unique ID
-            {user?.uniqueId ? ` (@${user.uniqueId})` : ""}.
+            Share your SPINID{user?.uniqueId ? ` (${user.uniqueId})` : ""} with a tournament host —
+            they grant access from their manage page and the tournament shows up here.
           </p>
         </div>
       ) : (

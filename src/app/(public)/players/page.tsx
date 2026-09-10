@@ -13,7 +13,7 @@ import {
 import { EmptyState } from "@/components/feedback/empty-state";
 import { RevealGroup, RevealItem } from "@/components/motion/reveal";
 import { arenaFontVariables } from "@/lib/fonts";
-import { clubs, players, getWeeklyDelta } from "@/lib/mock-data";
+import { clubs, players, getWeeklyDelta, playerSrId } from "@/lib/mock-data";
 import { usePlayerRatings } from "@/lib/player-ratings";
 import { initials } from "@/lib/format";
 import type { Gender } from "@/lib/types";
@@ -29,7 +29,15 @@ export default function PlayersPage({ basePath = "/players" }: { basePath?: stri
 
   const filtered = useMemo(() => {
     const result = players.filter((p) => {
-      if (search && !p.name.toLowerCase().includes(search.toLowerCase())) return false;
+      if (search) {
+        const q = search.toLowerCase().trim();
+        if (
+          !p.name.toLowerCase().includes(q) &&
+          !playerSrId(p.id).toLowerCase().includes(q)
+        ) {
+          return false;
+        }
+      }
       if (club !== "all" && p.clubId !== club) return false;
       if (state !== "all" && p.state !== state) return false;
       if (gender !== "all" && p.gender !== (gender as Gender)) return false;
@@ -70,7 +78,7 @@ export default function PlayersPage({ basePath = "/players" }: { basePath?: stri
             <Search className="pointer-events-none absolute left-4 top-1/2 h-4 w-4 -translate-y-1/2 text-[#c2c6d7]" />
             <input
               type="text"
-              placeholder="Search players by name…"
+              placeholder="Search players by name or SPINID…"
               value={search}
               onChange={(e) => setSearch(e.target.value)}
               className="w-full rounded-[4px] border border-white/10 bg-[#1a1c20] py-3 pl-11 pr-4 text-sm text-[#e2e2e8] placeholder:text-[#c2c6d7]/50 focus:border-[#ff2448] focus:outline-none focus:ring-1 focus:ring-[#ff2448]"
@@ -149,6 +157,12 @@ export default function PlayersPage({ basePath = "/players" }: { basePath?: stri
                       className="px-6 py-4 text-xs font-semibold uppercase tracking-wide text-[#c2c6d7]"
                       style={{ fontFamily: "var(--font-home-mono)" }}
                     >
+                      SPINID
+                    </th>
+                    <th
+                      className="px-6 py-4 text-xs font-semibold uppercase tracking-wide text-[#c2c6d7]"
+                      style={{ fontFamily: "var(--font-home-mono)" }}
+                    >
                       Club
                     </th>
                     <th
@@ -190,6 +204,14 @@ export default function PlayersPage({ basePath = "/players" }: { basePath?: stri
                             {player.name}
                           </span>
                         </Link>
+                      </td>
+                      <td className="px-6 py-5">
+                        <span
+                          className="rounded-full border border-[#ff2448]/30 bg-[#ff2448]/10 px-2.5 py-1 text-[11px] font-semibold uppercase tracking-widest text-[#ff8f86]"
+                          style={{ fontFamily: "var(--font-home-mono)" }}
+                        >
+                          {playerSrId(player.id)}
+                        </span>
                       </td>
                       <td className="px-6 py-5 text-[#c2c6d7]">{player.clubName ?? "Unaffiliated"}</td>
                       <td
@@ -235,8 +257,14 @@ export default function PlayersPage({ basePath = "/players" }: { basePath?: stri
                         <h3 className="truncate text-[18px] font-semibold leading-tight text-[#e2e2e8]">
                           {player.name}
                         </h3>
-                        <span className="truncate text-sm text-[#c2c6d7]">
-                          {player.clubName ?? "Unaffiliated"}
+                        <span className="mt-1 flex flex-wrap items-center gap-2 text-sm text-[#c2c6d7]">
+                          <span
+                            className="rounded-full border border-[#ff2448]/30 bg-[#ff2448]/10 px-2 py-0.5 text-[10px] font-semibold uppercase tracking-widest text-[#ff8f86]"
+                            style={{ fontFamily: "var(--font-home-mono)" }}
+                          >
+                            {playerSrId(player.id)}
+                          </span>
+                          <span className="truncate">{player.clubName ?? "Unaffiliated"}</span>
                         </span>
                       </div>
                     </div>

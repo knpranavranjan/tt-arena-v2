@@ -3,6 +3,7 @@
 import { createContext, useCallback, useContext, useEffect, useState, type ReactNode } from "react";
 import { useRouter } from "next/navigation";
 import { useAuth } from "@/lib/auth";
+import { USE_DB, apiGet, apiSend } from "@/lib/data-backend";
 import type { Role } from "@/lib/types";
 
 // Only Player and Club accounts pay for site access — Host pays per
@@ -74,6 +75,16 @@ export function MembershipProvider({ children }: { children: ReactNode }) {
   const [isLoading, setIsLoading] = useState(true);
 
   useEffect(() => {
+    if (USE_DB) {
+      apiGet<{ records: MembershipRecord[]; fees: MembershipFees }>("/api/membership")
+        .then(({ records, fees }) => {
+          setRecords(records);
+          setFees(fees);
+        })
+        .catch((e) => console.error("membership load", e))
+        .finally(() => setIsLoading(false));
+      return;
+    }
     setRecords(readRecords());
     setFees(readFees());
     setIsLoading(false);
@@ -87,12 +98,26 @@ export function MembershipProvider({ children }: { children: ReactNode }) {
   }, []);
 
   const activateRecord = useCallback((userId: string, role: MembershipRole) => {
+    const expiresAt = new Date(Date.now() + ONE_YEAR_MS).toISOString();
     setRecords((current) => {
-      const expiresAt = new Date(Date.now() + ONE_YEAR_MS).toISOString();
       const next = current.some((r) => r.userId === userId)
         ? current.map((r) => (r.userId === userId ? { ...r, role, expiresAt } : r))
         : [...current, { userId, role, expiresAt }];
-      window.localStorage.setItem(RECORDS_KEY, JSON.stringify(next));
+      if (USE_DB) {
+        apiSend<{ expiresAt: string }>("/api/membership", "POST", {
+          op: "activate",
+          userId,
+          role,
+        })
+          .then(({ expiresAt: serverExpiry }) =>
+            setRecords((cur) =>
+              cur.map((r) => (r.userId === userId ? { ...r, expiresAt: serverExpiry } : r)),
+            ),
+          )
+          .catch((e) => console.error("membership activate", e));
+      } else {
+        window.localStorage.setItem(RECORDS_KEY, JSON.stringify(next));
+      }
       return next;
     });
   }, []);
@@ -100,7 +125,13 @@ export function MembershipProvider({ children }: { children: ReactNode }) {
   const updateFee = useCallback((role: MembershipRole, amount: number) => {
     setFees((current) => {
       const next = { ...current, [role]: amount };
-      window.localStorage.setItem(FEES_KEY, JSON.stringify(next));
+      if (USE_DB) {
+        apiSend("/api/membership", "PATCH", { op: "fee", role, amount }).catch((e) =>
+          console.error("membership fee", e),
+        );
+      } else {
+        window.localStorage.setItem(FEES_KEY, JSON.stringify(next));
+      }
       return next;
     });
   }, []);

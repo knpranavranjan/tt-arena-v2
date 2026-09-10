@@ -73,8 +73,8 @@ export function ManageAccessButton({ tournament }: { tournament: Tournament }) {
             <DialogDescription>
               Assistants can open and run the Matches workspace for{" "}
               <span className="text-foreground">{tournament.name}</span> — every step from players to
-              the champion. They can&apos;t see the overview, registrations or exports. Add anyone on
-              the platform by their unique ID.
+              the champion. They can&apos;t see the overview, registrations or exports. Grant access
+              by <span className="text-foreground">SPINID</span> only — ask the person for theirs.
             </DialogDescription>
           </DialogHeader>
 
@@ -84,8 +84,8 @@ export function ManageAccessButton({ tournament }: { tournament: Tournament }) {
               <input
                 autoFocus
                 value={query}
-                onChange={(e) => setQuery(e.target.value)}
-                placeholder="Unique ID or name — e.g. arjun_s07"
+                onChange={(e) => setQuery(e.target.value.toUpperCase())}
+                placeholder="Enter a SPINID — e.g. SRP07"
                 className="w-full bg-transparent text-sm text-foreground outline-none placeholder:text-muted-foreground"
               />
             </div>
@@ -93,8 +93,8 @@ export function ManageAccessButton({ tournament }: { tournament: Tournament }) {
               {results.length === 0 && (
                 <li className="px-3 py-3 text-xs text-muted-foreground">
                   {query.trim()
-                    ? `No platform account matches “${query.trim()}”. They must sign up before they can be given access.`
-                    : "Start typing a unique ID or name."}
+                    ? `No account has the SPINID “${query.trim()}”. Check the SPINID and try again.`
+                    : "Type the person's SPINID to give them access."}
                 </li>
               )}
               {results.map((acc) => (

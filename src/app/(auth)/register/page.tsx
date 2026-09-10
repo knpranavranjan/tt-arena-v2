@@ -40,7 +40,6 @@ const labelClass = "block text-xs font-semibold uppercase tracking-widest text-[
 
 export default function RegisterPage() {
   const [role, setRole] = useState<Role>("PLAYER");
-  const [uniqueId, setUniqueId] = useState("");
   const [name, setName] = useState("");
   const [email, setEmail] = useState("");
   const [phone, setPhone] = useState("");
@@ -53,6 +52,7 @@ export default function RegisterPage() {
   const [clubLocation, setClubLocation] = useState<ClubLocation>(DEFAULT_CLUB_LOCATION);
   const [password, setPassword] = useState("");
   const [error, setError] = useState<string | null>(null);
+  const [done, setDone] = useState<{ uniqueId: string; role: Role } | null>(null);
   const { register } = useAuth();
   const router = useRouter();
 
@@ -73,16 +73,47 @@ export default function RegisterPage() {
     };
   }, [skillOpen]);
 
-  const handleSubmit = (e: React.FormEvent) => {
+  const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
     setError(null);
-    const res = register({ uniqueId, name, password, role, email });
+    const res = await register({ name, password, role, email });
     if (!res.ok) {
       setError(res.error);
       return;
     }
-    router.push(dashboardPathForRole[res.role]);
+    setDone({ uniqueId: res.uniqueId, role: res.role });
   };
+
+  if (done) {
+    return (
+      <div>
+        <div className="mb-8 text-center">
+          <h3 className="mb-4 text-xs font-semibold uppercase tracking-[0.2em] text-[#ff2448]">Account Created</h3>
+          <h1 className="text-4xl uppercase tracking-tight text-white sm:text-5xl" style={{ fontFamily: "var(--font-auth-display)" }}>
+            You&apos;re In.
+          </h1>
+        </div>
+
+        <div className="w-full border border-white/10 bg-[#0e0e0e] p-8 text-center shadow-2xl md:p-10">
+          <p className={labelClass}>Your SPINID</p>
+          <p className="mt-3 text-5xl font-extrabold tracking-tight text-[#ff2448]" style={{ fontFamily: "var(--font-auth-display)" }}>
+            {done.uniqueId}
+          </p>
+          <p className="mx-auto mt-4 max-w-sm text-sm leading-relaxed text-[#8b8b93]">
+            This is your permanent ID — the system assigned it. Sign in from now on with
+            this SPINID <span className="text-[#c2c6d7]">or your email</span>, plus your password.
+          </p>
+          <button
+            type="button"
+            onClick={() => router.push(dashboardPathForRole[done.role])}
+            className="mt-8 flex w-full items-center justify-center gap-2 bg-[#ff2448] py-4 text-sm font-bold uppercase tracking-widest text-white transition-colors hover:bg-[#e01f3f]"
+          >
+            Continue to dashboard
+          </button>
+        </div>
+      </div>
+    );
+  }
 
   return (
     <div>
@@ -110,19 +141,14 @@ export default function RegisterPage() {
         </div>
 
         <form onSubmit={handleSubmit} className="space-y-6">
-          <div className="space-y-2">
-            <label htmlFor="uniqueId" className={labelClass}>Unique ID</label>
-            <input
-              id="uniqueId"
-              required
-              type="text"
-              autoComplete="username"
-              placeholder="e.g. arjun_s07"
-              value={uniqueId}
-              onChange={(e) => setUniqueId(e.target.value)}
-              className={`${fieldClass} placeholder:text-[#5a5a60]`}
-            />
-            <p className="text-[11px] text-[#5a5a60]">You&apos;ll sign in with this and your password. It must be unique.</p>
+          <div className="border border-white/10 bg-[#0a0a0a] px-4 py-3">
+            <p className="text-[11px] leading-relaxed text-[#8b8b93]">
+              A unique <span className="font-semibold text-[#ff8f86]">SPINID</span> is issued
+              automatically on sign-up — <span className="text-[#c2c6d7]">SRP##</span> player,{" "}
+              <span className="text-[#c2c6d7]">SRC##</span> club,{" "}
+              <span className="text-[#c2c6d7]">SRH##</span> host. It&apos;s permanent and is what
+              you sign in with.
+            </p>
           </div>
 
           <div className="space-y-2">
@@ -134,13 +160,24 @@ export default function RegisterPage() {
           <div className="grid grid-cols-1 gap-6 md:grid-cols-2">
             <div className="space-y-2">
               <label htmlFor="email" className={labelClass}>Email</label>
-              <input id="email" type="email" value={email} onChange={(e) => setEmail(e.target.value)} className={fieldClass} />
+              <input
+                id="email"
+                required
+                type="email"
+                autoComplete="email"
+                value={email}
+                onChange={(e) => setEmail(e.target.value)}
+                className={fieldClass}
+              />
             </div>
             <div className="space-y-2">
               <label htmlFor="phone" className={labelClass}>Phone</label>
               <input id="phone" type="tel" value={phone} onChange={(e) => setPhone(e.target.value)} className={fieldClass} />
             </div>
           </div>
+          <p className="-mt-3 text-[11px] text-[#5a5a60]">
+            One account per email. To register for another role, use a different email.
+          </p>
 
           <div className="grid grid-cols-1 gap-6 md:grid-cols-2">
             <div className="space-y-2">

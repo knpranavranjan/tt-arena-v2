@@ -4,6 +4,7 @@ import { createContext, useCallback, useContext, useEffect, useState, type React
 import { useRouter } from "next/navigation";
 import type { Role } from "@/lib/types";
 import { appUsers } from "@/lib/mock-data";
+import { USE_DB, apiSend } from "@/lib/data-backend";
 
 export interface SessionUser {
   id: string;
@@ -29,23 +30,24 @@ interface Account {
   createdAt: string;
 }
 
-export type AuthResult = { ok: true; role: Role } | { ok: false; error: string };
+export type AuthResult =
+  | { ok: true; role: Role; uniqueId: string }
+  | { ok: false; error: string };
 
 interface AuthContextValue {
   user: SessionUser | null;
   isLoading: boolean;
   /** Quick, credential-free demo preview of a portal. */
   login: (role: Role) => void;
-  /** Create an account (unique ID + name + password) and sign in. */
+  /** Create an account. The SPINID is issued by the system, not chosen. */
   register: (input: {
-    uniqueId: string;
     name: string;
     password: string;
     role: Role;
-    email?: string;
-  }) => AuthResult;
-  /** Sign in with a unique ID and password. */
-  signIn: (input: { uniqueId: string; password: string }) => AuthResult;
+    email: string;
+  }) => Promise<AuthResult>;
+  /** Sign in with a SPINID *or* email, plus password. */
+  signIn: (input: { identifier: string; password: string }) => Promise<AuthResult>;
   logout: () => void;
   dashboardPath: (role: Role) => string;
 }
@@ -60,15 +62,37 @@ export const dashboardPathForRole: Record<Role, string> = {
   ADMIN: "/admin/dashboard",
 };
 
-/** Built-in logins so every portal is reachable out of the box. */
+/** SPINID prefix letter per role — SRP.. player, SRH.. host, SRC.. club, SRA.. admin. */
+export const ROLE_LETTER: Record<Role, string> = {
+  PLAYER: "P",
+  HOST: "H",
+  CLUB: "C",
+  ADMIN: "A",
+};
+
+/** Built-in logins so every portal is reachable out of the box. They take the
+ *  first SPINID in each role's sequence; real sign-ups continue from there. */
 export const SEED_ACCOUNTS: readonly Account[] = [
-  { uniqueId: "player", id: "u-1", name: "Arjun Sharma", password: "player", role: "PLAYER", email: "arjun@apexttc.in", linkedId: "p-1", createdAt: "" },
-  { uniqueId: "club", id: "u-2", name: "Apex TTC Admin", password: "club", role: "CLUB", email: "contact@apexttc.in", linkedId: "club-apex", createdAt: "" },
-  { uniqueId: "host", id: "u-3", name: "Karnataka TTA Ops", password: "host", role: "HOST", email: "ops@ktta.in", linkedId: null, createdAt: "" },
-  { uniqueId: "admin", id: "u-4", name: "Platform Admin", password: "admin", role: "ADMIN", email: "admin@ttmanagement.app", linkedId: null, createdAt: "" },
+  { uniqueId: "SRP01", id: "u-1", name: "Arjun Sharma", password: "player", role: "PLAYER", email: "arjun@apexttc.in", linkedId: "p-1", createdAt: "" },
+  { uniqueId: "SRC01", id: "u-2", name: "Apex TTC Admin", password: "club", role: "CLUB", email: "contact@apexttc.in", linkedId: "club-apex", createdAt: "" },
+  { uniqueId: "SRH01", id: "u-3", name: "Karnataka TTA Ops", password: "host", role: "HOST", email: "ops@ktta.in", linkedId: null, createdAt: "" },
+  { uniqueId: "SRA01", id: "u-4", name: "Platform Admin", password: "admin", role: "ADMIN", email: "admin@ttmanagement.app", linkedId: null, createdAt: "" },
 ];
 
 const norm = (s: string) => s.trim().toLowerCase();
+
+/** The next SPINID for a role — max existing number for that prefix, plus one. */
+function nextUniqueId(role: Role, accounts: readonly Account[]): string {
+  const prefix = `SR${ROLE_LETTER[role]}`;
+  let max = 0;
+  for (const a of [...SEED_ACCOUNTS, ...accounts]) {
+    const id = a.uniqueId?.toUpperCase() ?? "";
+    if (!id.startsWith(prefix)) continue;
+    const n = parseInt(id.slice(prefix.length), 10);
+    if (Number.isFinite(n) && n > max) max = n;
+  }
+  return `${prefix}${String(max + 1).padStart(2, "0")}`;
+}
 
 function readAccounts(): Account[] {
   try {
@@ -80,13 +104,20 @@ function readAccounts(): Account[] {
   }
 }
 
-function sessionFromAccount(a: Account): SessionUser {
+function sessionFromAccount(a: {
+  id?: string;
+  uniqueId: string;
+  name: string;
+  role: Role;
+  email?: string | null;
+  linkedId?: string | null;
+}): SessionUser {
   return {
     id: a.id ?? `acc-${norm(a.uniqueId)}`,
     uniqueId: a.uniqueId,
     name: a.name,
     role: a.role,
-    email: a.email,
+    email: a.email ?? undefined,
     linkedId: a.linkedId ?? null,
   };
 }
@@ -128,44 +159,80 @@ export function AuthProvider({ children }: { children: ReactNode }) {
   );
 
   const register = useCallback<AuthContextValue["register"]>(
-    ({ uniqueId, name, password, role, email }) => {
-      const uid = uniqueId.trim();
-      if (!uid || !name.trim() || !password) {
-        return { ok: false, error: "Enter a unique ID, name and password." };
+    async ({ name, password, role, email }) => {
+      if (USE_DB) {
+        try {
+          const res = await apiSend<
+            { ok: true; account: Parameters<typeof sessionFromAccount>[0] } | { ok: false; error: string }
+          >("/api/accounts", "POST", { op: "register", name, password, role, email });
+          if (!res.ok) return res;
+          persist(sessionFromAccount(res.account));
+          return { ok: true, role: res.account.role, uniqueId: res.account.uniqueId };
+        } catch {
+          return { ok: false, error: "Couldn't reach the server. Try again." };
+        }
       }
-      const taken =
-        SEED_ACCOUNTS.some((a) => norm(a.uniqueId) === norm(uid)) ||
-        readAccounts().some((a) => norm(a.uniqueId) === norm(uid));
-      if (taken) return { ok: false, error: "That unique ID is already taken — pick another." };
 
+      const mail = email.trim();
+      if (!name.trim() || !password || !mail) {
+        return { ok: false, error: "Enter your name, email and a password." };
+      }
+      if (!/^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(mail)) {
+        return { ok: false, error: "Enter a valid email address." };
+      }
+      const accounts = readAccounts();
+      const emailTaken = [...SEED_ACCOUNTS, ...accounts].some(
+        (a) => a.email && norm(a.email) === norm(mail),
+      );
+      if (emailTaken) {
+        return {
+          ok: false,
+          error: "That email already has an account. Use a different email to register for another role.",
+        };
+      }
+
+      const uniqueId = nextUniqueId(role, accounts);
       const account: Account = {
-        uniqueId: uid,
+        uniqueId,
         name: name.trim(),
         password,
         role,
-        email: email?.trim() || undefined,
+        email: mail,
         linkedId: null,
         createdAt: new Date().toISOString(),
       };
-      window.localStorage.setItem(ACCOUNTS_KEY, JSON.stringify([...readAccounts(), account]));
+      window.localStorage.setItem(ACCOUNTS_KEY, JSON.stringify([...accounts, account]));
       persist(sessionFromAccount(account));
-      return { ok: true, role };
+      return { ok: true, role, uniqueId };
     },
     [persist],
   );
 
   const signIn = useCallback<AuthContextValue["signIn"]>(
-    ({ uniqueId, password }) => {
-      const uid = uniqueId.trim();
-      if (!uid || !password) return { ok: false, error: "Enter your unique ID and password." };
-      const account =
-        readAccounts().find((a) => norm(a.uniqueId) === norm(uid)) ??
-        SEED_ACCOUNTS.find((a) => norm(a.uniqueId) === norm(uid));
+    async ({ identifier, password }) => {
+      if (USE_DB) {
+        try {
+          const res = await apiSend<
+            { ok: true; account: Parameters<typeof sessionFromAccount>[0] } | { ok: false; error: string }
+          >("/api/accounts", "POST", { op: "signin", identifier, password });
+          if (!res.ok) return res;
+          persist(sessionFromAccount(res.account));
+          return { ok: true, role: res.account.role, uniqueId: res.account.uniqueId };
+        } catch {
+          return { ok: false, error: "Couldn't reach the server. Try again." };
+        }
+      }
+
+      const id = identifier.trim();
+      if (!id || !password) return { ok: false, error: "Enter your email or SPINID and password." };
+      const matches = (a: Account) =>
+        norm(a.uniqueId) === norm(id) || (a.email != null && norm(a.email) === norm(id));
+      const account = readAccounts().find(matches) ?? SEED_ACCOUNTS.find(matches);
       if (!account || account.password !== password) {
-        return { ok: false, error: "Unknown unique ID or wrong password." };
+        return { ok: false, error: "Unknown email / SPINID, or wrong password." };
       }
       persist(sessionFromAccount(account));
-      return { ok: true, role: account.role };
+      return { ok: true, role: account.role, uniqueId: account.uniqueId };
     },
     [persist],
   );

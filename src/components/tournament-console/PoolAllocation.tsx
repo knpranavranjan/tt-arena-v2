@@ -3,11 +3,12 @@
 import { useState } from 'react'
 
 import {
-  ActionBar, Button, Card, CardBody, CardHead, ChipPicker, Field, Note, PageHead, Segmented, Select,
+  ActionBar, Button, Card, CardBody, CardHead, ChipPicker, Field, Note, PageHead, Segmented,
 } from '@/components/tournament-console/ui'
-import { TIE_BREAK_RULES } from '@/lib/tournament/standings'
-import type { AllocationMethod, GamePoints, TournamentFormat, WinRule } from '@/lib/tournament/types'
+import { normalizeTieBreakOrder, tieBreakLabel, type TieBreakCriterionId } from '@/lib/tie-break'
+import type { AllocationMethod, GamePoints, TieBreakRule, TournamentFormat, WinRule } from '@/lib/tournament/types'
 import { useActiveTournament } from '@/lib/matches-store'
+import { cn } from '@/lib/utils'
 
 const METHODS: Array<{ value: AllocationMethod; label: string; hint: string }> = [
   { value: 'snake', label: 'Snake', hint: 'Serpentine distribution — the balanced default' },
@@ -29,6 +30,81 @@ const WIN_BY: Array<{ value: WinRule; label: string }> = [
 
 const range = (from: number, to: number) => Array.from({ length: to - from + 1 }, (_, i) => from + i)
 
+/**
+ * Drag (or use the arrows) to set the order the standings engine walks when a
+ * group finishes level. Mirrors the drag-and-drop control on the public "Host a
+ * Tournament" form — same criteria, same order semantics.
+ */
+function TieBreakOrderField({
+  order,
+  onChange,
+}: {
+  order: TieBreakCriterionId[]
+  onChange: (next: TieBreakCriterionId[]) => void
+}) {
+  const [dragIndex, setDragIndex] = useState<number | null>(null)
+  const [dropIndex, setDropIndex] = useState<number | null>(null)
+
+  const move = (from: number, to: number) => {
+    if (from === to || to < 0 || to >= order.length) return
+    const next = [...order]
+    const [moved] = next.splice(from, 1)
+    next.splice(to, 0, moved)
+    onChange(next)
+  }
+
+  return (
+    <ol className="flex flex-col gap-1.5">
+      {order.map((id, i) => (
+        <li
+          key={id}
+          draggable
+          onDragStart={() => setDragIndex(i)}
+          onDragEnter={() => setDropIndex(i)}
+          onDragOver={(e) => e.preventDefault()}
+          onDragEnd={() => {
+            setDragIndex(null)
+            setDropIndex(null)
+          }}
+          onDrop={(e) => {
+            e.preventDefault()
+            if (dragIndex !== null) move(dragIndex, i)
+            setDragIndex(null)
+            setDropIndex(null)
+          }}
+          className={cn(
+            'flex cursor-grab items-center gap-2 rounded-md border border-line bg-subtle px-2.5 py-2 text-[13px] text-ink',
+            dragIndex === i && 'opacity-40',
+            dropIndex === i && dragIndex !== null && dragIndex !== i && 'ring-2 ring-inset ring-focus',
+          )}
+        >
+          <span className="select-none text-ink-faint" title="Drag to reorder">
+            ⠿
+          </span>
+          <span className="flex h-5 w-5 shrink-0 items-center justify-center rounded-full border border-line text-[11px] font-semibold text-ink-muted">
+            {i + 1}
+          </span>
+          <span className="flex-1">{tieBreakLabel(id)}</span>
+          <span className="flex shrink-0 items-center gap-1">
+            <Button size="xs" variant="ghost" disabled={i === 0} onClick={() => move(i, i - 1)} aria-label="Move up">
+              ↑
+            </Button>
+            <Button
+              size="xs"
+              variant="ghost"
+              disabled={i === order.length - 1}
+              onClick={() => move(i, i + 1)}
+              aria-label="Move down"
+            >
+              ↓
+            </Button>
+          </span>
+        </li>
+      ))}
+    </ol>
+  )
+}
+
 export default function PoolAllocation() {
   const { tournament, activeCategory, players, pools, poolMethod, recommendation, actions } = useActiveTournament()
   const format = tournament.format
@@ -40,6 +116,8 @@ export default function PoolAllocation() {
 
   const gp: GamePoints = tournament.groupPoints ?? { win: 1, draw: 0, loss: 0 }
   const setGp = (patch: Partial<GamePoints>) => actions.updateTournament({ groupPoints: { ...gp, ...patch } })
+
+  const tieBreakOrder = normalizeTieBreakOrder(tournament.tieBreakOrder ?? [tournament.tieBreakRule])
 
   const goToGroups = () => {
     const pooled = (pools ?? []).reduce((n, p) => n + p.playerIds.length, 0)
@@ -110,11 +188,19 @@ export default function PoolAllocation() {
               <Field label="Group Points for a Loss">
                 <ChipPicker options={range(0, 8)} value={gp.loss} onChange={(v) => setGp({ loss: Number(v) || 0 })} min={0} />
               </Field>
-              <Field label="Tie-break" className="sm:col-span-2 lg:col-span-3">
-                <Select
-                  options={TIE_BREAK_RULES}
-                  value={tournament.tieBreakRule}
-                  onChange={(v) => actions.updateTournament({ tieBreakRule: v })}
+              <Field
+                label="Tie-break order"
+                className="sm:col-span-2 lg:col-span-3"
+                help="Applied top-down when a group finishes level on points. This is what the host set on the tournament form."
+              >
+                <TieBreakOrderField
+                  order={tieBreakOrder}
+                  onChange={(next) =>
+                    actions.updateTournament({
+                      tieBreakOrder: next as TieBreakRule[],
+                      tieBreakRule: next[0] as TieBreakRule,
+                    })
+                  }
                 />
               </Field>
             </CardBody>

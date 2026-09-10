@@ -2,17 +2,17 @@
 
 import { useMemo, useState } from "react";
 import { AnimatePresence, motion, useReducedMotion } from "framer-motion";
-import { Calendar, ChevronRight, Clock, MapPin, Radio, Trophy } from "lucide-react";
+import { Calendar, ChevronRight, Clock, ListOrdered, MapPin, Radio, Trophy } from "lucide-react";
 
 import { useCurrentPlayer } from "@/lib/session-data";
 import { useRegistrations } from "@/lib/registrations";
 import { getEvent, getTournament } from "@/lib/mock-data";
 import { useAllTournaments } from "@/lib/hosted-tournaments";
 import { useConsoleTournamentIds, useLiveTournaments, type LiveCategory } from "@/lib/live-schedule";
-import { POOLS_STAGE, log2, roundName } from "@/lib/tournament/bracketMath";
+import { POOLS_STAGE, log2, roundName, roundShortName } from "@/lib/tournament/bracketMath";
 import { gameTally } from "@/lib/tournament/scoring";
 import { formatDate } from "@/lib/format";
-import { fadeUp, liveDotPulse, staggerChildren } from "@/lib/motion";
+import { duration, ease, fadeUp, liveDotPulse, staggerChildren } from "@/lib/motion";
 import { cn } from "@/lib/utils";
 import type { GameScore } from "@/lib/tournament/types";
 import type { Tournament } from "@/lib/types";
@@ -292,6 +292,9 @@ function TournamentCard({
 function TournamentHead({ tournament }: { tournament: { tournamentId: string; name: string; date: string } }) {
   const t = getTournament(tournament.tournamentId);
   const event = getEvent(t?.eventId ?? "");
+  // The title is the event's own name — the category is chosen with the pills
+  // below, so it never belongs in the header.
+  const title = event?.name ?? tournament.name.split(/\s+[—–-]\s+/)[0];
   return (
     <div className="relative mb-5 overflow-hidden rounded-[14px] border border-white/10 bg-[#0c0e12] p-6">
       <div
@@ -299,10 +302,10 @@ function TournamentHead({ tournament }: { tournament: { tournamentId: string; na
         aria-hidden
       />
       <p className="text-[11px] font-bold uppercase tracking-[0.18em] text-[#ff8f86]" style={mono}>
-        {event?.name ?? "Tournament"}
+        Tournament
       </p>
       <h2 className="mt-1 text-xl font-extrabold uppercase tracking-tight text-[#e8e8ee] sm:text-2xl" style={display}>
-        {tournament.name}
+        {title}
       </h2>
       <div className="mt-2 flex flex-wrap items-center gap-x-3 gap-y-1 text-xs text-[#8b8b93]">
         <span className="flex items-center gap-1.5">
@@ -426,6 +429,7 @@ function CategoryBoard({
   reduce: boolean;
 }) {
   const nothing = !category.poolsReleased && !category.bracket;
+  const [view, setView] = useState<"timeline" | "standings">("timeline");
   const timeline = useMemo(() => buildTimeline(category, playerId), [category, playerId]);
 
   const myNext = timeline.find((m) => m.scheduled && (m.aIsMe || m.bIsMe));
@@ -461,34 +465,514 @@ function CategoryBoard({
               {myNext.context ? ` · ${myNext.context}` : ""}
             </p>
             <p className="truncate text-sm font-semibold text-[#e8e8ee]">
-              {myNext.aIsMe ? "You" : myNext.aName}{" "}
-              <span className="text-[#6f6f78]">vs</span> {myNext.bIsMe ? "You" : myNext.bName}
+              <span className={cn(myNext.aIsMe && "text-[#ff8f86]")}>{myNext.aName}</span>{" "}
+              <span className="text-[#6f6f78]">vs</span>{" "}
+              <span className={cn(myNext.bIsMe && "text-[#ff8f86]")}>{myNext.bName}</span>
             </p>
           </div>
         </div>
       )}
 
-      {timeline.length > 0 && (
+      {(timeline.length > 0 || category.poolsReleased) && (
         <section>
-          <div className="mb-4 flex items-center gap-2">
-            <Label>Match timeline</Label>
-            <span className="text-[11px] tabular-nums text-[#6f6f78]" style={mono}>
-              {played}/{timeline.length} played
-            </span>
+          <div className="mb-4 flex flex-wrap items-center gap-3">
+            <div className="inline-flex gap-1 rounded-full border border-white/10 bg-white/[0.03] p-1">
+              {(["timeline", "standings"] as const).map((v) => {
+                const on = view === v;
+                return (
+                  <button
+                    key={v}
+                    type="button"
+                    onClick={() => setView(v)}
+                    className={cn(
+                      "relative rounded-full px-3.5 py-1.5 text-[11px] font-bold uppercase tracking-[0.14em] transition-colors",
+                      on ? "text-white" : "text-[#9a9aa2] hover:text-white",
+                    )}
+                    style={mono}
+                  >
+                    {on && (
+                      <motion.span
+                        layoutId="mc-view-pill"
+                        className="absolute inset-0 rounded-full bg-[#ff2448]"
+                        transition={{ type: "spring", damping: 26, stiffness: 320 }}
+                      />
+                    )}
+                    <span className="relative flex items-center gap-1.5">
+                      {v === "standings" && <ListOrdered className="h-3.5 w-3.5" strokeWidth={2.5} />}
+                      {v === "timeline" ? "Timeline" : "Standings"}
+                    </span>
+                  </button>
+                );
+              })}
+            </div>
+            {view === "timeline" && (
+              <span className="text-[11px] tabular-nums text-[#6f6f78]" style={mono}>
+                {played}/{timeline.length} played
+              </span>
+            )}
           </div>
-          <Timeline groups={groups} reduce={reduce} />
+
+          {view === "timeline" ? (
+            <Timeline groups={groups} reduce={reduce} />
+          ) : (
+            <StandingsView category={category} playerId={playerId} />
+          )}
         </section>
       )}
     </div>
   );
 }
 
-function Label({ children }: { children: React.ReactNode }) {
+/* ----------------------------------------------------------- standings -- */
+
+interface MiniRow {
+  playerId: string;
+  rank: number;
+  played: number;
+  won: number;
+  lost: number;
+  gameDiff: number;
+  matchPoints: number;
+}
+
+const rowLayout = { layout: { duration: duration.complex, ease: ease.out } } as const;
+
+function StandingsView({ category, playerId }: { category: LiveCategory; playerId?: string }) {
+  if (!category.poolsReleased) {
+    return (
+      <p className="rounded-[14px] border border-dashed border-white/15 bg-white/[0.015] p-10 text-center text-sm text-[#8b8b93]">
+        Pool standings show up here the moment the host publishes the group stage.
+      </p>
+    );
+  }
+
   return (
-    <h3 className="flex items-center gap-2 text-[11px] font-bold uppercase tracking-[0.16em] text-[#ff2448]" style={mono}>
-      <span className="h-1 w-4 rounded-full bg-[#ff2448]" />
-      {children}
-    </h3>
+    <motion.div
+      className="space-y-10"
+      variants={staggerChildren(70)}
+      initial="hidden"
+      animate="show"
+    >
+      <div className="space-y-6">
+        {category.pools.map((pool, pi) => {
+          const ranked = category.standings[pool.id];
+          const rows: MiniRow[] =
+            ranked && ranked.length > 0
+              ? ranked.map((r) => ({
+                  playerId: r.playerId,
+                  rank: r.rank,
+                  played: r.played,
+                  won: r.won,
+                  lost: r.lost,
+                  gameDiff: r.gameDiff,
+                  matchPoints: r.matchPoints,
+                }))
+              : pool.playerIds.map((id, i) => ({
+                  playerId: id,
+                  rank: i + 1,
+                  played: 0,
+                  won: 0,
+                  lost: 0,
+                  gameDiff: 0,
+                  matchPoints: 0,
+                }));
+          return (
+            <PoolStandings
+              key={pool.id}
+              label={pool.name}
+              badge={String.fromCharCode(65 + pi)}
+              rows={rows}
+              nameOf={category.nameOf}
+              playerId={playerId}
+              advance={category.advancePerPool}
+            />
+          );
+        })}
+      </div>
+
+      <motion.div variants={fadeUp}>
+        {category.bracket ? (
+          <KnockoutLadder category={category} playerId={playerId} />
+        ) : (
+          <div className="rounded-[14px] border border-dashed border-white/15 bg-white/[0.015] p-8 text-center">
+            <p className="text-sm font-semibold text-[#d4d6dd]" style={display}>
+              Knockout result locked
+            </p>
+            <p className="mx-auto mt-1.5 max-w-sm text-xs leading-relaxed text-[#8b8b93]">
+              Once the host publishes the knockout draw, the qualifiers appear here with their
+              group record and re-rank live after every round.
+            </p>
+          </div>
+        )}
+      </motion.div>
+    </motion.div>
+  );
+}
+
+function PoolStandings({
+  label,
+  badge,
+  rows,
+  nameOf,
+  playerId,
+  advance,
+}: {
+  label: string;
+  badge: string;
+  rows: MiniRow[];
+  nameOf: (id: string | null | undefined) => string;
+  playerId?: string;
+  advance: number;
+}) {
+  return (
+    <motion.div
+      variants={fadeUp}
+      className="overflow-hidden rounded-[16px] border border-white/10 bg-[#0c0e12] shadow-[0_1px_0_0_rgba(255,255,255,0.03)_inset]"
+    >
+      <div className="flex items-center justify-between gap-3 border-b border-white/10 bg-white/[0.025] px-5 py-4">
+        <div className="flex items-center gap-3">
+          <span
+            className="flex h-7 w-7 items-center justify-center rounded-lg bg-[#ff2448]/15 text-xs font-extrabold text-[#ff8f86]"
+            style={mono}
+          >
+            {badge}
+          </span>
+          <span
+            className="text-[15px] font-extrabold uppercase tracking-[0.12em] text-[#f1f1f4]"
+            style={mono}
+          >
+            {label}
+          </span>
+        </div>
+        <span
+          className="rounded-full border border-emerald-500/25 bg-emerald-500/[0.08] px-2.5 py-1 text-[10px] font-bold uppercase tracking-wide text-emerald-300/90"
+          style={mono}
+        >
+          Top {advance} advance
+        </span>
+      </div>
+
+      <div className="overflow-x-auto">
+        <table className="w-full min-w-[480px] border-collapse text-left">
+          <thead>
+            <tr className="text-[10px] uppercase tracking-[0.14em] text-[#6f6f78]" style={mono}>
+              <th className="w-16 px-3 py-3 text-center">Pos</th>
+              <th className="px-3 py-3 pl-5">Player</th>
+              <th className="w-11 px-2 py-3 text-center" title="Played">P</th>
+              <th className="w-11 px-2 py-3 text-center" title="Won">W</th>
+              <th className="w-11 px-2 py-3 text-center" title="Lost">L</th>
+              <th className="w-14 px-2 py-3 text-center" title="Game difference">GD</th>
+              <th className="w-16 px-3 py-3 pr-5 text-center" title="Table points">Pts</th>
+            </tr>
+          </thead>
+          <tbody>
+            {rows.map((r) => {
+              const me = Boolean(playerId) && r.playerId === playerId;
+              const q = r.rank <= advance;
+              return (
+                <motion.tr
+                  key={r.playerId}
+                  layout="position"
+                  transition={rowLayout}
+                  className={cn(
+                    "border-t border-white/[0.06] text-[14px]",
+                    me && "bg-[#ff2448]/[0.08]",
+                  )}
+                >
+                  <td className="px-3 py-3.5 text-center">
+                    <span
+                      className={cn(
+                        "inline-flex h-7 w-7 items-center justify-center rounded-full text-[13px] font-extrabold tabular-nums",
+                        q
+                          ? "bg-emerald-500/20 text-emerald-200 ring-1 ring-inset ring-emerald-400/40"
+                          : "bg-white/[0.04] text-[#8b8b93]",
+                      )}
+                      style={mono}
+                    >
+                      {r.rank}
+                    </span>
+                  </td>
+                  <td className="px-3 py-3.5 pl-5">
+                    <span className="flex items-center gap-2.5">
+                      {me && <span className="h-4 w-[3px] shrink-0 rounded-full bg-[#ff2448]" />}
+                      <span
+                        className={cn(
+                          "truncate",
+                          me ? "font-bold text-[#f6f6f8]" : "font-medium text-[#d4d6dd]",
+                        )}
+                      >
+                        {nameOf(r.playerId)}
+                      </span>
+                    </span>
+                  </td>
+                  <td className="px-2 py-3.5 text-center tabular-nums text-[#9a9aa2]">{r.played}</td>
+                  <td className="px-2 py-3.5 text-center font-semibold tabular-nums text-emerald-300/90">
+                    {r.won}
+                  </td>
+                  <td className="px-2 py-3.5 text-center tabular-nums text-[#ff8f86]/75">{r.lost}</td>
+                  <td className="px-2 py-3.5 text-center tabular-nums text-[#9a9aa2]">
+                    {r.gameDiff > 0 ? `+${r.gameDiff}` : r.gameDiff}
+                  </td>
+                  <td className="px-3 py-3.5 pr-5 text-center text-[17px] font-extrabold tabular-nums text-[#f6f6f8]">
+                    {r.matchPoints}
+                  </td>
+                </motion.tr>
+              );
+            })}
+          </tbody>
+        </table>
+      </div>
+    </motion.div>
+  );
+}
+
+/* --------------------------------------------------- knockout result --- */
+
+type KoState =
+  | { kind: "champion" }
+  | { kind: "runnerUp" }
+  | { kind: "third" }
+  | { kind: "fourth" }
+  | { kind: "alive"; label: string }
+  | { kind: "out"; label: string }
+  | { kind: "seeded" };
+
+/** Where a qualifier currently stands in the (possibly partial) bracket. */
+function koStateFor(bracket: NonNullable<LiveCategory["bracket"]>, id: string): KoState {
+  const size = bracket.size;
+  const finalRoundIdx = log2(size) - 1;
+
+  const tp = bracket.thirdPlace;
+  if (tp && !tp.isBye && (tp.aId === id || tp.bId === id)) {
+    if (tp.played) return tp.winnerId === id ? { kind: "third" } : { kind: "fourth" };
+    return { kind: "alive", label: "Third Place" };
+  }
+
+  for (let i = 0; i < bracket.rounds.length; i++) {
+    const remaining = size / 2 ** i;
+    const m = bracket.rounds[i].find((x) => !x.isBye && (x.aId === id || x.bId === id));
+    if (!m) continue;
+    if (!m.played) return { kind: "alive", label: roundName(remaining) };
+    if (m.winnerId === id) {
+      if (i === finalRoundIdx) return { kind: "champion" };
+      const laterHasThem = bracket.rounds
+        .slice(i + 1)
+        .some((r) => r.some((x) => x.aId === id || x.bId === id));
+      if (!laterHasThem) return { kind: "alive", label: roundName(size / 2 ** (i + 1)) };
+      continue;
+    }
+    return i === finalRoundIdx
+      ? { kind: "runnerUp" }
+      : { kind: "out", label: roundShortName(remaining) };
+  }
+  return { kind: "seeded" };
+}
+
+function koRankKey(s: KoState): number {
+  switch (s.kind) {
+    case "champion":
+      return 7000;
+    case "runnerUp":
+      return 6000;
+    case "third":
+      return 5000;
+    case "fourth":
+      return 4000;
+    case "alive":
+      // still in it — deeper round (fewer letters/higher label) ranks near the top
+      return 3000 + labelDepth(s.label);
+    case "seeded":
+      return 2000;
+    case "out":
+      return 1000 + labelDepth(s.label);
+  }
+}
+
+function labelDepth(label: string): number {
+  if (label === "Final" || label === "F") return 90;
+  if (label === "Semi Final" || label === "SF" || label === "Third Place") return 70;
+  if (label === "Quarter Final" || label === "QF") return 50;
+  const m = /R(?:ound of )?(\d+)/.exec(label);
+  return m ? Math.max(1, 40 - Number(m[1])) : 30;
+}
+
+function koPill(s: KoState): { text: string; className: string; live?: boolean } {
+  switch (s.kind) {
+    case "champion":
+      return { text: "Champion", className: "border-amber-400/45 bg-amber-400/15 text-amber-200" };
+    case "runnerUp":
+      return { text: "Runner-up", className: "border-white/25 bg-white/[0.07] text-[#dfe0e6]" };
+    case "third":
+      return { text: "3rd place", className: "border-orange-400/40 bg-orange-400/12 text-orange-300" };
+    case "fourth":
+      return { text: "4th place", className: "border-white/12 bg-white/[0.04] text-[#9a9aa2]" };
+    case "alive":
+      return {
+        text: `In ${s.label}`,
+        className: "border-[#ff2448]/45 bg-[#ff2448]/15 text-[#ff8f86]",
+        live: true,
+      };
+    case "seeded":
+      return { text: "Awaiting draw", className: "border-white/12 bg-white/[0.03] text-[#8b8b93]" };
+    case "out":
+      return { text: `Lost ${s.label}`, className: "border-white/10 bg-white/[0.03] text-[#8b8b93]" };
+  }
+}
+
+function KnockoutLadder({ category, playerId }: { category: LiveCategory; playerId?: string }) {
+  const bracket = category.bracket;
+
+  const list = useMemo(() => {
+    if (!bracket) return [];
+    const poolLetter = new Map(category.pools.map((p, i) => [p.id, String.fromCharCode(65 + i)]));
+    return bracket.seeding
+      .filter((s) => s.playerId)
+      .map((slot) => {
+        const id = slot.playerId as string;
+        const state = koStateFor(bracket, id);
+        const poolRow = slot.poolId
+          ? (category.standings[slot.poolId] ?? []).find((r) => r.playerId === id)
+          : undefined;
+        return {
+          id,
+          seed: slot.slot + 1,
+          poolLetter: slot.poolId ? poolLetter.get(slot.poolId) : undefined,
+          rankInPool: slot.rankInPool,
+          played: poolRow?.played ?? 0,
+          won: poolRow?.won ?? 0,
+          lost: poolRow?.lost ?? 0,
+          gameDiff: poolRow?.gameDiff ?? 0,
+          matchPoints: poolRow?.matchPoints ?? 0,
+          state,
+          sortKey: koRankKey(state),
+        };
+      })
+      .sort((a, b) => b.sortKey - a.sortKey || a.seed - b.seed);
+  }, [bracket, category.pools, category.standings]);
+
+  if (list.length === 0) return null;
+
+  const anyResult = list.some((e) => e.state.kind !== "seeded");
+
+  return (
+    <div className="overflow-hidden rounded-[16px] border border-[#ff2448]/25 bg-gradient-to-b from-[#ff2448]/[0.06] to-[#0c0e12]">
+      <div className="flex flex-wrap items-center justify-between gap-2 border-b border-white/10 bg-white/[0.02] px-5 py-4">
+        <div>
+          <div
+            className="flex items-center gap-2 text-[15px] font-extrabold uppercase tracking-[0.12em] text-[#f1f1f4]"
+            style={mono}
+          >
+            <Trophy className="h-4 w-4 text-[#ff8f86]" strokeWidth={2.5} />
+            Knockout Result
+          </div>
+          <p className="mt-1 text-[11px] text-[#8b8b93]" style={mono}>
+            {anyResult
+              ? "Ranked by how far each qualifier has gone — updates the moment the host publishes a round."
+              : "Qualifiers with their group record — this table ranks by result as the knockout is played."}
+          </p>
+        </div>
+      </div>
+
+      <div className="overflow-x-auto">
+        <table className="w-full min-w-[620px] border-collapse text-left">
+          <thead>
+            <tr className="text-[10px] uppercase tracking-[0.14em] text-[#6f6f78]" style={mono}>
+              <th className="w-14 px-3 py-3 text-center">Pos</th>
+              <th className="px-3 py-3 pl-5">Player</th>
+              <th className="w-20 px-2 py-3">Pool</th>
+              <th className="w-10 px-2 py-3 text-center" title="Played">P</th>
+              <th className="w-10 px-2 py-3 text-center" title="Won">W</th>
+              <th className="w-10 px-2 py-3 text-center" title="Lost">L</th>
+              <th className="w-12 px-2 py-3 text-center" title="Game difference">GD</th>
+              <th className="w-12 px-2 py-3 text-center" title="Table points">Pts</th>
+              <th className="px-3 py-3 pr-5">Status</th>
+            </tr>
+          </thead>
+          <tbody>
+            {list.map((e, i) => {
+              const me = Boolean(playerId) && e.id === playerId;
+              const pill = koPill(e.state);
+              const podium = i < 3 && anyResult;
+              return (
+                <motion.tr
+                  key={e.id}
+                  layout="position"
+                  transition={rowLayout}
+                  className={cn(
+                    "border-t border-white/[0.06] text-[14px]",
+                    me && "bg-[#ff2448]/[0.09]",
+                  )}
+                >
+                  <td className="px-3 py-3.5 text-center">
+                    <span
+                      className={cn(
+                        "inline-flex h-7 w-7 items-center justify-center rounded-full text-[13px] font-extrabold tabular-nums",
+                        podium
+                          ? "bg-amber-400/20 text-amber-200 ring-1 ring-inset ring-amber-400/40"
+                          : "bg-white/[0.04] text-[#8b8b93]",
+                      )}
+                      style={mono}
+                    >
+                      {i + 1}
+                    </span>
+                  </td>
+                  <td className="px-3 py-3.5 pl-5">
+                    <span className="flex items-center gap-2.5">
+                      {me && <span className="h-4 w-[3px] shrink-0 rounded-full bg-[#ff2448]" />}
+                      <span
+                        className={cn(
+                          "truncate",
+                          me ? "font-bold text-[#f6f6f8]" : "font-medium text-[#d4d6dd]",
+                        )}
+                      >
+                        {category.nameOf(e.id)}
+                      </span>
+                    </span>
+                  </td>
+                  <td className="px-2 py-3.5 text-[13px] text-[#9a9aa2]" style={mono}>
+                    {e.poolLetter ? (
+                      <>
+                        {e.poolLetter}
+                        {e.rankInPool ? (
+                          <span className="text-[#6f6f78]"> · #{e.rankInPool}</span>
+                        ) : null}
+                      </>
+                    ) : (
+                      "—"
+                    )}
+                  </td>
+                  <td className="px-2 py-3.5 text-center tabular-nums text-[#9a9aa2]">{e.played}</td>
+                  <td className="px-2 py-3.5 text-center font-semibold tabular-nums text-emerald-300/90">
+                    {e.won}
+                  </td>
+                  <td className="px-2 py-3.5 text-center tabular-nums text-[#ff8f86]/75">{e.lost}</td>
+                  <td className="px-2 py-3.5 text-center tabular-nums text-[#9a9aa2]">
+                    {e.gameDiff > 0 ? `+${e.gameDiff}` : e.gameDiff}
+                  </td>
+                  <td className="px-2 py-3.5 text-center font-semibold tabular-nums text-[#f6f6f8]">
+                    {e.matchPoints}
+                  </td>
+                  <td className="px-3 py-3.5 pr-5">
+                    <span
+                      className={cn(
+                        "inline-flex items-center gap-1.5 rounded-full border px-2.5 py-1 text-[10px] font-bold uppercase tracking-wide",
+                        pill.className,
+                      )}
+                      style={mono}
+                    >
+                      {pill.live && (
+                        <span className="h-1.5 w-1.5 animate-pulse rounded-full bg-current" />
+                      )}
+                      {pill.text}
+                    </span>
+                  </td>
+                </motion.tr>
+              );
+            })}
+          </tbody>
+        </table>
+      </div>
+    </div>
   );
 }
 
@@ -656,11 +1140,7 @@ function TimelineNode({ match: m, side }: { match: TLMatch; side: "L" | "R" }) {
 }
 
 function PlayerName({ name, me }: { name: string; me: boolean }) {
-  return (
-    <span className={cn(me && "font-semibold text-[#e8e8ee]")}>
-      {me ? "You" : name}
-    </span>
-  );
+  return <span className={cn(me && "font-semibold text-[#ff8f86]")}>{name}</span>;
 }
 
 function ScoreRow({
@@ -688,8 +1168,14 @@ function ScoreRow({
       ) : (
         <span className="h-3 w-3 shrink-0" />
       )}
-      <span className={cn("min-w-0 flex-1 truncate", won ? "font-semibold text-[#e8e8ee]" : "text-[#9a9aa2]")}>
-        {me ? "You" : name}
+      <span
+        className={cn(
+          "min-w-0 flex-1 truncate",
+          won ? "font-semibold text-[#e8e8ee]" : "text-[#9a9aa2]",
+          me && "text-[#ff8f86]",
+        )}
+      >
+        {name}
       </span>
       <span className="shrink-0 font-mono text-[11px] tracking-wide text-[#8b8b93]">
         {scores.join("  ")}

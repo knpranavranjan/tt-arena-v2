@@ -20,17 +20,17 @@ const fieldClass =
 const labelClass = "block text-xs font-semibold uppercase tracking-widest text-[#8b8b93]";
 
 function LoginForm() {
-  const [uniqueId, setUniqueId] = useState("");
+  const [identifier, setIdentifier] = useState("");
   const [password, setPassword] = useState("");
   const [error, setError] = useState<string | null>(null);
   const { signIn } = useAuth();
   const router = useRouter();
   const searchParams = useSearchParams();
 
-  const handleSubmit = (e: React.FormEvent) => {
+  const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
     setError(null);
-    const res = signIn({ uniqueId, password });
+    const res = await signIn({ identifier, password });
     if (!res.ok) {
       setError(res.error);
       return;
@@ -55,15 +55,15 @@ function LoginForm() {
       <div className="w-full border border-white/10 bg-[#0e0e0e] p-8 shadow-2xl md:p-10">
         <form onSubmit={handleSubmit} className="space-y-6">
           <div className="space-y-2">
-            <label htmlFor="uniqueId" className={labelClass}>Unique ID</label>
+            <label htmlFor="identifier" className={labelClass}>Email or SPINID</label>
             <input
-              id="uniqueId"
+              id="identifier"
               required
               type="text"
               autoComplete="username"
-              placeholder="your unique ID"
-              value={uniqueId}
-              onChange={(e) => setUniqueId(e.target.value)}
+              placeholder="you@email.com or SRP01"
+              value={identifier}
+              onChange={(e) => setIdentifier(e.target.value)}
               className={`${fieldClass} placeholder:text-[#5a5a60]`}
             />
           </div>
@@ -98,10 +98,10 @@ function LoginForm() {
         </form>
 
         <p className="mt-4 text-center text-xs leading-relaxed text-[#5a5a60]">
-          Demo logins — <span className="text-[#8b8b93]">player / player</span> ·{" "}
-          <span className="text-[#8b8b93]">club / club</span> ·{" "}
-          <span className="text-[#8b8b93]">host / host</span> ·{" "}
-          <span className="text-[#8b8b93]">admin / admin</span>
+          Demo logins — <span className="text-[#8b8b93]">SRP01 / player</span> ·{" "}
+          <span className="text-[#8b8b93]">SRC01 / club</span> ·{" "}
+          <span className="text-[#8b8b93]">SRH01 / host</span> ·{" "}
+          <span className="text-[#8b8b93]">SRA01 / admin</span>
         </p>
 
         <div className="mt-6 text-center">

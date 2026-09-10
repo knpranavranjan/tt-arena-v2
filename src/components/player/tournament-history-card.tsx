@@ -1,8 +1,7 @@
 "use client";
 
 import { useState } from "react";
-import Link from "next/link";
-import { ArrowDown, ArrowUp, ChevronDown, ChevronRight, History } from "lucide-react";
+import { ChevronDown, ChevronRight, History } from "lucide-react";
 import { ScrollArea } from "@/components/ui/scroll-area";
 import {
   Dialog,
@@ -168,28 +167,9 @@ export function TournamentHistoryCard({ player }: { player: Player }) {
                   </button>
 
                   {isOpen ? (
-                    <div className="flex flex-col gap-4 border-t border-white/5 bg-white/[0.015] px-4 pb-4 pt-3">
+                    <div className="flex flex-col gap-2 border-t border-white/5 bg-white/[0.015] px-4 pb-4 pt-3">
                       {event.categories.map((category) => (
-                        <div key={category.tournament.id}>
-                          <div className="mb-1.5 flex items-center gap-2 px-1">
-                            <span className="text-xs font-bold uppercase tracking-widest text-[#ff8f86]" style={mono}>
-                              {category.tournament.category}
-                            </span>
-                            <span className="text-[11px] text-[#7d8795]" style={mono}>
-                              {category.wins}W &middot; {category.losses}L
-                            </span>
-                          </div>
-                          <div className="overflow-hidden rounded-[8px] border border-white/10">
-                            {category.rows.map((row, i) => (
-                              <MatchRow
-                                key={row.match.id}
-                                row={row}
-                                tournament={category.tournament}
-                                isLast={i === category.rows.length - 1}
-                              />
-                            ))}
-                          </div>
-                        </div>
+                        <CategoryDialog key={category.tournament.id} category={category} />
                       ))}
                     </div>
                   ) : null}
@@ -203,17 +183,13 @@ export function TournamentHistoryCard({ player }: { player: Player }) {
   );
 }
 
-function MatchRow({
-  row,
-  tournament,
-  isLast,
-}: {
-  row: MatchRow;
-  tournament: Tournament;
-  isLast: boolean;
-}) {
-  const { match, opponent, won, myScore, theirScore } = row;
-  const dateLabel = formatDate(tournament.date);
+/**
+ * One category of a tournament the player entered. The row shows the category
+ * and its W–L; opening it lists every opponent faced in that category's draw
+ * with the result alone — no scores.
+ */
+function CategoryDialog({ category }: { category: CategoryGroup }) {
+  const { tournament, rows, wins, losses } = category;
 
   return (
     <Dialog>
@@ -221,74 +197,66 @@ function MatchRow({
         render={
           <button
             type="button"
-            className={`flex w-full cursor-pointer items-center gap-3 bg-[#0c0e12] p-3 text-left transition-colors hover:bg-white/[0.03] ${
-              isLast ? "" : "border-b border-white/5"
-            }`}
+            className="flex w-full cursor-pointer items-center justify-between gap-3 rounded-[8px] border border-white/10 bg-[#0c0e12] px-4 py-3 text-left transition-colors hover:border-white/20 hover:bg-white/[0.03]"
           />
         }
       >
-        <div
-          className={`flex h-8 w-8 shrink-0 items-center justify-center rounded-full ${
-            won ? "bg-emerald-500/15 text-emerald-400" : "bg-[#ff2448]/15 text-[#ff2448]"
-          }`}
-        >
-          {won ? <ArrowUp className="h-3.5 w-3.5" strokeWidth={2.5} /> : <ArrowDown className="h-3.5 w-3.5" strokeWidth={2.5} />}
-        </div>
-        <span className="min-w-0 flex-1 truncate text-sm font-semibold text-[#e2e2e8]">
-          {opponent?.name ?? "Unknown Player"}
+        <span className="flex min-w-0 items-center gap-2">
+          <span className="truncate text-xs font-bold uppercase tracking-widest text-[#ff8f86]" style={mono}>
+            {tournament.category}
+          </span>
+          <span className="shrink-0 text-[11px] text-[#7d8795]" style={mono}>
+            {rows.length} match{rows.length === 1 ? "" : "es"}
+          </span>
         </span>
-        <span className="shrink-0 tabular-nums text-sm text-[#c2c6d7]" style={mono}>
-          {myScore}-{theirScore}
-        </span>
-        <span
-          className={`shrink-0 rounded-full border px-2 py-0.5 text-[10px] font-bold uppercase tracking-wide ${
-            won
-              ? "border-emerald-500/30 bg-emerald-500/15 text-emerald-400"
-              : "border-[#ff2448]/30 bg-[#ff2448]/15 text-[#ff2448]"
-          }`}
-          style={mono}
-        >
-          {won ? "Win" : "Loss"}
+        <span className="flex shrink-0 items-center gap-2.5">
+          <span className="text-xs font-bold" style={mono}>
+            <span className="text-emerald-400">{wins}W</span>{" "}
+            <span className="text-[#7d8795]">&middot;</span>{" "}
+            <span className="text-[#ff2448]">{losses}L</span>
+          </span>
+          <ChevronRight className="h-4 w-4 text-[#7d8795]" strokeWidth={2} />
         </span>
       </DialogTrigger>
-      <DialogContent className="max-w-[calc(100%-2rem)] gap-6 border border-white/10 bg-[#0c0e12] p-6 text-[#e2e2e8] sm:max-w-2xl" showCloseButton>
+      <DialogContent
+        className="max-w-[calc(100%-2rem)] gap-5 border border-white/10 bg-[#0c0e12] p-6 text-[#e2e2e8] sm:max-w-md"
+        showCloseButton
+      >
         <DialogHeader>
           <DialogTitle className="text-2xl font-bold text-[#e2e2e8]" style={{ fontFamily: "var(--font-home-display)" }}>
-            {opponent?.name ?? "Unknown Player"}
+            {tournament.category}
           </DialogTitle>
           <DialogDescription className="text-base text-[#c2c6d7]">
-            {match.round} &middot; {tournament.name} &middot; {tournament.category}
+            {tournament.name} &middot;{" "}
+            <span className="text-emerald-400">{wins}W</span>{" "}
+            <span className="text-[#7d8795]">&middot;</span>{" "}
+            <span className="text-[#ff2448]">{losses}L</span>
           </DialogDescription>
         </DialogHeader>
-        <div className="grid grid-cols-2 gap-6">
-          <div>
-            <div className="text-sm uppercase tracking-widest text-[#7d8795]" style={mono}>Result</div>
-            <div className={`mt-1.5 text-xl font-bold ${won ? "text-emerald-400" : "text-[#ff2448]"}`}>{won ? "Win" : "Loss"}</div>
-          </div>
-          <div>
-            <div className="text-sm uppercase tracking-widest text-[#7d8795]" style={mono}>Score</div>
-            <div className="mt-1.5 text-xl font-bold text-[#e2e2e8]">{myScore}-{theirScore} sets</div>
-          </div>
-          <div>
-            <div className="text-sm uppercase tracking-widest text-[#7d8795]" style={mono}>Opponent Rating</div>
-            <div className="mt-1.5 text-xl font-bold text-[#e2e2e8]">{opponent?.rating ?? "—"}</div>
-          </div>
-          <div>
-            <div className="text-sm uppercase tracking-widest text-[#7d8795]" style={mono}>Date</div>
-            <div className="mt-1.5 text-xl font-bold text-[#e2e2e8]">{dateLabel || "—"}</div>
-          </div>
-          <div className="col-span-2">
-            <div className="text-sm uppercase tracking-widest text-[#7d8795]" style={mono}>Venue</div>
-            <div className="mt-1.5 text-xl font-bold text-[#e2e2e8]">{tournament.venue}</div>
-          </div>
+        <div className="overflow-hidden rounded-[8px] border border-white/10">
+          {rows.map((row, i) => (
+            <div
+              key={row.match.id}
+              className={`flex items-center gap-3 bg-[#0c0e12] px-4 py-3 ${
+                i === rows.length - 1 ? "" : "border-b border-white/5"
+              }`}
+            >
+              <span className="min-w-0 flex-1 truncate text-sm font-semibold text-[#e2e2e8]">
+                {row.opponent?.name ?? "Unknown Player"}
+              </span>
+              <span
+                className={`shrink-0 rounded-full border px-2.5 py-0.5 text-[10px] font-bold uppercase tracking-wide ${
+                  row.won
+                    ? "border-emerald-500/30 bg-emerald-500/15 text-emerald-400"
+                    : "border-[#ff2448]/30 bg-[#ff2448]/15 text-[#ff2448]"
+                }`}
+                style={mono}
+              >
+                {row.won ? "Win" : "Loss"}
+              </span>
+            </div>
+          ))}
         </div>
-        <Link
-          href={`/tournaments/${tournament.id}`}
-          className="text-center text-sm font-semibold uppercase tracking-widest text-[#ff8f86] hover:text-[#ff2448]"
-          style={mono}
-        >
-          View Tournament
-        </Link>
       </DialogContent>
     </Dialog>
   );

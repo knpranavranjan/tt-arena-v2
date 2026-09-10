@@ -2,6 +2,8 @@
 
 import { createContext, useCallback, useContext, useEffect, useState, type ReactNode } from "react";
 
+import { USE_DB, apiGet, apiSend } from "@/lib/data-backend";
+
 export interface HostingPlan {
   id: string;
   title: string;
@@ -67,6 +69,13 @@ export function HostingPlansProvider({ children }: { children: ReactNode }) {
   const [isLoading, setIsLoading] = useState(true);
 
   useEffect(() => {
+    if (USE_DB) {
+      apiGet<HostingPlan[]>("/api/hosting-plans")
+        .then(setPlans)
+        .catch((e) => console.error("hosting-plans load", e))
+        .finally(() => setIsLoading(false));
+      return;
+    }
     setPlans(readStorage());
     setIsLoading(false);
     // Keep multiple open tabs/portals in sync with each other.
@@ -80,7 +89,13 @@ export function HostingPlansProvider({ children }: { children: ReactNode }) {
   const updatePrice = useCallback((id: string, price: number) => {
     setPlans((current) => {
       const next = current.map((p) => (p.id === id ? { ...p, price } : p));
-      window.localStorage.setItem(STORAGE_KEY, JSON.stringify(next));
+      if (USE_DB) {
+        apiSend("/api/hosting-plans", "PATCH", { id, price }).catch((e) =>
+          console.error("hosting-plans update", e),
+        );
+      } else {
+        window.localStorage.setItem(STORAGE_KEY, JSON.stringify(next));
+      }
       return next;
     });
   }, []);

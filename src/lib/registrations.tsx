@@ -2,7 +2,14 @@
 
 import { createContext, useCallback, useContext, useEffect, useState, type ReactNode } from "react";
 
+import { USE_DB, apiGet, apiSend } from "@/lib/data-backend";
+
 export type RegistrationStatus = "PENDING_PAYMENT" | "REGISTERED";
+
+export interface RegistrationAnswer {
+  question: string;
+  answer: string;
+}
 
 export interface TournamentRegistration {
   id: string;
@@ -11,12 +18,20 @@ export interface TournamentRegistration {
   playerName: string;
   status: RegistrationStatus;
   createdAt: string;
+  /** The player's answers to the host's registration questions. */
+  answers?: RegistrationAnswer[];
 }
 
 interface RegistrationsContextValue {
   registrations: TournamentRegistration[];
   isLoading: boolean;
-  register: (tournamentId: string, playerId: string, playerName: string, entryFee: number) => void;
+  register: (
+    tournamentId: string,
+    playerId: string,
+    playerName: string,
+    entryFee: number,
+    answers?: RegistrationAnswer[],
+  ) => void;
   confirmPayment: (tournamentId: string, playerId: string) => void;
   statusFor: (tournamentId: string, playerId: string) => RegistrationStatus | undefined;
 }
@@ -47,6 +62,13 @@ export function RegistrationsProvider({ children }: { children: ReactNode }) {
   const [isLoading, setIsLoading] = useState(true);
 
   useEffect(() => {
+    if (USE_DB) {
+      apiGet<TournamentRegistration[]>("/api/registrations")
+        .then(setRegistrations)
+        .catch((e) => console.error("registrations load", e))
+        .finally(() => setIsLoading(false));
+      return;
+    }
     setRegistrations(readStorage());
     setIsLoading(false);
     // Keep multiple open tabs/portals in sync with each other.
@@ -57,8 +79,8 @@ export function RegistrationsProvider({ children }: { children: ReactNode }) {
     return () => window.removeEventListener("storage", onStorage);
   }, []);
 
-  const register = useCallback(
-    (tournamentId: string, playerId: string, playerName: string, entryFee: number) => {
+  const register = useCallback<RegistrationsContextValue["register"]>(
+    (tournamentId, playerId, playerName, entryFee, answers) => {
       setRegistrations((current) => {
         if (current.some((r) => r.tournamentId === tournamentId && r.playerId === playerId)) {
           return current;
@@ -72,9 +94,28 @@ export function RegistrationsProvider({ children }: { children: ReactNode }) {
             playerName,
             status: entryFee > 0 ? "PENDING_PAYMENT" : "REGISTERED",
             createdAt: new Date().toISOString(),
+            ...(answers && answers.length > 0 ? { answers } : {}),
           },
         ];
-        window.localStorage.setItem(STORAGE_KEY, JSON.stringify(next));
+        if (USE_DB) {
+          apiSend<TournamentRegistration>("/api/registrations", "POST", {
+            tournamentId,
+            playerId,
+            playerName,
+            entryFee,
+            answers,
+          })
+            .then((row) =>
+              setRegistrations((cur) =>
+                cur.map((r) =>
+                  r.tournamentId === tournamentId && r.playerId === playerId ? row : r,
+                ),
+              ),
+            )
+            .catch((e) => console.error("registrations register", e));
+        } else {
+          window.localStorage.setItem(STORAGE_KEY, JSON.stringify(next));
+        }
         return next;
       });
     },
@@ -90,7 +131,15 @@ export function RegistrationsProvider({ children }: { children: ReactNode }) {
       const next = current.map((r) =>
         r.tournamentId === tournamentId && r.playerId === playerId ? { ...r, status: "REGISTERED" as const } : r,
       );
-      window.localStorage.setItem(STORAGE_KEY, JSON.stringify(next));
+      if (USE_DB) {
+        apiSend("/api/registrations", "PATCH", {
+          op: "confirmPayment",
+          tournamentId,
+          playerId,
+        }).catch((e) => console.error("registrations confirmPayment", e));
+      } else {
+        window.localStorage.setItem(STORAGE_KEY, JSON.stringify(next));
+      }
       return next;
     });
   }, []);

@@ -2,6 +2,8 @@
 
 import { createContext, useCallback, useContext, useEffect, useState, type ReactNode } from "react";
 
+import { USE_DB, apiGet, apiSend } from "@/lib/data-backend";
+
 export type JoinRequestStatus = "PENDING" | "ACCEPTED" | "DECLINED";
 
 export interface JoinRequest {
@@ -47,7 +49,20 @@ export function JoinRequestsProvider({ children }: { children: ReactNode }) {
   const [requests, setRequests] = useState<JoinRequest[]>([]);
   const [isLoading, setIsLoading] = useState(true);
 
+  const refetch = useCallback(() => {
+    apiGet<JoinRequest[]>("/api/join-requests")
+      .then(setRequests)
+      .catch((e) => console.error("join-requests load", e));
+  }, []);
+
   useEffect(() => {
+    if (USE_DB) {
+      apiGet<JoinRequest[]>("/api/join-requests")
+        .then(setRequests)
+        .catch((e) => console.error("join-requests load", e))
+        .finally(() => setIsLoading(false));
+      return;
+    }
     setRequests(readStorage());
     setIsLoading(false);
     // Keep multiple open tabs/portals (e.g. a player tab and a club tab) in sync.
@@ -56,12 +71,15 @@ export function JoinRequestsProvider({ children }: { children: ReactNode }) {
     };
     window.addEventListener("storage", onStorage);
     return () => window.removeEventListener("storage", onStorage);
-  }, []);
+  }, [refetch]);
 
-  const persist = useCallback((next: JoinRequest[]) => {
-    setRequests(next);
-    window.localStorage.setItem(STORAGE_KEY, JSON.stringify(next));
-  }, []);
+  const persist = useCallback(
+    (next: JoinRequest[]) => {
+      setRequests(next);
+      if (!USE_DB) window.localStorage.setItem(STORAGE_KEY, JSON.stringify(next));
+    },
+    [],
+  );
 
   const sendRequest = useCallback(
     (clubId: string, playerId: string, playerName: string) => {
@@ -80,11 +98,17 @@ export function JoinRequestsProvider({ children }: { children: ReactNode }) {
             createdAt: new Date().toISOString(),
           },
         ];
-        window.localStorage.setItem(STORAGE_KEY, JSON.stringify(next));
+        if (USE_DB) {
+          apiSend("/api/join-requests", "POST", { clubId, playerId, playerName })
+            .then(refetch)
+            .catch((e) => console.error("join-requests send", e));
+        } else {
+          window.localStorage.setItem(STORAGE_KEY, JSON.stringify(next));
+        }
         return next;
       });
     },
-    [],
+    [refetch],
   );
 
   const hasPendingRequest = useCallback(
@@ -101,6 +125,11 @@ export function JoinRequestsProvider({ children }: { children: ReactNode }) {
   const updateStatus = useCallback(
     (requestId: string, status: JoinRequestStatus) => {
       persist(requests.map((r) => (r.id === requestId ? { ...r, status } : r)));
+      if (USE_DB) {
+        apiSend("/api/join-requests", "PATCH", { id: requestId, status }).catch((e) =>
+          console.error("join-requests update", e),
+        );
+      }
     },
     [requests, persist],
   );

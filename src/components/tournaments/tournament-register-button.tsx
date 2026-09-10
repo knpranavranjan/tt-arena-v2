@@ -2,12 +2,17 @@
 
 import { useMemo, useState, type ReactNode } from "react";
 import Link from "next/link";
-import { ArrowRight, Check, Clock, CreditCard, Lock } from "lucide-react";
+import { ArrowLeft, ArrowRight, Check, Clock, CreditCard, Lock } from "lucide-react";
 import { toast } from "sonner";
 import { useAuth } from "@/lib/auth";
 import { useCurrentPlayer } from "@/lib/session-data";
-import { useRegistrations, type RegistrationStatus } from "@/lib/registrations";
+import {
+  useRegistrations,
+  type RegistrationAnswer,
+  type RegistrationStatus,
+} from "@/lib/registrations";
 import { formatCurrency, formatDate } from "@/lib/format";
+import { cn } from "@/lib/utils";
 import { Checkbox } from "@/components/ui/checkbox";
 import {
   Dialog,
@@ -17,7 +22,7 @@ import {
   DialogTitle,
   DialogTrigger,
 } from "@/components/ui/dialog";
-import type { Tournament } from "@/lib/types";
+import type { RegistrationQuestion, Tournament } from "@/lib/types";
 
 const baseButtonClass =
   "flex w-full items-center justify-center gap-2 rounded-[2px] py-3.5 text-sm font-semibold uppercase tracking-wide";
@@ -166,6 +171,12 @@ function CheckoutDialog({
 }) {
   const { register, confirmPayment, statusFor } = useRegistrations();
 
+  const questions = tournament.registrationQuestions ?? [];
+
+  const [step, setStep] = useState<"questions" | "checkout">(
+    questions.length > 0 ? "questions" : "checkout",
+  );
+  const [answers, setAnswers] = useState<Record<number, string>>({});
   const [selected, setSelected] = useState<Set<string>>(() => {
     const initial = new Set<string>([tournament.id]);
     for (const c of categories) {
@@ -174,6 +185,21 @@ function CheckoutDialog({
     return initial;
   });
   const [paying, setPaying] = useState(false);
+
+  const allAnswered = questions.every((_, i) => (answers[i] ?? "").trim().length > 0);
+  const answerList: RegistrationAnswer[] = questions.map((q, i) => ({
+    question: q.question,
+    answer: answers[i] ?? "",
+  }));
+
+  // Fresh dialog each time it opens.
+  const handleOpenChange = (v: boolean) => {
+    if (v) {
+      setStep(questions.length > 0 ? "questions" : "checkout");
+      setAnswers({});
+    }
+    onOpenChange(v);
+  };
 
   const rows = useMemo(
     () =>
@@ -213,7 +239,7 @@ function CheckoutDialog({
       for (const id of payableSelected) {
         const c = categories.find((x) => x.id === id)!;
         if (!statusFor(id, player.id)) {
-          register(id, player.id, player.name, c.entryFee);
+          register(id, player.id, player.name, c.entryFee, answerList);
         }
         confirmPayment(id, player.id);
       }
@@ -228,11 +254,52 @@ function CheckoutDialog({
   };
 
   return (
-    <Dialog open={open} onOpenChange={onOpenChange}>
+    <Dialog open={open} onOpenChange={handleOpenChange}>
       <DialogTrigger className={triggerClassName} style={mono}>
         {children}
       </DialogTrigger>
-      <DialogContent className="max-w-[calc(100%-2rem)] gap-6 border border-white/10 bg-[#0c0e12] p-6 text-[#e2e2e8] sm:max-w-md" showCloseButton>
+      <DialogContent className="max-h-[85vh] max-w-[calc(100%-2rem)] gap-6 overflow-y-auto border border-white/10 bg-[#0c0e12] p-6 text-[#e2e2e8] sm:max-w-md" showCloseButton>
+        {step === "questions" ? (
+          <>
+            <DialogHeader>
+              <DialogTitle className="text-xl font-bold text-[#e2e2e8]" style={{ fontFamily: "var(--font-home-display)" }}>
+                Registration Questions
+              </DialogTitle>
+              <DialogDescription className="text-sm text-[#8b8b93]">
+                The host asks every entrant to answer these before checkout.
+              </DialogDescription>
+            </DialogHeader>
+
+            <div className="flex flex-col gap-5">
+              {questions.map((q, i) => (
+                <QuestionField
+                  key={i}
+                  index={i}
+                  question={q}
+                  value={answers[i] ?? ""}
+                  onChange={(v) => setAnswers((a) => ({ ...a, [i]: v }))}
+                />
+              ))}
+            </div>
+
+            <button
+              type="button"
+              disabled={!allAnswered}
+              onClick={() => setStep("checkout")}
+              className={`${baseButtonClass} bg-[#ff2448] text-white transition-all hover:scale-[1.02] active:scale-95 disabled:cursor-not-allowed disabled:opacity-50 disabled:hover:scale-100`}
+              style={mono}
+            >
+              Continue to Categories
+              <ArrowRight className="h-4 w-4" strokeWidth={2} />
+            </button>
+            {!allAnswered && (
+              <p className="-mt-3 text-center text-[11px] text-[#8b8b93]">
+                Answer every question to continue.
+              </p>
+            )}
+          </>
+        ) : (
+        <>
         <DialogHeader>
           <DialogTitle className="text-xl font-bold text-[#e2e2e8]" style={{ fontFamily: "var(--font-home-display)" }}>
             Choose Categories
@@ -241,6 +308,18 @@ function CheckoutDialog({
             Pick every category you want to enter — one payment covers all of them.
           </DialogDescription>
         </DialogHeader>
+
+        {questions.length > 0 && (
+          <button
+            type="button"
+            onClick={() => setStep("questions")}
+            className="-mt-3 flex items-center gap-1.5 self-start text-[11px] font-semibold uppercase tracking-wide text-[#8b8b93] transition-colors hover:text-[#e2e2e8]"
+            style={mono}
+          >
+            <ArrowLeft className="h-3.5 w-3.5" strokeWidth={2} />
+            Back to questions
+          </button>
+        )}
 
         <div className="flex flex-col gap-2">
           {rows.map(({ category: c, status }) => {
@@ -300,7 +379,94 @@ function CheckoutDialog({
           <Clock className="h-3 w-3" strokeWidth={2} />
           Demo checkout — no real payment is processed.
         </p>
+        </>
+        )}
       </DialogContent>
     </Dialog>
+  );
+}
+
+function QuestionField({
+  index,
+  question,
+  value,
+  onChange,
+}: {
+  index: number;
+  question: RegistrationQuestion;
+  value: string;
+  onChange: (value: string) => void;
+}) {
+  const inputClass =
+    "w-full rounded-[6px] border border-white/10 bg-[#0a0a0a] px-3 py-2 text-sm text-white outline-none transition-colors placeholder:text-[#5a5a60] focus:border-[#ff2448]";
+  const options = (question.options ?? []).map((o) => o.trim()).filter(Boolean);
+  const isMcqNoOptions = question.responseType === "Multiple Choice" && options.length === 0;
+
+  return (
+    <div className="space-y-2">
+      <p className="text-sm font-medium text-[#e2e2e8]">
+        {index + 1}. {question.question.trim() || "Question"}
+        <span className="text-[#ff2448]"> *</span>
+      </p>
+
+      {(question.responseType === "Short Answer" || isMcqNoOptions) && (
+        <input
+          value={value}
+          onChange={(e) => onChange(e.target.value)}
+          placeholder="Your answer"
+          className={inputClass}
+        />
+      )}
+
+      {question.responseType === "Yes / No" && (
+        <div className="flex gap-2">
+          {["Yes", "No"].map((opt) => (
+            <button
+              key={opt}
+              type="button"
+              onClick={() => onChange(opt)}
+              className={cn(
+                "flex-1 rounded-[6px] border px-3 py-2 text-sm font-semibold uppercase tracking-wide transition-colors",
+                value === opt
+                  ? "border-[#ff2448] bg-[#ff2448]/15 text-[#ff8f86]"
+                  : "border-white/10 bg-white/[0.03] text-[#c2c6d7] hover:bg-white/[0.05]",
+              )}
+              style={mono}
+            >
+              {opt}
+            </button>
+          ))}
+        </div>
+      )}
+
+      {question.responseType === "Multiple Choice" && options.length > 0 && (
+        <div className="flex flex-col gap-1.5">
+          {options.map((opt) => {
+            const on = value === opt;
+            return (
+              <button
+                key={opt}
+                type="button"
+                onClick={() => onChange(opt)}
+                className={cn(
+                  "flex items-center gap-2.5 rounded-[6px] border px-3 py-2 text-left text-sm transition-colors",
+                  on
+                    ? "border-[#ff2448] bg-[#ff2448]/12 text-[#e8e8ee]"
+                    : "border-white/10 bg-white/[0.03] text-[#c2c6d7] hover:bg-white/[0.05]",
+                )}
+              >
+                <span
+                  className={cn(
+                    "h-3.5 w-3.5 shrink-0 rounded-full border",
+                    on ? "border-[#ff2448] bg-[#ff2448]" : "border-white/30",
+                  )}
+                />
+                {opt}
+              </button>
+            );
+          })}
+        </div>
+      )}
+    </div>
   );
 }

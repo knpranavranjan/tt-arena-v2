@@ -21,6 +21,7 @@ export default function StandingsTable({
   seedOf,
   advancePerPool = 1,
   tieRule,
+  tieOrder,
   fillIds,
   doubles = false,
   onReorder,
@@ -31,7 +32,10 @@ export default function StandingsTable({
   playerById: Map<string, Player>
   seedOf: (id: string) => number | string
   advancePerPool?: number
+  /** Primary tie-break — used when `tieOrder` isn't supplied. */
   tieRule: TieBreakRule
+  /** Full host-set priority order; when present it's shown in the footnote. */
+  tieOrder?: readonly TieBreakRule[]
   fillIds?: Set<string>
   doubles?: boolean
   onReorder?: (playerIds: string[]) => void
@@ -174,8 +178,11 @@ export default function StandingsTable({
 
       {hasTie ? (
         <p className="px-3 pb-3 pt-2.5 text-xs text-ink-faint">
-          Players level on group points were separated by <strong className="font-semibold">{ruleLabel(tieRule)}</strong>,
-          then by games difference, point difference, points scored and seed.
+          Players level on group points were separated by{' '}
+          <strong className="font-semibold">
+            {(tieOrder && tieOrder.length ? [...tieOrder] : [tieRule]).map(ruleLabel).join(' → ')}
+          </strong>
+          , then by games difference, point difference, points scored and seed.
         </p>
       ) : null}
     </>

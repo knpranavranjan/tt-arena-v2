@@ -1,3 +1,5 @@
+import type { TieBreakCriterionId } from "@/lib/tie-break";
+
 export type Role = "PLAYER" | "CLUB" | "HOST" | "ADMIN";
 
 export type Category = "Under 13" | "Under 17" | "Under 21" | "Senior" | "Veteran (40+)";
@@ -109,6 +111,10 @@ export interface Tournament {
   /** Custom questions the host asks each player at registration. */
   registrationQuestions?: RegistrationQuestion[];
   poolSize?: number;
+  /** Host-set priority order the group-stage tie-break algorithm walks in the
+   *  live match console. Ids from `TIE_BREAK_CRITERIA`; when absent the engine
+   *  falls back to `DEFAULT_TIE_BREAK_ORDER`. */
+  tieBreakOrder?: TieBreakCriterionId[];
   champion?: string;
   runnerUp?: string;
   semiFinalists?: string[];

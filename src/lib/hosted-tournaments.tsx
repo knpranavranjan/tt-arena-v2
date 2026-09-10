@@ -11,6 +11,8 @@ import {
 } from "react";
 
 import { events as seedEvents, tournaments as seedTournaments } from "@/lib/mock-data";
+import { applyEventEdit, applyTournamentEdit, useTournamentEdits } from "@/lib/tournament-edits";
+import { USE_DB, apiGet, apiSend } from "@/lib/data-backend";
 import type { Tournament, TTEvent } from "@/lib/types";
 
 // Tournaments created through the public "Host a Tournament" form. `mock-data`
@@ -52,6 +54,15 @@ export function HostedTournamentsProvider({ children }: { children: ReactNode })
   const [isLoading, setIsLoading] = useState(true);
 
   useEffect(() => {
+    if (USE_DB) {
+      apiGet<HostedData>("/api/hosted-tournaments")
+        .then((d) =>
+          setHosted({ events: d.events ?? [], tournaments: d.tournaments ?? [] }),
+        )
+        .catch((e) => console.error("hosted-tournaments load", e))
+        .finally(() => setIsLoading(false));
+      return;
+    }
     setHosted(readStorage());
     setIsLoading(false);
     const onStorage = (e: StorageEvent) => {
@@ -67,7 +78,13 @@ export function HostedTournamentsProvider({ children }: { children: ReactNode })
         events: [...current.events, event],
         tournaments: [...current.tournaments, ...categories],
       };
-      window.localStorage.setItem(STORAGE_KEY, JSON.stringify(next));
+      if (USE_DB) {
+        apiSend<HostedData>("/api/hosted-tournaments", "POST", { event, categories })
+          .then((d) => setHosted({ events: d.events ?? [], tournaments: d.tournaments ?? [] }))
+          .catch((e) => console.error("hosted-tournaments add", e));
+      } else {
+        window.localStorage.setItem(STORAGE_KEY, JSON.stringify(next));
+      }
       return next;
     });
   }, []);
@@ -88,14 +105,27 @@ export function useHostedTournaments() {
   return ctx;
 }
 
-/** Seed tournaments plus everything created through the host form. */
+/** Seed tournaments plus everything created through the host form, with any
+ *  post go-live host edits merged in. */
 export function useAllTournaments(): Tournament[] {
   const { hosted } = useHostedTournaments();
-  return useMemo(() => [...seedTournaments, ...hosted.tournaments], [hosted.tournaments]);
+  const { edits } = useTournamentEdits();
+  return useMemo(
+    () =>
+      [...seedTournaments, ...hosted.tournaments].map((t) =>
+        applyTournamentEdit(t, edits.tournaments[t.id]),
+      ),
+    [hosted.tournaments, edits.tournaments],
+  );
 }
 
-/** Seed events plus everything created through the host form. */
+/** Seed events plus everything created through the host form, with host edits
+ *  merged in. */
 export function useAllEvents(): TTEvent[] {
   const { hosted } = useHostedTournaments();
-  return useMemo(() => [...seedEvents, ...hosted.events], [hosted.events]);
+  const { edits } = useTournamentEdits();
+  return useMemo(
+    () => [...seedEvents, ...hosted.events].map((e) => applyEventEdit(e, edits.events[e.id])),
+    [hosted.events, edits.events],
+  );
 }

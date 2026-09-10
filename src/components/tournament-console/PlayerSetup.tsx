@@ -92,7 +92,7 @@ export default function PlayerSetup() {
 
           {players.length === 0 ? (
             <Empty title="No players yet">
-              Use &ldquo;Add by ID&rdquo; to find a signed-in player by their unique ID, or &ldquo;Sync from
+              Use &ldquo;Add by ID&rdquo; to find a player by their SPINID, or &ldquo;Sync from
               registrations&rdquo; to pull in everyone who signed up.
             </Empty>
           ) : (
@@ -331,8 +331,8 @@ export default function PlayerSetup() {
               Add a player
             </DialogTitle>
             <DialogDescription className="text-xs leading-relaxed text-[#8b8b93]">
-              Only people with an account can be entered — search by unique ID or name. This keeps
-              post-tournament ratings attributable.
+              Enter a player by their <span className="text-[#c2c6d7]">SPINID</span> — the code shown on
+              their profile and on the Players page. This keeps post-tournament ratings attributable.
             </DialogDescription>
           </DialogHeader>
 
@@ -341,8 +341,8 @@ export default function PlayerSetup() {
             <input
               autoFocus
               value={query}
-              onChange={(e) => setQuery(e.target.value)}
-              placeholder="e.g. arjun_s07"
+              onChange={(e) => setQuery(e.target.value.toUpperCase())}
+              placeholder="Enter a SPINID — e.g. SRP07"
               className="w-full rounded-[6px] border border-white/10 bg-[#161719] py-2.5 pl-9 pr-3 text-sm text-[#e2e2e8] placeholder:text-[#5a5a62] focus:border-[#ff2448] focus:outline-none"
             />
           </div>
@@ -351,8 +351,8 @@ export default function PlayerSetup() {
             {results.length === 0 ? (
               <p className="px-4 py-6 text-center text-xs text-[#8b8b93]">
                 {query.trim()
-                  ? `No account matches “${query.trim()}”. They must sign up before they can be entered.`
-                  : 'Start typing a unique ID or name.'}
+                  ? `No player has the SPINID “${query.trim()}”. Check the SPINID and try again.`
+                  : "Type the player's SPINID to add them."}
               </p>
             ) : (
               <ul className="divide-y divide-white/[0.06]">

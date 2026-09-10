@@ -12,6 +12,7 @@ import {
   Users,
 } from "lucide-react";
 import { useCurrentPlayer } from "@/lib/session-data";
+import { SrIdBadge } from "@/components/layout/sr-id-badge";
 import { usePlayerRatings } from "@/lib/player-ratings";
 import { useRegistrations } from "@/lib/registrations";
 import { useJoinRequests } from "@/lib/join-requests";
@@ -140,6 +141,7 @@ export default function PlayerDashboardPage() {
                 <MapPin className="h-[18px] w-[18px]" strokeWidth={1.5} />
                 {player.state}
               </span>
+              <SrIdBadge />
             </div>
             {rank > 0 && (
               <div

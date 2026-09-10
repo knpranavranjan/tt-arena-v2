@@ -217,7 +217,13 @@ export interface Tournament {
   format: TournamentFormat
   description: string
   poolSizePreference: PoolSizePreference
+  /** Primary tie-break — kept for the single-select on older callers. When
+   *  `tieBreakOrder` is set, it mirrors that list's first entry. */
   tieBreakRule: TieBreakRule
+  /** Priority order the standings engine walks to separate a level group. Set
+   *  by the host on the "Host a Tournament" form. Falls back to
+   *  `[tieBreakRule]` when absent. */
+  tieBreakOrder?: TieBreakRule[]
   qualificationRule: QualificationRule
   bestOf: number
   tables: number

@@ -7,6 +7,7 @@ import { AuthProvider } from "@/lib/auth";
 import { JoinRequestsProvider } from "@/lib/join-requests";
 import { RegistrationsProvider } from "@/lib/registrations";
 import { TournamentStatusProvider } from "@/lib/tournament-status";
+import { TournamentEditsProvider } from "@/lib/tournament-edits";
 import { HostedTournamentsProvider } from "@/lib/hosted-tournaments";
 import { TournamentAssistantsProvider } from "@/lib/tournament-assistants";
 import { PlayerRatingsProvider } from "@/lib/player-ratings";
@@ -48,22 +49,24 @@ export default function RootLayout({ children }: LayoutProps<"/">) {
             <JoinRequestsProvider>
               <RegistrationsProvider>
                 <TournamentStatusProvider>
-                  <HostedTournamentsProvider>
-                    <TournamentAssistantsProvider>
-                      <PlayerRatingsProvider>
-                        <HostingPlansProvider>
-                          <MembershipProvider>
-                            <NotificationsProvider>
-                              <TooltipProvider delay={200}>
-                                {children}
-                                <Toaster />
-                              </TooltipProvider>
-                            </NotificationsProvider>
-                          </MembershipProvider>
-                        </HostingPlansProvider>
-                      </PlayerRatingsProvider>
-                    </TournamentAssistantsProvider>
-                  </HostedTournamentsProvider>
+                  <TournamentEditsProvider>
+                    <HostedTournamentsProvider>
+                      <TournamentAssistantsProvider>
+                        <PlayerRatingsProvider>
+                          <HostingPlansProvider>
+                            <MembershipProvider>
+                              <NotificationsProvider>
+                                <TooltipProvider delay={200}>
+                                  {children}
+                                  <Toaster />
+                                </TooltipProvider>
+                              </NotificationsProvider>
+                            </MembershipProvider>
+                          </HostingPlansProvider>
+                        </PlayerRatingsProvider>
+                      </TournamentAssistantsProvider>
+                    </HostedTournamentsProvider>
+                  </TournamentEditsProvider>
                 </TournamentStatusProvider>
               </RegistrationsProvider>
             </JoinRequestsProvider>

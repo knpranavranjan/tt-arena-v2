@@ -14,6 +14,7 @@ import {
 } from "lucide-react";
 import { toast } from "sonner";
 import { arenaFontVariables } from "@/lib/fonts";
+import { SrIdBadge } from "@/components/layout/sr-id-badge";
 import { appUsers, clubs, players, tournamentCode } from "@/lib/mock-data";
 import { useAllEvents, useAllTournaments } from "@/lib/hosted-tournaments";
 import { buildEventGroups, mostActiveStatus } from "@/lib/event-groups";
@@ -103,6 +104,7 @@ export default function AdminDashboardPage() {
         <p className="mt-1 text-sm text-[#8b8b93]">
           Platform-wide oversight across every player, club, and tournament.
         </p>
+        <SrIdBadge className="mt-3" />
       </div>
 
       <div className="mb-4 grid grid-cols-2 gap-4 lg:grid-cols-4">

@@ -220,6 +220,7 @@ export default function GroupMatchBoard() {
               doubles={isDoubles}
               advancePerPool={qualification?.advancePerPool ?? tournament.advancePerPool ?? 1}
               tieRule={tournament.tieBreakRule}
+              tieOrder={tournament.tieBreakOrder ?? [tournament.tieBreakRule]}
               fillIds={fillIds}
               onReorder={(ids) => actions.reorderStanding(activePool.id, ids)}
               manuallyOrdered={Boolean(manualStandingsOrder?.[activePool.id])}

@@ -10,6 +10,8 @@ import {
   type ReactNode,
 } from "react";
 
+import { USE_DB, apiGet, apiSend } from "@/lib/data-backend";
+
 // Delegated match-console access. A tournament's host can hand any platform
 // account (player / club / host login — the host's call) full run-of-the-house
 // access to that one tournament's Matches workspace, and revoke it later. The
@@ -70,7 +72,22 @@ export function TournamentAssistantsProvider({ children }: { children: ReactNode
   const [map, setMap] = useState<AssistantMap>({});
   const [isLoading, setIsLoading] = useState(true);
 
+  const refetch = useCallback(() => {
+    apiGet<AssistantMap>("/api/tournament-assistants")
+      .then(setMap)
+      .catch((e) => console.error("assistants load", e));
+  }, []);
+
   useEffect(() => {
+    if (USE_DB) {
+      apiGet<AssistantMap>("/api/tournament-assistants")
+        .then(setMap)
+        .catch((e) => console.error("assistants load", e))
+        .finally(() => setIsLoading(false));
+      const onFocus = () => refetch();
+      window.addEventListener("focus", onFocus);
+      return () => window.removeEventListener("focus", onFocus);
+    }
     // Hydrate on mount and stay in sync with other tabs / other logins on this
     // machine — the same localStorage-store shape used across this codebase
     // (mount read, then a `storage` listener). No server to subscribe to.
@@ -87,10 +104,11 @@ export function TournamentAssistantsProvider({ children }: { children: ReactNode
       window.removeEventListener("storage", onStorage);
       window.removeEventListener("focus", refresh);
     };
-  }, []);
+  }, [refetch]);
 
   const persist = useCallback((next: AssistantMap) => {
     setMap(next);
+    if (USE_DB) return;
     try {
       window.localStorage.setItem(STORAGE_KEY, JSON.stringify(next));
     } catch {
@@ -100,8 +118,7 @@ export function TournamentAssistantsProvider({ children }: { children: ReactNode
 
   const grant = useCallback<TournamentAssistantsContextValue["grant"]>(
     (tournamentId, person) => {
-      // Re-read so a grant from another tab isn't clobbered.
-      const current = readStore();
+      const current = USE_DB ? map : readStore();
       const list = current[tournamentId] ?? [];
       if (list.some((g) => norm(g.uniqueId) === norm(person.uniqueId))) return;
       persist({
@@ -117,21 +134,31 @@ export function TournamentAssistantsProvider({ children }: { children: ReactNode
           },
         ],
       });
+      if (USE_DB) {
+        apiSend<AssistantMap>("/api/tournament-assistants", "POST", { tournamentId, person })
+          .then(setMap)
+          .catch((e) => console.error("assistants grant", e));
+      }
     },
-    [persist],
+    [persist, map],
   );
 
   const revoke = useCallback<TournamentAssistantsContextValue["revoke"]>(
     (tournamentId, uniqueId) => {
-      const current = readStore();
+      const current = USE_DB ? map : readStore();
       const list = current[tournamentId] ?? [];
       const next = list.filter((g) => norm(g.uniqueId) !== norm(uniqueId));
       const copy = { ...current };
       if (next.length) copy[tournamentId] = next;
       else delete copy[tournamentId];
       persist(copy);
+      if (USE_DB) {
+        apiSend<AssistantMap>("/api/tournament-assistants", "DELETE", { tournamentId, uniqueId })
+          .then(setMap)
+          .catch((e) => console.error("assistants revoke", e));
+      }
     },
-    [persist],
+    [persist, map],
   );
 
   const assistantsFor = useCallback(

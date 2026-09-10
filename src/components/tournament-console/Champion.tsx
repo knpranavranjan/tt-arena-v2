@@ -10,7 +10,7 @@ import { cn } from '@/lib/utils'
 import {
   allBracketMatches, fourthPlaceId, knockoutGameRules, runnerUpId, thirdPlaceId,
 } from '@/lib/tournament/knockout'
-import { TIE_BREAK_RULES } from '@/lib/tournament/standings'
+import { describeTieBreakOrder } from '@/lib/tournament/standings'
 import { useActiveTournament } from '@/lib/matches-store'
 import { buildRatingMatchInputs, usePlayerRatings, type RatingChangeEntry } from '@/lib/player-ratings'
 
@@ -56,7 +56,7 @@ export default function Champion() {
   const koRulesDiffer =
     koEarly.bestOf !== koLate.bestOf || koEarly.pointsToWin !== koLate.pointsToWin
   const gp = tournament.groupPoints ?? { win: 2, draw: 1, loss: 1 }
-  const tieBreak = TIE_BREAK_RULES.find((t) => t.value === tournament.tieBreakRule)?.label ?? '—'
+  const tieBreak = describeTieBreakOrder(tournament.tieBreakOrder ?? tournament.tieBreakRule)
 
   if (!champion || !result) {
     return (

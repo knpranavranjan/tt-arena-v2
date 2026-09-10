@@ -13,6 +13,7 @@ import { useHostedTournaments } from "@/lib/hosted-tournaments";
 import { formatCurrency } from "@/lib/format";
 import { PosterUpload } from "@/components/tournaments/poster-upload";
 import { TieBreakRules } from "@/components/tournaments/tie-break-rules";
+import { DEFAULT_TIE_BREAK_ORDER, type TieBreakCriterionId } from "@/lib/tie-break";
 import type { RegistrationQuestion, TTEvent, Tournament, TournamentFormat } from "@/lib/types";
 
 const mono = { fontFamily: "var(--font-home-mono)" };
@@ -87,6 +88,7 @@ export default function HostTournamentPage() {
   const [matchFormat, setMatchFormat] = useState(matchFormatOptions[1]);
   const [ballType, setBallType] = useState("");
   const [umpireStatus, setUmpireStatus] = useState(umpireOptions[0]);
+  const [tieBreakOrder, setTieBreakOrder] = useState<TieBreakCriterionId[]>(DEFAULT_TIE_BREAK_ORDER);
   const [totalPrizePool, setTotalPrizePool] = useState("");
   const [questions, setQuestions] = useState<QuestionRow[]>([
     { id: makeId("q"), question: "", responseType: "Multiple Choice", options: [""] },
@@ -194,6 +196,7 @@ export default function HostTournamentPage() {
         totalPrizePool: combinedPrizePool,
         posterUrl: poster || undefined,
         registrationQuestions: registrationQuestions.length ? registrationQuestions : undefined,
+        tieBreakOrder,
       };
     });
 
@@ -428,9 +431,10 @@ export default function HostTournamentPage() {
               Tie-break Rules
             </h2>
             <p className="mb-4 text-xs text-[#8b8b93]">
-              Applies to every SpinTTRatings tournament and is shown to players on the event page.
+              Set the order the live match console applies when players finish level on group points. Shown to
+              players on the event page.
             </p>
-            <TieBreakRules />
+            <TieBreakRules editable order={tieBreakOrder} onChange={setTieBreakOrder} />
           </div>
 
           <div className="grid gap-6 sm:grid-cols-2">

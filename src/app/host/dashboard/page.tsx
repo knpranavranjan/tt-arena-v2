@@ -3,6 +3,7 @@
 import Link from "next/link";
 import { CheckCircle2, Plus, Trophy, Users, Zap, type LucideIcon } from "lucide-react";
 import { arenaFontVariables } from "@/lib/fonts";
+import { SrIdBadge } from "@/components/layout/sr-id-badge";
 import { tournaments } from "@/lib/mock-data";
 import { formatDate } from "@/lib/format";
 import type { Tournament, TournamentStatus } from "@/lib/types";
@@ -79,6 +80,7 @@ export default function HostDashboardPage() {
             Host Dashboard
           </h1>
           <p className="mt-1 text-sm text-[#8b8b93]">Manage every tournament running on the platform.</p>
+          <SrIdBadge className="mt-3" />
         </div>
         <div className="flex shrink-0 gap-2">
           <Link

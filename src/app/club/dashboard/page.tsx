@@ -5,6 +5,7 @@ import Link from "next/link";
 import { Check, ShieldCheck, Trophy, X } from "lucide-react";
 import { arenaFontVariables } from "@/lib/fonts";
 import { useCurrentClub } from "@/lib/session-data";
+import { SrIdBadge } from "@/components/layout/sr-id-badge";
 import { useJoinRequests } from "@/lib/join-requests";
 import { usePlayerRatings } from "@/lib/player-ratings";
 import { LiveRating } from "@/components/players/live-rating";
@@ -96,6 +97,7 @@ export default function ClubDashboardPage() {
           >
             {club.name}
           </h1>
+          <SrIdBadge className="mb-3" />
           <p className="flex items-center gap-2 text-sm text-[#c2c6d7]">
             <span className="h-1.5 w-1.5 shrink-0 rounded-full bg-[#ff2448]" />
             {club.location}, {club.state} &middot; est. {club.founded}

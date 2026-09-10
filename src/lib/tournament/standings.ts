@@ -32,6 +32,19 @@ export function ruleLabel(value: TieBreakRule): string {
   return TIE_BREAK_RULES.find((r) => r.value === value)?.label ?? value
 }
 
+/** One rule or a host-set priority list — always resolved to a non-empty list. */
+export type TieBreakSpec = TieBreakRule | readonly TieBreakRule[]
+
+function resolveRules(spec: TieBreakSpec): TieBreakRule[] {
+  const list = (Array.isArray(spec) ? spec : [spec]).filter(Boolean) as TieBreakRule[]
+  return list.length ? list : ['matches_won']
+}
+
+/** Human-readable "Point difference → Head-to-head → …" for a resolved list. */
+export function describeTieBreakOrder(spec: TieBreakSpec): string {
+  return resolveRules(spec).map(ruleLabel).join(' → ')
+}
+
 function emptyRow(playerId: string): StandingsRow {
   return {
     playerId,
@@ -154,14 +167,36 @@ function ruleComparator(
   }
 }
 
+/**
+ * Combine the host's priority list into one comparator: try each rule in turn,
+ * stop at the first that separates the pair.
+ */
+function orderedComparator(
+  rules: readonly TieBreakRule[],
+  group: readonly StandingsRow[],
+  matches: readonly AnyMatch[],
+  lotterySeed: number,
+): Comparator {
+  const cmps = rules.map((r) => ruleComparator(r, group, matches, lotterySeed))
+  return (a, b) => {
+    for (const cmp of cmps) {
+      const d = cmp(a, b)
+      if (d) return d
+    }
+    return 0
+  }
+}
+
 /** Rank a pool. Rows come back sorted, each carrying `rank` and tie metadata. */
 export function rankRows(
   rows: readonly StandingsRow[],
   matches: readonly AnyMatch[],
-  rule: TieBreakRule,
+  rule: TieBreakSpec,
   seedOf: (id: string) => number,
   lotterySeed = 0,
 ): RankedRow[] {
+  const rules = resolveRules(rule)
+  const primary = rules[0]
   const chain = fallbackChain(seedOf)
   const sorted = [...rows].sort((a, b) => b.matchPoints - a.matchPoints || chain(a, b))
 
@@ -179,7 +214,7 @@ export function rankRows(
   for (const group of groups) {
     if (group.length > 1) {
       tieGroupId += 1
-      const cmp = ruleComparator(rule, group, matches, lotterySeed)
+      const cmp = orderedComparator(rules, group, matches, lotterySeed)
       group.sort((a, b) => cmp(a, b) || chain(a, b))
     }
     for (const row of group) {
@@ -187,7 +222,7 @@ export function rankRows(
         ...row,
         rank: out.length + 1,
         tieGroup: group.length > 1 ? tieGroupId : null,
-        tieRule: group.length > 1 ? rule : null,
+        tieRule: group.length > 1 ? primary : null,
       })
     }
   }
@@ -197,7 +232,7 @@ export function rankRows(
 export function computePoolStandings(
   pool: Pool,
   matches: readonly PoolMatch[],
-  rule: TieBreakRule,
+  rule: TieBreakSpec,
   seedOf: (id: string) => number,
   lotterySeed = 0,
   points: GamePoints = DEFAULT_GROUP_POINTS,
@@ -209,7 +244,7 @@ export function computePoolStandings(
 export function computeAllStandings(
   pools: readonly Pool[],
   matches: readonly PoolMatch[],
-  rule: TieBreakRule,
+  rule: TieBreakSpec,
   seedOf: (id: string) => number,
   lotterySeed = 0,
   points: GamePoints = DEFAULT_GROUP_POINTS,
