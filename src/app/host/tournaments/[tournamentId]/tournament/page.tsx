@@ -4,6 +4,8 @@ import { useMemo } from "react";
 import Link from "next/link";
 import { useParams } from "next/navigation";
 import { EventEditForm } from "@/components/tournament/event-edit-form";
+import { useAuth } from "@/lib/auth";
+import { ownsTournament } from "@/lib/tournament-owner";
 import { getEvent, getTournament } from "@/lib/mock-data";
 import { useAllEvents, useAllTournaments, useHostedTournaments } from "@/lib/hosted-tournaments";
 import { effectiveStatus, isLive, useTournamentStatus } from "@/lib/tournament-status";
@@ -15,6 +17,7 @@ export default function ManageHostTournamentEditPage() {
   const params = useParams<{ tournamentId: string }>();
   const tournamentId = Array.isArray(params.tournamentId) ? params.tournamentId[0] : params.tournamentId;
 
+  const { user } = useAuth();
   const allTournaments = useAllTournaments();
   const allEvents = useAllEvents();
   const { isLoading } = useHostedTournaments();
@@ -47,6 +50,7 @@ export default function ManageHostTournamentEditPage() {
       </div>
     );
   }
+  if (!ownsTournament(tournament, user)) return null;
 
   const anyLive = categories.some((c) => isLive(effectiveStatus(c, overrides)));
   if (!anyLive) {

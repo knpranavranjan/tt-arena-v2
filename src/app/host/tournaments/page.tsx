@@ -4,6 +4,8 @@ import { useMemo, useState } from "react";
 import Link from "next/link";
 import { Calendar, ChevronRight, Layers, MapPin, Plus, Search, Trophy } from "lucide-react";
 import { tournamentCode } from "@/lib/mock-data";
+import { useAuth } from "@/lib/auth";
+import { ownsTournament } from "@/lib/tournament-owner";
 import { useAllEvents, useAllTournaments } from "@/lib/hosted-tournaments";
 import { applyEventEdit, applyTournamentEdit, useTournamentEdits } from "@/lib/tournament-edits";
 import { effectiveStatus, useTournamentStatus } from "@/lib/tournament-status";
@@ -45,6 +47,7 @@ function statusMeta(status: TournamentStatus): { label: string; className: strin
 }
 
 export default function HostTournamentsPage() {
+  const { user } = useAuth();
   const allTournaments = useAllTournaments();
   const allEvents = useAllEvents();
   const { overrides } = useTournamentStatus();
@@ -52,18 +55,23 @@ export default function HostTournamentsPage() {
   const [search, setSearch] = useState("");
   const [status, setStatus] = useState<TournamentStatus | "all">("all");
 
-  // One card per event — categories a host adds are folded into their event.
+  // One card per event this account submitted through "Host a Tournament".
+  // Ownership is the account's SPINID (`organizerId`), never the display name —
+  // a different login with the same name is a different person.
   const groups = useMemo(() => {
-    const edited = allTournaments.map((t) => applyTournamentEdit(t, tournamentEdit(t.id)));
+    if (!user) return [];
+    const mine = allTournaments
+      .filter((t) => ownsTournament(t, user))
+      .map((t) => applyTournamentEdit(t, tournamentEdit(t.id)));
     const editedEvents = allEvents.map((e) => applyEventEdit(e, eventEdit(e.id)));
-    return buildEventGroups(edited, editedEvents)
+    return buildEventGroups(mine, editedEvents)
       .map((g) => ({
         ...g,
         status: mostActiveStatus(g.categories.map((c) => effectiveStatus(c, overrides))),
         capacity: g.categories.reduce((sum, c) => sum + c.maxPlayers, 0),
       }))
       .sort((a, b) => new Date(b.date).getTime() - new Date(a.date).getTime());
-  }, [allTournaments, allEvents, overrides, tournamentEdit, eventEdit]);
+  }, [user, allTournaments, allEvents, overrides, tournamentEdit, eventEdit]);
 
   const filtered = groups.filter((g) => {
     if (search && !g.name.toLowerCase().includes(search.toLowerCase())) return false;
@@ -79,8 +87,8 @@ export default function HostTournamentsPage() {
             Manage Tournaments
           </h1>
           <p className="mt-1 text-sm text-[#8b8b93]">
-            Every tournament on the platform. Open one to see registrations, fees collected, and category
-            breakdowns.
+            Every tournament you&apos;ve submitted through &ldquo;Host a Tournament&rdquo;. Open one to see
+            registrations, fees collected, and category breakdowns.
           </p>
         </div>
         <Link
@@ -120,8 +128,22 @@ export default function HostTournamentsPage() {
       {filtered.length === 0 ? (
         <div className="rounded-[8px] border border-dashed border-white/15 p-12 text-center">
           <Trophy className="mx-auto mb-3 h-8 w-8 text-[#8b8b93]" strokeWidth={1.5} />
-          <p className="text-sm font-semibold text-[#e2e2e8]">No tournaments found</p>
-          <p className="mt-1 text-xs text-[#8b8b93]">Try a different search or status filter.</p>
+          <p className="text-sm font-semibold text-[#e2e2e8]">
+            {groups.length === 0 ? "You haven't hosted a tournament yet" : "No tournaments found"}
+          </p>
+          <p className="mt-1 text-xs text-[#8b8b93]">
+            {groups.length === 0 ? (
+              <>
+                Set one up from{" "}
+                <Link href="/host-tournament" className="text-[#ff8f86] hover:text-[#ff2448]">
+                  Host a Tournament
+                </Link>
+                .
+              </>
+            ) : (
+              "Try a different search or status filter."
+            )}
+          </p>
         </div>
       ) : (
         <div className="space-y-3">

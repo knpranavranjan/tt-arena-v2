@@ -5,6 +5,8 @@ import { useParams, usePathname } from "next/navigation";
 import { MapPin } from "lucide-react";
 import { ExportReportMenu } from "@/components/tournament/ExportReportMenu";
 import { ManageAccessButton } from "@/components/tournament/manage-access-button";
+import { useAuth } from "@/lib/auth";
+import { ownsTournament } from "@/lib/tournament-owner";
 import { getEvent, getTournament, tournamentCode } from "@/lib/mock-data";
 import { useAllEvents, useAllTournaments, useHostedTournaments } from "@/lib/hosted-tournaments";
 import { effectiveStatus, isLive, useTournamentStatus } from "@/lib/tournament-status";
@@ -34,6 +36,7 @@ function statusMeta(status: TournamentStatus): { label: string; className: strin
 }
 
 export default function ManageHostTournamentLayout({ children }: { children: React.ReactNode }) {
+  const { user } = useAuth();
   const pathname = usePathname();
   const params = useParams<{ tournamentId: string }>();
   const tournamentId = Array.isArray(params.tournamentId) ? params.tournamentId[0] : params.tournamentId;
@@ -60,6 +63,26 @@ export default function ManageHostTournamentLayout({ children }: { children: Rea
       <div className="mx-auto w-full max-w-6xl">
         <div className="rounded-[8px] border border-dashed border-white/15 p-12 text-center">
           <p className="text-sm font-semibold text-[#e2e2e8]">Tournament not found</p>
+          <Link
+            href="/host/tournaments"
+            className="mt-4 inline-flex items-center rounded-[2px] border border-white/15 px-4 py-2 text-xs font-semibold uppercase tracking-wide text-[#c2c6d7] transition-colors hover:border-white/30 hover:bg-white/5"
+            style={mono}
+          >
+            Back to Manage Tournaments
+          </Link>
+        </div>
+      </div>
+    );
+  }
+
+  // Only the account that created this tournament (via "Host a Tournament")
+  // can manage it — identity is the SPINID stamped at creation, never the
+  // display name.
+  if (!ownsTournament(tournament, user)) {
+    return (
+      <div className="mx-auto w-full max-w-6xl">
+        <div className="rounded-[8px] border border-dashed border-white/15 p-12 text-center">
+          <p className="text-sm font-semibold text-[#e2e2e8]">This isn&apos;t one of your tournaments</p>
           <Link
             href="/host/tournaments"
             className="mt-4 inline-flex items-center rounded-[2px] border border-white/15 px-4 py-2 text-xs font-semibold uppercase tracking-wide text-[#c2c6d7] transition-colors hover:border-white/30 hover:bg-white/5"

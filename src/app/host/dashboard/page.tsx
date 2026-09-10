@@ -5,6 +5,8 @@ import Link from "next/link";
 import { CheckCircle2, Plus, Trophy, Users, Zap, type LucideIcon } from "lucide-react";
 import { arenaFontVariables } from "@/lib/fonts";
 import { SrIdBadge } from "@/components/layout/sr-id-badge";
+import { useAuth } from "@/lib/auth";
+import { ownsTournament } from "@/lib/tournament-owner";
 import { useAllTournaments } from "@/lib/hosted-tournaments";
 import { effectiveStatus, useTournamentStatus } from "@/lib/tournament-status";
 import { formatDate } from "@/lib/format";
@@ -68,15 +70,20 @@ function StatCard({ icon: Icon, label, value, accent }: { icon: LucideIcon; labe
 }
 
 export default function HostDashboardPage() {
+  const { user } = useAuth();
   const allTournaments = useAllTournaments();
   const { overrides } = useTournamentStatus();
 
-  // Seed catalogue + everything hosted through the form, with admin approval
-  // (a status override) applied — so an approved host-created event shows up
-  // here the moment it goes live, not just in the static seed list.
+  // Only the tournaments THIS account created through "Host a Tournament",
+  // matched by the creator's SPINID (`organizerId`) — never the display name,
+  // which is not unique across accounts. Admin approval is a status override,
+  // so an approved event shows up the moment it goes live.
   const withStatus = useMemo(
-    () => allTournaments.map((t) => ({ ...t, status: effectiveStatus(t, overrides) })),
-    [allTournaments, overrides],
+    () =>
+      allTournaments
+        .filter((t) => ownsTournament(t, user))
+        .map((t) => ({ ...t, status: effectiveStatus(t, overrides) })),
+    [allTournaments, overrides, user],
   );
   const activeTournaments = [...withStatus]
     .filter((t) => t.status !== "DRAFT" && t.status !== "COMPLETED")
@@ -91,7 +98,7 @@ export default function HostDashboardPage() {
           <h1 className="text-2xl font-extrabold uppercase tracking-tight text-[#e2e2e8] sm:text-[28px]" style={display}>
             Host Dashboard
           </h1>
-          <p className="mt-1 text-sm text-[#8b8b93]">Manage every tournament running on the platform.</p>
+          <p className="mt-1 text-sm text-[#8b8b93]">The tournaments you&apos;re hosting.</p>
           <SrIdBadge className="mt-3" />
         </div>
         <div className="flex shrink-0 gap-2">
