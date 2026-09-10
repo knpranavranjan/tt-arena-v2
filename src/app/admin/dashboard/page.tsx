@@ -1,12 +1,13 @@
 "use client";
 
+import { useMemo, useState } from "react";
 import Link from "next/link";
 import {
-  Activity,
   Building2,
   Calendar,
   ChevronRight,
   Clock,
+  Search,
   ShieldCheck,
   Trophy,
   Users,
@@ -24,13 +25,6 @@ import type { TournamentStatus } from "@/lib/types";
 
 const mono = { fontFamily: "var(--font-home-mono)" };
 const display = { fontFamily: "var(--font-home-display)" };
-
-const activityFeed = [
-  { time: "2 min ago", text: "Player Sneha Iyer registered for TT Open 2026 — Senior Singles" },
-  { time: "18 min ago", text: "Host Karnataka TTA Ops closed registration for Monsoon Cup — Open Singles" },
-  { time: "1 hr ago", text: "Rating export sent for Eastern Regional Championship" },
-  { time: "3 hrs ago", text: "New club SpinForge Academy verified" },
-];
 
 function statusMeta(status: TournamentStatus): { label: string; className: string; live: boolean } {
   switch (status) {
@@ -71,6 +65,7 @@ export default function AdminDashboardPage() {
   const { overrides, approve } = useTournamentStatus();
   const tournaments = useAllTournaments();
   const events = useAllEvents();
+  const [search, setSearch] = useState("");
 
   const withStatus = tournaments.map((t) => ({ t, status: effectiveStatus(t, overrides) }));
   const activeTournaments = withStatus.filter((r) => !["DRAFT", "COMPLETED"].includes(r.status));
@@ -79,14 +74,28 @@ export default function AdminDashboardPage() {
 
   // One entry per event — every category folded into its parent, never one row
   // per "Event — Category".
-  const eventGroups = buildEventGroups(tournaments, events).map((group) => ({
-    group,
-    status: mostActiveStatus(group.categories.map((c) => effectiveStatus(c, overrides))),
-  }));
+  const eventGroups = useMemo(
+    () =>
+      buildEventGroups(tournaments, events)
+        .map((group) => ({
+          group,
+          status: mostActiveStatus(group.categories.map((c) => effectiveStatus(c, overrides))),
+        }))
+        .sort((a, b) => new Date(b.group.date).getTime() - new Date(a.group.date).getTime()),
+    [tournaments, events, overrides],
+  );
 
-  const recentEvents = [...eventGroups]
-    .sort((a, b) => new Date(b.group.date).getTime() - new Date(a.group.date).getTime())
-    .slice(0, 6);
+  // Every event on the platform, filtered by the oversight search box.
+  const oversightEvents = useMemo(() => {
+    const q = search.trim().toLowerCase();
+    if (!q) return eventGroups;
+    return eventGroups.filter(
+      ({ group: g }) =>
+        g.name.toLowerCase().includes(q) ||
+        g.organizer.toLowerCase().includes(q) ||
+        g.categories.some((c) => c.category.toLowerCase().includes(q)),
+    );
+  }, [eventGroups, search]);
 
   // Events awaiting review — every category approved together.
   const pendingApproval = eventGroups.filter((r) => r.status === "DRAFT");
@@ -192,70 +201,77 @@ export default function AdminDashboardPage() {
         )}
       </section>
 
-      <div className="grid gap-10 lg:grid-cols-2">
-        <section>
-          <h2 className="mb-4 text-xs font-bold uppercase tracking-widest text-[#ff2448]" style={mono}>
+      <section>
+        <div className="mb-4 flex flex-wrap items-center justify-between gap-3">
+          <h2 className="flex items-center gap-2 text-xs font-bold uppercase tracking-widest text-[#ff2448]" style={mono}>
             Tournament Oversight
+            <span className="rounded-full bg-white/[0.06] px-2 py-0.5 text-[10px] font-bold text-[#c2c6d7]">
+              {oversightEvents.length}
+            </span>
           </h2>
-          <div className="space-y-2">
-            {recentEvents.map(({ group: g, status: s }) => {
-              const meta = statusMeta(s);
-              return (
-                <Link
-                  key={g.eventId}
-                  href={`/tournaments/${g.primary.id}`}
-                  className="flex items-center justify-between gap-3 rounded-[6px] border border-white/10 bg-white/[0.03] p-3.5 transition-colors hover:border-white/20"
-                >
-                  <div className="min-w-0">
-                    <div className="mb-1.5 flex flex-wrap items-center gap-2">
-                      <span
-                        className={`inline-flex items-center gap-1.5 rounded-[2px] px-2 py-0.5 text-[10px] font-semibold uppercase tracking-wide ${meta.className}`}
-                        style={mono}
-                      >
-                        {meta.live && <span className="h-1.5 w-1.5 animate-pulse rounded-full bg-white" />}
-                        {meta.label}
-                      </span>
-                      <span className="text-[10px] uppercase tracking-wide text-[#5a5a60]" style={mono}>
-                        #{tournamentCode(g.primary)}
-                      </span>
-                      <span
-                        className="rounded-[2px] border border-white/10 px-1.5 py-0.5 text-[10px] font-semibold uppercase tracking-wide text-[#c2c6d7]"
-                        style={mono}
-                      >
-                        {g.categories.length} categor{g.categories.length === 1 ? "y" : "ies"}
-                      </span>
-                    </div>
-                    <p className="truncate text-sm font-semibold text-[#e2e2e8]">{g.name}</p>
-                    <p className="mt-0.5 text-xs text-[#8b8b93]">
-                      Hosted by {g.organizer} &middot; {formatDate(g.date)}
-                    </p>
-                  </div>
-                  <ChevronRight className="h-4 w-4 shrink-0 text-[#5a5a60]" strokeWidth={2} />
-                </Link>
-              );
-            })}
-          </div>
-        </section>
+        </div>
 
-        <section>
-          <h2 className="mb-4 flex items-center gap-2 text-xs font-bold uppercase tracking-widest text-[#ff2448]" style={mono}>
-            <Activity className="h-3.5 w-3.5" strokeWidth={2} />
-            System Activity
-          </h2>
-          <div className="flex flex-col gap-3 rounded-[8px] border border-white/10 bg-white/[0.03] p-4">
-            {activityFeed.map((a, i) => (
-              <div key={i} className="flex items-start gap-3 text-sm">
-                <span className="mt-1.5 h-1.5 w-1.5 shrink-0 rounded-full bg-[#ff2448]" />
-                <div>
-                  <p className="text-[#e2e2e8]">{a.text}</p>
-                  <p className="mt-0.5 text-xs text-[#8b8b93]">{a.time}</p>
-                </div>
-              </div>
-            ))}
+        <div className="rounded-[8px] border border-white/10 bg-white/[0.02]">
+          <div className="border-b border-white/10 p-3">
+            <div className="relative">
+              <Search className="pointer-events-none absolute left-3.5 top-1/2 h-4 w-4 -translate-y-1/2 text-[#8b8b93]" />
+              <input
+                type="text"
+                value={search}
+                onChange={(e) => setSearch(e.target.value)}
+                placeholder="Search tournaments by name, host or category…"
+                className="w-full rounded-[4px] border border-white/10 bg-[#1a1c20] py-2.5 pl-10 pr-4 text-sm text-[#e2e2e8] placeholder:text-[#5a5a60] focus:border-[#ff2448] focus:outline-none focus:ring-1 focus:ring-[#ff2448]"
+              />
+            </div>
           </div>
-          <p className="mt-3 text-xs text-[#5a5a60]">Last synced {formatDate(new Date().toISOString())}</p>
-        </section>
-      </div>
+
+          {oversightEvents.length === 0 ? (
+            <p className="p-8 text-center text-xs text-[#8b8b93]">No tournaments match &ldquo;{search}&rdquo;.</p>
+          ) : (
+            <div
+              className="max-h-[520px] space-y-2 overflow-y-auto p-3"
+              style={{ scrollbarWidth: "thin", scrollbarColor: "rgba(255,255,255,0.18) transparent" }}
+            >
+              {oversightEvents.map(({ group: g, status: s }) => {
+                const meta = statusMeta(s);
+                return (
+                  <Link
+                    key={g.eventId}
+                    href={`/tournaments/${g.primary.id}`}
+                    className="flex items-center justify-between gap-3 rounded-[6px] border border-white/10 bg-white/[0.03] p-3.5 transition-colors hover:border-white/20"
+                  >
+                    <div className="min-w-0">
+                      <div className="mb-1.5 flex flex-wrap items-center gap-2">
+                        <span
+                          className={`inline-flex items-center gap-1.5 rounded-[2px] px-2 py-0.5 text-[10px] font-semibold uppercase tracking-wide ${meta.className}`}
+                          style={mono}
+                        >
+                          {meta.live && <span className="h-1.5 w-1.5 animate-pulse rounded-full bg-white" />}
+                          {meta.label}
+                        </span>
+                        <span className="text-[10px] uppercase tracking-wide text-[#5a5a60]" style={mono}>
+                          #{tournamentCode(g.primary)}
+                        </span>
+                        <span
+                          className="rounded-[2px] border border-white/10 px-1.5 py-0.5 text-[10px] font-semibold uppercase tracking-wide text-[#c2c6d7]"
+                          style={mono}
+                        >
+                          {g.categories.length} categor{g.categories.length === 1 ? "y" : "ies"}
+                        </span>
+                      </div>
+                      <p className="truncate text-sm font-semibold text-[#e2e2e8]">{g.name}</p>
+                      <p className="mt-0.5 text-xs text-[#8b8b93]">
+                        Hosted by {g.organizer} &middot; {formatDate(g.date)}
+                      </p>
+                    </div>
+                    <ChevronRight className="h-4 w-4 shrink-0 text-[#5a5a60]" strokeWidth={2} />
+                  </Link>
+                );
+              })}
+            </div>
+          )}
+        </div>
+      </section>
     </div>
   );
 }
