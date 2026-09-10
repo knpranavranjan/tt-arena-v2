@@ -2,7 +2,7 @@
 
 import { useMemo, useState } from "react";
 import Link from "next/link";
-import { ArrowUp, Search, Users } from "lucide-react";
+import { ArrowDown, ArrowUp, Search, Users } from "lucide-react";
 import {
   Select,
   SelectContent,
@@ -29,6 +29,8 @@ export default function PlayersPage({ basePath = "/players" }: { basePath?: stri
 
   // Created players have no rating override yet — fall back to their profile rating.
   const ratingOf = (p: Player) => ratings.getRating(p.id) || p.rating;
+  // Real movement from the last published tournament, else the demo weekly delta.
+  const movementOf = (p: Player) => ratings.getHistory(p.id).at(-1)?.delta ?? getWeeklyDelta(p);
 
   const states = useMemo(
     () => Array.from(new Set(roster.map((p) => p.state).filter(Boolean))).sort(),
@@ -230,13 +232,21 @@ export default function PlayersPage({ basePath = "/players" }: { basePath?: stri
                         {ratingOf(player)}
                       </td>
                       <td className="px-6 py-5 text-right">
-                        <span
-                          className="inline-flex items-center gap-1 rounded-[2px] bg-emerald-400/10 px-2 py-1 text-[10px] font-semibold text-emerald-400"
-                          style={{ fontFamily: "var(--font-home-mono)" }}
-                        >
-                          <ArrowUp className="h-3.5 w-3.5" strokeWidth={2.5} />
-                          {getWeeklyDelta(player)}
-                        </span>
+                        {(() => {
+                          const mv = movementOf(player);
+                          const up = mv >= 0;
+                          return (
+                            <span
+                              className={`inline-flex items-center gap-1 rounded-[2px] px-2 py-1 text-[10px] font-semibold ${
+                                up ? "bg-emerald-400/10 text-emerald-400" : "bg-[#ff2448]/10 text-[#ff2448]"
+                              }`}
+                              style={{ fontFamily: "var(--font-home-mono)" }}
+                            >
+                              {up ? <ArrowUp className="h-3.5 w-3.5" strokeWidth={2.5} /> : <ArrowDown className="h-3.5 w-3.5" strokeWidth={2.5} />}
+                              {Math.abs(mv)}
+                            </span>
+                          );
+                        })()}
                       </td>
                     </tr>
                   ))}
@@ -289,13 +299,21 @@ export default function PlayersPage({ basePath = "/players" }: { basePath?: stri
                           {ratingOf(player)}
                         </span>
                       </div>
-                      <span
-                        className="inline-flex items-center gap-1 rounded-[2px] bg-emerald-400/10 px-2 py-1 text-[10px] font-semibold text-emerald-400"
-                        style={{ fontFamily: "var(--font-home-mono)" }}
-                      >
-                        <ArrowUp className="h-3.5 w-3.5" strokeWidth={2.5} />
-                        {getWeeklyDelta(player)}
-                      </span>
+                      {(() => {
+                        const mv = movementOf(player);
+                        const up = mv >= 0;
+                        return (
+                          <span
+                            className={`inline-flex items-center gap-1 rounded-[2px] px-2 py-1 text-[10px] font-semibold ${
+                              up ? "bg-emerald-400/10 text-emerald-400" : "bg-[#ff2448]/10 text-[#ff2448]"
+                            }`}
+                            style={{ fontFamily: "var(--font-home-mono)" }}
+                          >
+                            {up ? <ArrowUp className="h-3.5 w-3.5" strokeWidth={2.5} /> : <ArrowDown className="h-3.5 w-3.5" strokeWidth={2.5} />}
+                            {Math.abs(mv)}
+                          </span>
+                        );
+                      })()}
                     </div>
                   </Link>
                 </RevealItem>

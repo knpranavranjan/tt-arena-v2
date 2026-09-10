@@ -10,6 +10,7 @@ import {
 import { allBracketMatches } from "@/lib/tournament/knockout";
 import type { Bracket, PoolMatch } from "@/lib/tournament/types";
 import { getPlayer } from "@/lib/mock-data";
+import { usePlayerRoster } from "@/lib/players-store";
 import { careerRecord, type PlayerRecord } from "@/lib/player-record";
 import { USE_DB, apiGet, apiSend } from "@/lib/data-backend";
 
@@ -129,6 +130,15 @@ const Ctx = createContext<PlayerRatingsContextValue | null>(null);
 export function PlayerRatingsProvider({ children }: { children: ReactNode }) {
   const [state, setState] = useState<StoredRatings>(EMPTY_STORE);
   const [isLoading, setIsLoading] = useState(true);
+  const roster = usePlayerRoster();
+
+  // A player's base (pre-tournament) rating: the seed roster for demo players,
+  // the profile's provisional rating for real sign-ups.
+  const baseRating = useCallback(
+    (playerId: string): number | null =>
+      roster.find((p) => p.id === playerId)?.rating ?? getPlayer(playerId)?.rating ?? null,
+    [roster],
+  );
 
   useEffect(() => {
     if (USE_DB) {
@@ -144,6 +154,7 @@ export function PlayerRatingsProvider({ children }: { children: ReactNode }) {
         .finally(() => setIsLoading(false));
       return;
     }
+    // eslint-disable-next-line react-hooks/set-state-in-effect
     setState(readStorage());
     setIsLoading(false);
     const onStorage = (e: StorageEvent) => {
@@ -164,8 +175,19 @@ export function PlayerRatingsProvider({ children }: { children: ReactNode }) {
   }, []);
 
   const getRating = useCallback(
-    (playerId: string) => state.overrides[playerId] ?? getPlayer(playerId)?.rating ?? 0,
-    [state.overrides],
+    (playerId: string) => {
+      const ov = state.overrides[playerId];
+      if (ov != null) return ov;
+      // No override yet? Surface the most recent published result — this covers
+      // real sign-ups whose first tournament wrote a log row but (before the
+      // fix) no override, and is a safe fallback for everyone else.
+      const hist = state.history[playerId];
+      if (hist && hist.length) {
+        return hist.reduce((a, b) => (a.appliedAt >= b.appliedAt ? a : b)).newRating;
+      }
+      return baseRating(playerId) ?? 0;
+    },
+    [state.overrides, state.history, baseRating],
   );
 
   const getHistory = useCallback(
@@ -204,7 +226,7 @@ export function PlayerRatingsProvider({ children }: { children: ReactNode }) {
       const engineInput: FullEnginePlayerInput[] = input.players.map((p) => ({
         id: p.id,
         name: p.name,
-        rating: current.overrides[p.id] ?? getPlayer(p.id)?.rating ?? null,
+        rating: current.overrides[p.id] ?? baseRating(p.id),
       }));
 
       const result = calculateFullTournamentRating({ players: engineInput, matches: input.matches });
@@ -223,21 +245,22 @@ export function PlayerRatingsProvider({ children }: { children: ReactNode }) {
 
       for (const p of result.players) {
         const rec = records[p.playerId] ?? { wins: 0, losses: 0, played: 0 };
-        const ratingChanged =
-          p.finalRating !== null &&
-          p.preTournamentRating !== null &&
-          p.finalRating !== p.preTournamentRating;
-
-        // Record a row for anyone whose rating moved OR who actually played —
-        // the W/L record is what feeds the player pages / dashboard.
-        if (!ratingChanged && rec.played === 0) continue;
 
         const prev =
           p.preTournamentRating ??
           current.overrides[p.playerId] ??
-          getPlayer(p.playerId)?.rating ??
+          baseRating(p.playerId) ??
           0;
         const next = p.finalRating ?? prev;
+
+        // The rating moved if the engine produced a final rating different from
+        // where the player started — true even when the engine had no prior
+        // rating for them (a real sign-up's first tournament).
+        const ratingChanged = p.finalRating !== null && next !== prev;
+
+        // Record a row for anyone whose rating moved OR who actually played —
+        // the W/L record is what feeds the player pages / dashboard.
+        if (!ratingChanged && rec.played === 0) continue;
 
         const entry: RatingChangeEntry = {
           tournamentId: input.tournamentId,
@@ -275,7 +298,7 @@ export function PlayerRatingsProvider({ children }: { children: ReactNode }) {
 
       return { applied: true, changes, warnings: result.warnings };
     },
-    [persist, state],
+    [persist, state, baseRating],
   );
 
   const value = useMemo<PlayerRatingsContextValue>(
