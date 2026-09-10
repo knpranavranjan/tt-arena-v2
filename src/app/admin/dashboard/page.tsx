@@ -76,17 +76,20 @@ export default function AdminDashboardPage() {
   const activeTournaments = withStatus.filter((r) => !["DRAFT", "COMPLETED"].includes(r.status));
   const completedTournaments = withStatus.filter((r) => r.status === "COMPLETED");
   const liveEvents = events.filter((e) => e.status === "LIVE");
-  const recentTournaments = [...tournaments]
-    .sort((a, b) => new Date(b.date).getTime() - new Date(a.date).getTime())
+
+  // One entry per event — every category folded into its parent, never one row
+  // per "Event — Category".
+  const eventGroups = buildEventGroups(tournaments, events).map((group) => ({
+    group,
+    status: mostActiveStatus(group.categories.map((c) => effectiveStatus(c, overrides))),
+  }));
+
+  const recentEvents = [...eventGroups]
+    .sort((a, b) => new Date(b.group.date).getTime() - new Date(a.group.date).getTime())
     .slice(0, 6);
 
-  // One entry per event awaiting review — every category approved together.
-  const pendingApproval = buildEventGroups(tournaments, events)
-    .map((group) => ({
-      group,
-      status: mostActiveStatus(group.categories.map((c) => effectiveStatus(c, overrides))),
-    }))
-    .filter((r) => r.status === "DRAFT");
+  // Events awaiting review — every category approved together.
+  const pendingApproval = eventGroups.filter((r) => r.status === "DRAFT");
 
   const approveEvent = (categoryIds: string[], name: string) => {
     categoryIds.forEach((id) => approve(id));
@@ -195,12 +198,12 @@ export default function AdminDashboardPage() {
             Tournament Oversight
           </h2>
           <div className="space-y-2">
-            {recentTournaments.map((t) => {
-              const meta = statusMeta(t.status);
+            {recentEvents.map(({ group: g, status: s }) => {
+              const meta = statusMeta(s);
               return (
                 <Link
-                  key={t.id}
-                  href={`/tournaments/${t.id}`}
+                  key={g.eventId}
+                  href={`/tournaments/${g.primary.id}`}
                   className="flex items-center justify-between gap-3 rounded-[6px] border border-white/10 bg-white/[0.03] p-3.5 transition-colors hover:border-white/20"
                 >
                   <div className="min-w-0">
@@ -213,12 +216,18 @@ export default function AdminDashboardPage() {
                         {meta.label}
                       </span>
                       <span className="text-[10px] uppercase tracking-wide text-[#5a5a60]" style={mono}>
-                        #{tournamentCode(t)}
+                        #{tournamentCode(g.primary)}
+                      </span>
+                      <span
+                        className="rounded-[2px] border border-white/10 px-1.5 py-0.5 text-[10px] font-semibold uppercase tracking-wide text-[#c2c6d7]"
+                        style={mono}
+                      >
+                        {g.categories.length} categor{g.categories.length === 1 ? "y" : "ies"}
                       </span>
                     </div>
-                    <p className="truncate text-sm font-semibold text-[#e2e2e8]">{t.name}</p>
+                    <p className="truncate text-sm font-semibold text-[#e2e2e8]">{g.name}</p>
                     <p className="mt-0.5 text-xs text-[#8b8b93]">
-                      Hosted by {t.organizer} &middot; {formatDate(t.date)}
+                      Hosted by {g.organizer} &middot; {formatDate(g.date)}
                     </p>
                   </div>
                   <ChevronRight className="h-4 w-4 shrink-0 text-[#5a5a60]" strokeWidth={2} />
