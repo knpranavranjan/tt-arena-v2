@@ -77,7 +77,7 @@ export function SettingsToggle({
 }) {
   return (
     <div className="flex items-center justify-between gap-4">
-      <div>
+      <div className="min-w-0">
         <p className="text-sm font-medium text-[#e2e2e8]">{label}</p>
         {description && <p className="mt-0.5 text-xs text-[#8b8b93]">{description}</p>}
       </div>
@@ -87,11 +87,13 @@ export function SettingsToggle({
         aria-checked={checked}
         aria-label={label}
         onClick={() => onChange(!checked)}
-        className={`relative h-6 w-11 shrink-0 rounded-full transition-colors ${checked ? "bg-[#ff2448]" : "bg-white/15"}`}
+        className={`relative inline-flex h-6 w-11 shrink-0 items-center rounded-full transition-colors ${
+          checked ? "bg-[#ff2448]" : "bg-white/15"
+        }`}
       >
         <span
-          className={`absolute top-0.5 h-5 w-5 rounded-full bg-white shadow transition-transform ${
-            checked ? "translate-x-[22px]" : "translate-x-0.5"
+          className={`inline-block h-5 w-5 rounded-full bg-white shadow transition-transform ${
+            checked ? "translate-x-5" : "translate-x-0.5"
           }`}
         />
       </button>
