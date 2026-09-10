@@ -6,7 +6,8 @@ import { useAuth } from "@/lib/auth";
 import { useCurrentClub } from "@/lib/session-data";
 import { useCreatedClubs } from "@/lib/clubs-store";
 import { ownsTournament } from "@/lib/tournament-owner";
-import { useAllTournaments } from "@/lib/hosted-tournaments";
+import { useAllEvents, useAllTournaments } from "@/lib/hosted-tournaments";
+import { eventTitle } from "@/lib/tournament-manage";
 import { platformHostingFee } from "@/lib/mock-data";
 import {
   MembershipSection,
@@ -27,6 +28,7 @@ export default function ClubSettingsPage() {
   const club = useCurrentClub();
   const { createdClubs, updateProfile } = useCreatedClubs();
   const allTournaments = useAllTournaments();
+  const allEvents = useAllEvents();
 
   // Profile editing writes to the real club row; the 4 demo logins have no row.
   const editable = !!club && createdClubs.some((c) => c.id === club.id);
@@ -51,21 +53,27 @@ export default function ClubSettingsPage() {
   const [newTournamentAlerts, setNewTournamentAlerts] = useState(true);
   const [joinRequestAlerts, setJoinRequestAlerts] = useState(true);
 
-  // One hosting-fee line per tournament this account created — matched by
-  // SPINID (`organizerId`), never the display name.
+  // One hosting-fee line per TOURNAMENT this account created (matched by SPINID
+  // `organizerId`) — the fee is paid once per submission, not per category, so
+  // fold the category records into their event.
   const paymentRows = useMemo<PaymentRow[]>(() => {
     if (!user) return [];
-    return allTournaments
-      .filter((t) => ownsTournament(t, user))
-      .map((t) => ({
-        id: `${t.id}-hosting-fee`,
-        description: `Hosting fee — ${t.name}`,
-        date: t.date,
+    const byEvent = new Map<string, { name: string; date: string }>();
+    for (const t of allTournaments) {
+      if (!ownsTournament(t, user) || byEvent.has(t.eventId)) continue;
+      const ev = allEvents.find((e) => e.id === t.eventId);
+      byEvent.set(t.eventId, { name: eventTitle(t, ev?.name), date: ev?.date ?? t.date });
+    }
+    return [...byEvent.entries()]
+      .map(([eventId, e]) => ({
+        id: `${eventId}-hosting-fee`,
+        description: `Hosting fee — ${e.name}`,
+        date: e.date,
         amount: platformHostingFee,
         status: "Paid" as const,
       }))
       .sort((a, b) => new Date(b.date).getTime() - new Date(a.date).getTime());
-  }, [user, allTournaments]);
+  }, [user, allTournaments, allEvents]);
 
   if (!club) return null;
 

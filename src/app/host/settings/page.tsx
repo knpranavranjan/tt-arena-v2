@@ -4,7 +4,8 @@ import { useMemo, useState } from "react";
 import { toast } from "sonner";
 import { useAuth } from "@/lib/auth";
 import { ownsTournament } from "@/lib/tournament-owner";
-import { useAllTournaments } from "@/lib/hosted-tournaments";
+import { useAllEvents, useAllTournaments } from "@/lib/hosted-tournaments";
+import { eventTitle } from "@/lib/tournament-manage";
 import { platformHostingFee } from "@/lib/mock-data";
 import {
   PaymentHistoryTable,
@@ -21,26 +22,33 @@ import {
 export default function HostSettingsPage() {
   const { user } = useAuth();
   const allTournaments = useAllTournaments();
+  const allEvents = useAllEvents();
   const [name, setName] = useState(user?.name ?? "");
   const [email, setEmail] = useState(user?.email ?? "");
   const [newTournamentAlerts, setNewTournamentAlerts] = useState(true);
   const [registrationUpdates, setRegistrationUpdates] = useState(true);
 
-  // One hosting-fee line per tournament this account created — matched by
-  // SPINID (`organizerId`), never the display name.
+  // One hosting-fee line per TOURNAMENT this account created (matched by SPINID
+  // `organizerId`) — the fee is paid once per submission, not per category, so
+  // fold the category records into their event.
   const paymentRows = useMemo<PaymentRow[]>(() => {
     if (!user) return [];
-    return allTournaments
-      .filter((t) => ownsTournament(t, user))
-      .map((t) => ({
-        id: `${t.id}-hosting-fee`,
-        description: `Hosting fee — ${t.name}`,
-        date: t.date,
+    const byEvent = new Map<string, { name: string; date: string }>();
+    for (const t of allTournaments) {
+      if (!ownsTournament(t, user) || byEvent.has(t.eventId)) continue;
+      const ev = allEvents.find((e) => e.id === t.eventId);
+      byEvent.set(t.eventId, { name: eventTitle(t, ev?.name), date: ev?.date ?? t.date });
+    }
+    return [...byEvent.entries()]
+      .map(([eventId, e]) => ({
+        id: `${eventId}-hosting-fee`,
+        description: `Hosting fee — ${e.name}`,
+        date: e.date,
         amount: platformHostingFee,
         status: "Paid" as const,
       }))
       .sort((a, b) => new Date(b.date).getTime() - new Date(a.date).getTime());
-  }, [user, allTournaments]);
+  }, [user, allTournaments, allEvents]);
 
   if (!user) return null;
 
