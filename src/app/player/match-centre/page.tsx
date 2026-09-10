@@ -7,7 +7,7 @@ import { Calendar, ChevronRight, Clock, ListOrdered, MapPin, Radio, Trophy } fro
 import { useCurrentPlayer } from "@/lib/session-data";
 import { useRegistrations } from "@/lib/registrations";
 import { getEvent, getTournament } from "@/lib/mock-data";
-import { useAllTournaments } from "@/lib/hosted-tournaments";
+import { useAllEvents, useAllTournaments } from "@/lib/hosted-tournaments";
 import { useConsoleTournamentIds, useLiveTournaments, type LiveCategory } from "@/lib/live-schedule";
 import { POOLS_STAGE, log2, roundName, roundShortName } from "@/lib/tournament/bracketMath";
 import { gameTally } from "@/lib/tournament/scoring";
@@ -20,12 +20,23 @@ import type { Tournament } from "@/lib/types";
 const display = { fontFamily: "var(--font-home-display)" };
 const mono = { fontFamily: "var(--font-home-mono)" };
 
+/** One live tournament as the player sees it — the event, with every category
+ *  the host has published a draw for as a switchable button. */
+interface LiveEvent {
+  eventId: string;
+  name: string;
+  date: string;
+  venue: string;
+  cats: { key: string; category: LiveCategory }[];
+}
+
 /* -------------------------------------------------------------- page ---- */
 
 export default function PlayerMatchCentrePage() {
   const player = useCurrentPlayer();
   const { registrations } = useRegistrations();
   const allTournaments = useAllTournaments();
+  const allEvents = useAllEvents();
   const consoleIds = useConsoleTournamentIds(player?.id);
   const reduce = useReducedMotion();
 
@@ -51,12 +62,45 @@ export default function PlayerMatchCentrePage() {
 
   const { tournaments: live, isLoading } = useLiveTournaments(registered);
 
-  const [selectedId, setSelectedId] = useState<string | null>(null);
-  const selected = live.find((t) => t.tournamentId === selectedId) ?? live[0] ?? null;
+  // One entry per EVENT — the host publishes a draw per category (each its own
+  // Tournament row), but the player sees a single tournament with its categories
+  // as buttons. Fold every live category of an event into one card.
+  const liveEvents = useMemo<LiveEvent[]>(() => {
+    const byEvent = new Map<string, LiveEvent>();
+    for (const lt of live) {
+      const t =
+        allTournaments.find((x) => x.id === lt.tournamentId) ?? getTournament(lt.tournamentId);
+      const eventId = t?.eventId ?? lt.tournamentId;
+      const eventName =
+        allEvents.find((e) => e.id === eventId)?.name ??
+        getEvent(eventId)?.name ??
+        lt.name.split(/\s+[—–-]\s+/)[0];
+      const entry =
+        byEvent.get(eventId) ??
+        ({
+          eventId,
+          name: eventName,
+          date: t?.date ?? lt.date,
+          venue: t?.venue ?? "",
+          cats: [],
+        } satisfies LiveEvent);
+      for (const c of lt.categories) {
+        entry.cats.push({ key: `${lt.tournamentId}:${c.id}`, category: c });
+      }
+      byEvent.set(eventId, entry);
+    }
+    return [...byEvent.values()].sort(
+      (a, b) => new Date(b.date).getTime() - new Date(a.date).getTime(),
+    );
+  }, [live, allTournaments, allEvents]);
 
-  const [categoryId, setCategoryId] = useState<string | null>(null);
-  const category =
-    selected?.categories.find((c) => c.id === categoryId) ?? selected?.categories[0] ?? null;
+  const [selectedId, setSelectedId] = useState<string | null>(null);
+  const selected = liveEvents.find((e) => e.eventId === selectedId) ?? liveEvents[0] ?? null;
+
+  const [categoryKey, setCategoryKey] = useState<string | null>(null);
+  const cat =
+    selected?.cats.find((c) => c.key === categoryKey) ?? selected?.cats[0] ?? null;
+  const category = cat?.category ?? null;
 
   return (
     <div className="mx-auto w-full max-w-6xl" style={{ fontFamily: "var(--font-home-body)" }}>
@@ -73,20 +117,20 @@ export default function PlayerMatchCentrePage() {
             Every match in your tournaments on one timeline — results as they land, upcoming ones queued. Read-only.
           </p>
         </div>
-        {live.length > 0 && (
+        {liveEvents.length > 0 && (
           <span
             className="inline-flex items-center gap-2 rounded-full border border-[#ff2448]/30 bg-[#ff2448]/[0.08] px-3 py-1.5 text-[11px] font-semibold uppercase tracking-widest text-[#ff8f86]"
             style={mono}
           >
             <LiveDot reduce={!!reduce} />
-            {live.length} live
+            {liveEvents.length} live
           </span>
         )}
       </div>
 
       {isLoading ? (
         <div className="h-64 animate-pulse rounded-[14px] border border-white/10 bg-white/[0.02]" />
-      ) : live.length === 0 ? (
+      ) : liveEvents.length === 0 ? (
         <EmptyState hasRegistrations={registered.length > 0} />
       ) : (
         <div className="grid gap-6 lg:grid-cols-[288px_1fr]">
@@ -99,18 +143,18 @@ export default function PlayerMatchCentrePage() {
             <p className="text-[11px] font-bold uppercase tracking-[0.18em] text-[#6f6f78]" style={mono}>
               Your tournaments
             </p>
-            {live.map((t) => (
+            {liveEvents.map((e) => (
               <TournamentCard
-                key={t.tournamentId}
-                name={getEvent(getTournament(t.tournamentId)?.eventId ?? "")?.name ?? t.name}
-                date={t.date}
-                categoryCount={t.categories.length}
-                active={selected?.tournamentId === t.tournamentId}
+                key={e.eventId}
+                name={e.name}
+                date={e.date}
+                categoryCount={e.cats.length}
+                active={selected?.eventId === e.eventId}
                 onSelect={() => {
-                  setSelectedId(t.tournamentId);
-                  setCategoryId(null);
+                  setSelectedId(e.eventId);
+                  setCategoryKey(null);
                 }}
-                stageChips={railChips(t.categories[0])}
+                stageChips={railChips(e.cats[0]?.category)}
                 reduce={!!reduce}
               />
             ))}
@@ -119,39 +163,41 @@ export default function PlayerMatchCentrePage() {
           <div className="min-w-0">
             {selected && (
               <>
-                <TournamentHead tournament={selected} />
+                <TournamentHead name={selected.name} date={selected.date} venue={selected.venue} />
 
-                <div className="mb-6 inline-flex flex-wrap gap-1 rounded-full border border-white/10 bg-white/[0.03] p-1">
-                  {selected.categories.map((c) => {
-                    const on = category?.id === c.id;
-                    return (
-                      <button
-                        key={c.id}
-                        type="button"
-                        onClick={() => setCategoryId(c.id)}
-                        className={cn(
-                          "relative rounded-full px-4 py-1.5 text-xs font-semibold uppercase tracking-wide transition-colors",
-                          on ? "text-white" : "text-[#9a9aa2] hover:text-white",
-                        )}
-                        style={mono}
-                      >
-                        {on && (
-                          <motion.span
-                            layoutId="mc-cat-pill"
-                            className="absolute inset-0 rounded-full bg-[#ff2448]"
-                            transition={{ type: "spring", damping: 26, stiffness: 320 }}
-                          />
-                        )}
-                        <span className="relative">{c.name}</span>
-                      </button>
-                    );
-                  })}
-                </div>
+                {selected.cats.length > 1 && (
+                  <div className="mb-6 inline-flex flex-wrap gap-1 rounded-full border border-white/10 bg-white/[0.03] p-1">
+                    {selected.cats.map((c) => {
+                      const on = cat?.key === c.key;
+                      return (
+                        <button
+                          key={c.key}
+                          type="button"
+                          onClick={() => setCategoryKey(c.key)}
+                          className={cn(
+                            "relative rounded-full px-4 py-1.5 text-xs font-semibold uppercase tracking-wide transition-colors",
+                            on ? "text-white" : "text-[#9a9aa2] hover:text-white",
+                          )}
+                          style={mono}
+                        >
+                          {on && (
+                            <motion.span
+                              layoutId="mc-cat-pill"
+                              className="absolute inset-0 rounded-full bg-[#ff2448]"
+                              transition={{ type: "spring", damping: 26, stiffness: 320 }}
+                            />
+                          )}
+                          <span className="relative">{c.category.name}</span>
+                        </button>
+                      );
+                    })}
+                  </div>
+                )}
 
                 <AnimatePresence mode="wait">
-                  {category && (
+                  {category && cat && (
                     <motion.div
-                      key={`${selected.tournamentId}:${category.id}`}
+                      key={`${selected.eventId}:${cat.key}`}
                       initial={{ opacity: 0, y: 8 }}
                       animate={{ opacity: 1, y: 0 }}
                       exit={{ opacity: 0, y: -8 }}
@@ -289,12 +335,10 @@ function TournamentCard({
   );
 }
 
-function TournamentHead({ tournament }: { tournament: { tournamentId: string; name: string; date: string } }) {
-  const t = getTournament(tournament.tournamentId);
-  const event = getEvent(t?.eventId ?? "");
+function TournamentHead({ name, date, venue }: { name: string; date: string; venue: string }) {
   // The title is the event's own name — the category is chosen with the pills
   // below, so it never belongs in the header.
-  const title = event?.name ?? tournament.name.split(/\s+[—–-]\s+/)[0];
+  const title = name;
   return (
     <div className="relative mb-5 overflow-hidden rounded-[14px] border border-white/10 bg-[#0c0e12] p-6">
       <div
@@ -310,14 +354,14 @@ function TournamentHead({ tournament }: { tournament: { tournamentId: string; na
       <div className="mt-2 flex flex-wrap items-center gap-x-3 gap-y-1 text-xs text-[#8b8b93]">
         <span className="flex items-center gap-1.5">
           <Calendar className="h-3.5 w-3.5 text-[#ff2448]" strokeWidth={1.75} />
-          {formatDate(tournament.date)}
+          {formatDate(date)}
         </span>
-        {t?.venue && (
+        {venue && (
           <>
             <span className="text-[#4a4a52]">·</span>
             <span className="flex items-center gap-1.5">
               <MapPin className="h-3.5 w-3.5 text-[#ff2448]" strokeWidth={1.75} />
-              {t.venue}
+              {venue}
             </span>
           </>
         )}
