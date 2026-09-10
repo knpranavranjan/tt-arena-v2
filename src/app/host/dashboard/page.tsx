@@ -7,10 +7,11 @@ import { arenaFontVariables } from "@/lib/fonts";
 import { SrIdBadge } from "@/components/layout/sr-id-badge";
 import { useAuth } from "@/lib/auth";
 import { ownsTournament } from "@/lib/tournament-owner";
-import { useAllTournaments } from "@/lib/hosted-tournaments";
+import { useAllEvents, useAllTournaments } from "@/lib/hosted-tournaments";
+import { buildEventGroups, categoryCountLabel, mostActiveStatus, type EventGroup } from "@/lib/event-groups";
 import { effectiveStatus, useTournamentStatus } from "@/lib/tournament-status";
 import { formatDate } from "@/lib/format";
-import type { Tournament, TournamentStatus } from "@/lib/types";
+import type { TournamentStatus } from "@/lib/types";
 
 const mono = { fontFamily: "var(--font-home-mono)" };
 const display = { fontFamily: "var(--font-home-display)" };
@@ -34,20 +35,28 @@ function tournamentStatusMeta(status: TournamentStatus): { label: string; textCl
   }
 }
 
-function TournamentHostingCard({ tournament }: { tournament: Tournament }) {
-  const meta = tournamentStatusMeta(tournament.status);
+function TournamentHostingCard({ group }: { group: EventGroup & { status: TournamentStatus } }) {
+  const meta = tournamentStatusMeta(group.status);
   return (
     <Link
-      href={`/host/tournaments/${tournament.id}`}
+      href={`/host/tournaments/${group.primary.id}`}
       className="block rounded-[6px] border border-white/10 bg-white/[0.03] p-3.5 transition-colors hover:border-white/20"
       style={{ borderLeftWidth: 3, borderLeftColor: meta.accent }}
     >
-      <p className={`text-[10px] font-bold uppercase tracking-wide ${meta.textClass}`} style={mono}>
-        {meta.label}
-      </p>
-      <p className="mt-1.5 text-sm font-semibold text-[#e2e2e8]">{tournament.name}</p>
+      <div className="flex flex-wrap items-center gap-2">
+        <p className={`text-[10px] font-bold uppercase tracking-wide ${meta.textClass}`} style={mono}>
+          {meta.label}
+        </p>
+        <span
+          className="rounded-[2px] border border-white/10 px-1.5 py-0.5 text-[9px] font-bold uppercase tracking-wide text-[#c2c6d7]"
+          style={mono}
+        >
+          {categoryCountLabel(group)}
+        </span>
+      </div>
+      <p className="mt-1.5 text-sm font-semibold text-[#e2e2e8]">{group.name}</p>
       <p className="mt-1 text-xs text-[#8b8b93]">
-        {formatDate(tournament.date)} &middot; {tournament.venue}
+        {formatDate(group.date)} &middot; {group.venue}
       </p>
     </Link>
   );
@@ -72,24 +81,28 @@ function StatCard({ icon: Icon, label, value, accent }: { icon: LucideIcon; labe
 export default function HostDashboardPage() {
   const { user } = useAuth();
   const allTournaments = useAllTournaments();
+  const allEvents = useAllEvents();
   const { overrides } = useTournamentStatus();
 
-  // Only the tournaments THIS account created through "Host a Tournament",
-  // matched by the creator's SPINID (`organizerId`) — never the display name,
-  // which is not unique across accounts. Admin approval is a status override,
-  // so an approved event shows up the moment it goes live.
-  const withStatus = useMemo(
-    () =>
-      allTournaments
-        .filter((t) => ownsTournament(t, user))
-        .map((t) => ({ ...t, status: effectiveStatus(t, overrides) })),
-    [allTournaments, overrides, user],
-  );
-  const activeTournaments = [...withStatus]
-    .filter((t) => t.status !== "DRAFT" && t.status !== "COMPLETED")
+  // Only tournaments THIS account created through "Host a Tournament", matched
+  // by the creator's SPINID (`organizerId`) — never the display name. One card
+  // per event: the categories a host adds are folded into their event, so a
+  // 2-category submission is a single row, not two. Admin approval is a status
+  // override, so an approved event shows up the moment it goes live.
+  const groups = useMemo(() => {
+    if (!user) return [];
+    const mine = allTournaments.filter((t) => ownsTournament(t, user));
+    return buildEventGroups(mine, allEvents).map((g) => ({
+      ...g,
+      status: mostActiveStatus(g.categories.map((c) => effectiveStatus(c, overrides))),
+    }));
+  }, [user, allTournaments, allEvents, overrides]);
+
+  const activeTournaments = [...groups]
+    .filter((g) => g.status !== "DRAFT" && g.status !== "COMPLETED")
     .sort((a, b) => new Date(a.date).getTime() - new Date(b.date).getTime());
-  const completedTournaments = withStatus.filter((t) => t.status === "COMPLETED");
-  const totalRegistrations = withStatus.reduce((sum, t) => sum + t.registeredPlayerIds.length, 0);
+  const completedTournaments = groups.filter((g) => g.status === "COMPLETED");
+  const totalRegistrations = groups.reduce((sum, g) => sum + g.registeredCount, 0);
 
   return (
     <div className={arenaFontVariables} style={{ fontFamily: "var(--font-home-body)" }}>
@@ -122,7 +135,7 @@ export default function HostDashboardPage() {
       </div>
 
       <div className="mb-10 grid grid-cols-2 gap-4 lg:grid-cols-4">
-        <StatCard icon={Trophy} label="Total Tournaments" value={String(withStatus.length)} />
+        <StatCard icon={Trophy} label="Total Tournaments" value={String(groups.length)} />
         <StatCard icon={Zap} label="Active Tournaments" value={String(activeTournaments.length)} accent />
         <StatCard icon={Users} label="Total Registered Players" value={String(totalRegistrations)} />
         <StatCard icon={CheckCircle2} label="Completed" value={String(completedTournaments.length)} />
@@ -142,8 +155,8 @@ export default function HostDashboardPage() {
           </p>
         ) : (
           <div className="max-h-[420px] space-y-2 overflow-y-auto pr-1">
-            {activeTournaments.map((t) => (
-              <TournamentHostingCard key={t.id} tournament={t} />
+            {activeTournaments.map((g) => (
+              <TournamentHostingCard key={g.eventId} group={g} />
             ))}
           </div>
         )}
