@@ -1,6 +1,6 @@
 "use client";
 
-import type { InputHTMLAttributes, ReactNode } from "react";
+import type { InputHTMLAttributes, ReactNode, TextareaHTMLAttributes } from "react";
 import { toast } from "sonner";
 import { formatCurrency, formatDate } from "@/lib/format";
 import { useMembershipStatus } from "@/lib/membership";
@@ -39,6 +39,24 @@ export function SettingsField({
         {label}
       </span>
       <input
+        {...props}
+        className="w-full rounded-[4px] border border-white/10 bg-[#1a1c20] px-4 py-3 text-sm text-[#e2e2e8] placeholder:text-[#5a5a60] focus:border-[#ff2448] focus:outline-none focus:ring-1 focus:ring-[#ff2448]"
+      />
+    </label>
+  );
+}
+
+export function SettingsTextArea({
+  label,
+  className,
+  ...props
+}: { label: string } & TextareaHTMLAttributes<HTMLTextAreaElement>) {
+  return (
+    <label className={`flex flex-col gap-1.5 ${className ?? ""}`}>
+      <span className="text-[11px] font-semibold uppercase tracking-wide text-[#8b8b93]" style={mono}>
+        {label}
+      </span>
+      <textarea
         {...props}
         className="w-full rounded-[4px] border border-white/10 bg-[#1a1c20] px-4 py-3 text-sm text-[#e2e2e8] placeholder:text-[#5a5a60] focus:border-[#ff2448] focus:outline-none focus:ring-1 focus:ring-[#ff2448]"
       />

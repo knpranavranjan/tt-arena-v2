@@ -137,6 +137,7 @@ export function ClubsProvider({ children }: { children: ReactNode }) {
             email: patch.email ?? existing.email,
             coordinates: patch.coordinates ?? existing.coordinates ?? null,
             facilities: { ...existing.facilities, ...(patch.facilities ?? {}) },
+            aboutHighlights: patch.aboutHighlights ?? existing.aboutHighlights ?? [],
           },
         });
         const next = mergeById(cur, { ...existing, ...rebuilt });

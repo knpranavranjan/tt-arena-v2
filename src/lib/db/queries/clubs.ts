@@ -109,6 +109,7 @@ export async function updateClub(
     phone: patch.phone ?? current.phone,
     email: patch.email ?? current.email,
     founded,
+    aboutHighlights: patch.aboutHighlights ?? current.aboutHighlights ?? [],
     coordinates: patch.coordinates ?? current.coordinates ?? null,
     facilities: {
       ...(current.facilities as object),

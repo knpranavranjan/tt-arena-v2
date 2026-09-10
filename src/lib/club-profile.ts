@@ -15,6 +15,8 @@ export interface ClubProfileInput {
   email?: string;
   coordinates?: { lat: number; lng: number } | null;
   facilities?: Partial<ClubFacilities>;
+  /** Short bullet points shown on the public club page. */
+  aboutHighlights?: string[];
 }
 
 export const defaultFacilities: ClubFacilities = {
@@ -61,7 +63,7 @@ export function buildClub(args: {
     address: input.address ?? location,
     coordinates: input.coordinates ?? undefined,
     description: input.description ?? "",
-    aboutHighlights: [],
+    aboutHighlights: input.aboutHighlights ?? [],
     logoUrl: undefined,
     playerIds: [],
     founded,
