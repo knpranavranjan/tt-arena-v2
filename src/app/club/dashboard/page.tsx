@@ -10,10 +10,11 @@ import { useCurrentClub } from "@/lib/session-data";
 import { ownsTournament } from "@/lib/tournament-owner";
 import { SrIdBadge } from "@/components/layout/sr-id-badge";
 import { useJoinRequests } from "@/lib/join-requests";
+import { useClubMembers } from "@/lib/club-membership";
 import { usePlayerRatings } from "@/lib/player-ratings";
 import { LiveRating } from "@/components/players/live-rating";
 import { abbreviateName, formatDate } from "@/lib/format";
-import { getClubPlayers, getPlayer } from "@/lib/mock-data";
+import { getPlayer } from "@/lib/mock-data";
 import { useAllTournaments } from "@/lib/hosted-tournaments";
 import { effectiveStatus, useTournamentStatus } from "@/lib/tournament-status";
 import { mostActiveStatus } from "@/lib/event-groups";
@@ -72,6 +73,7 @@ export default function ClubDashboardPage() {
   const ratings = usePlayerRatings();
   const allTournaments = useAllTournaments();
   const { overrides } = useTournamentStatus();
+  const clubMembers = useClubMembers(club?.id);
 
   // Tournaments this account hosts — matched by the creator's SPINID
   // (`organizerId`), never the display name. Admin approval is a status
@@ -102,7 +104,7 @@ export default function ClubDashboardPage() {
 
   if (!club) return null;
 
-  const clubPlayers = getClubPlayers(club.id).sort((a, b) => ratings.getRating(b.id) - ratings.getRating(a.id));
+  const clubPlayers = [...clubMembers].sort((a, b) => ratings.getRating(b.id) - ratings.getRating(a.id));
   const pendingRequests = pendingForClub(club.id);
 
   return (

@@ -26,8 +26,9 @@ import {
   Users,
 } from "lucide-react";
 import { arenaFontVariables } from "@/lib/fonts";
-import { getClub, getClubPlayers } from "@/lib/mock-data";
+import { getClub } from "@/lib/mock-data";
 import { useClubRoster, useCreatedClubs } from "@/lib/clubs-store";
+import { useClubMembers } from "@/lib/club-membership";
 import { useAllEvents, useAllTournaments } from "@/lib/hosted-tournaments";
 import { formatDate, initials } from "@/lib/format";
 import { JoinClubButton } from "@/components/club/join-club-button";
@@ -51,9 +52,10 @@ export default function ClubProfilePage({
     [roster, clubId],
   );
 
+  const members = useClubMembers(club?.id);
   const clubPlayers = useMemo(
-    () => (club ? getClubPlayers(club.id).sort((a, b) => b.rating - a.rating) : []),
-    [club],
+    () => [...members].sort((a, b) => b.rating - a.rating),
+    [members],
   );
   const clubEvents = useMemo(
     () =>

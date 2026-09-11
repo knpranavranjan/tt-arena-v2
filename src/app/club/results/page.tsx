@@ -4,14 +4,16 @@ import Link from "next/link";
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from "@/components/ui/table";
 import { EmptyState } from "@/components/feedback/empty-state";
 import { useCurrentClub } from "@/lib/session-data";
-import { getClubPlayers, getPlayer, tournaments } from "@/lib/mock-data";
+import { useClubMembers } from "@/lib/club-membership";
+import { getPlayer, tournaments } from "@/lib/mock-data";
 import { formatDate } from "@/lib/format";
 
 export default function ClubResultsPage() {
   const club = useCurrentClub();
+  const members = useClubMembers(club?.id);
   if (!club) return null;
 
-  const playerIds = new Set(getClubPlayers(club.id).map((p) => p.id));
+  const playerIds = new Set(members.map((p) => p.id));
   const completed = tournaments.filter(
     (t) => t.status === "COMPLETED" && t.registeredPlayerIds.some((id) => playerIds.has(id)),
   );

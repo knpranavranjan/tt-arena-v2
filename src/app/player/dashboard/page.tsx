@@ -22,7 +22,9 @@ import { usePlayerRatings } from "@/lib/player-ratings";
 import { useRegistrations } from "@/lib/registrations";
 import { useJoinRequests } from "@/lib/join-requests";
 import { arenaFontVariables } from "@/lib/fonts";
-import { getClub, getClubPlayers, getWeeklyDelta } from "@/lib/mock-data";
+import { getWeeklyDelta } from "@/lib/mock-data";
+import { useClubRoster } from "@/lib/clubs-store";
+import { clubMembersOf } from "@/lib/club-membership";
 import { useAllEvents, useAllTournaments } from "@/lib/hosted-tournaments";
 import { buildEventGroups, categoryCountLabel, mostActiveStatus } from "@/lib/event-groups";
 import { eventTitle } from "@/lib/tournament-manage";
@@ -94,6 +96,7 @@ export default function PlayerDashboardPage() {
   const { user } = useAuth();
   const player = useCurrentPlayer();
   const roster = usePlayerRoster();
+  const clubRoster = useClubRoster();
   const allTournaments = useAllTournaments();
   const allEvents = useAllEvents();
   const { overrides } = useTournamentStatus();
@@ -165,9 +168,9 @@ export default function PlayerDashboardPage() {
   );
   if (player.clubId) myClubIds.add(player.clubId);
   const myClubs = [...myClubIds]
-    .map((id) => getClub(id))
-    .filter((c): c is NonNullable<ReturnType<typeof getClub>> => Boolean(c))
-    .map((c) => ({ club: c, memberCount: getClubPlayers(c.id).length }));
+    .map((id) => clubRoster.find((c) => c.id === id))
+    .filter((c): c is NonNullable<typeof c> => Boolean(c))
+    .map((c) => ({ club: c, memberCount: clubMembersOf(c.id, roster, joinRequests).length }));
 
   return (
     <div className={`-m-4 flex flex-col gap-8 bg-[#0c0c0c] p-4 sm:-m-6 sm:p-6 ${arenaFontVariables}`} style={{ fontFamily: "var(--font-home-body)" }}>

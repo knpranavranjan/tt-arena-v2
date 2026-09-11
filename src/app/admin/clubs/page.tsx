@@ -3,14 +3,18 @@
 import { useMemo, useState } from "react";
 import Link from "next/link";
 import { ChevronRight, Search } from "lucide-react";
-import { getClubPlayers } from "@/lib/mock-data";
 import { useClubRoster } from "@/lib/clubs-store";
+import { usePlayerRoster } from "@/lib/players-store";
+import { useJoinRequests } from "@/lib/join-requests";
+import { clubMembersOf } from "@/lib/club-membership";
 
 const mono = { fontFamily: "var(--font-home-mono)" };
 const display = { fontFamily: "var(--font-home-display)" };
 
 export default function AdminClubsPage() {
   const clubs = useClubRoster();
+  const roster = usePlayerRoster();
+  const { requests } = useJoinRequests();
   const [search, setSearch] = useState("");
 
   // Seed catalogue + every real CLUB sign-up.
@@ -64,7 +68,7 @@ export default function AdminClubsPage() {
                     {c.location}, {c.state}
                   </td>
                   <td className="px-4 py-3.5 text-right tabular-nums font-semibold text-[#ff8f86]" style={mono}>
-                    {getClubPlayers(c.id).length}
+                    {clubMembersOf(c.id, roster, requests).length}
                   </td>
                   <td className="px-4 py-3.5">
                     {c.verified ? (
