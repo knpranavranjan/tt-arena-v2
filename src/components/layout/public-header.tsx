@@ -100,7 +100,7 @@ export function PublicHeader() {
         )}
 
         <div className="hidden items-center gap-3 md:flex">
-          {user && !isAuthPage && <NotificationBell />}
+          {user && !showAuthButtons && <NotificationBell />}
           {user && !showAuthButtons ? (
             <Button
               size="lg"
