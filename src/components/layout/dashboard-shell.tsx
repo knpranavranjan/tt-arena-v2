@@ -16,7 +16,6 @@ import { Button } from "@/components/ui/button";
 import { Sheet, SheetContent, SheetHeader, SheetTitle, SheetTrigger } from "@/components/ui/sheet";
 import { Wordmark } from "@/components/layout/public-header";
 import { NotificationBell } from "@/components/layout/notification-bell";
-import { SrIdBadge } from "@/components/layout/sr-id-badge";
 import { useAuth } from "@/lib/auth";
 import { initials } from "@/lib/format";
 import { cn } from "@/lib/utils";
@@ -74,9 +73,6 @@ export function DashboardShell({
             <Wordmark />
             <span className="hidden rounded-full border border-border bg-secondary px-2.5 py-1 text-[10px] font-semibold uppercase tracking-widest text-muted-foreground sm:inline-block">
               {roleLabel[role]}
-            </span>
-            <span className="hidden sm:inline-block">
-              <SrIdBadge />
             </span>
           </div>
 
