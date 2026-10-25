@@ -2,8 +2,24 @@ import { authenticate, listAccounts, registerAccount } from "@/lib/db/queries/ac
 
 const ROLES = ["PLAYER", "CLUB", "HOST", "ADMIN"] as const;
 
+/**
+ * GET /api/accounts — the platform's account directory (SPINID, name, role,
+ * linked profile). Email is deliberately left out: this list is readable by
+ * anyone, and nothing that reads it needs contact details. Sign-in and
+ * registration (POST) are where an email is used.
+ */
 export async function GET() {
-  return Response.json(await listAccounts());
+  const accounts = await listAccounts();
+  return Response.json(
+    accounts.map((a) => ({
+      id: a.id,
+      uniqueId: a.uniqueId,
+      name: a.name,
+      role: a.role,
+      linkedId: a.linkedId,
+      seed: a.seed,
+    })),
+  );
 }
 
 export async function POST(request: Request) {
