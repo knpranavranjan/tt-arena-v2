@@ -3,6 +3,7 @@ import {
   createRegistration,
   listRegistrations,
 } from "@/lib/db/queries/registrations";
+import { checkRegistrationEligibility } from "@/lib/db/queries/registration-eligibility";
 
 export async function GET() {
   return Response.json(await listRegistrations());
@@ -19,6 +20,11 @@ export async function POST(request: Request) {
       { error: "tournamentId, playerId, playerName required" },
       { status: 400 },
     );
+  }
+  // The category's age / rating limit — enforced here too, not just in the checkout.
+  const eligibility = await checkRegistrationEligibility(b.tournamentId, b.playerId);
+  if (!eligibility.ok) {
+    return Response.json({ error: eligibility.reason }, { status: 403 });
   }
   const answers = Array.isArray(b.answers)
     ? b.answers.filter(

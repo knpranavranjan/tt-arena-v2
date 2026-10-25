@@ -15,8 +15,10 @@ import { KnockoutBracket, type BracketRoundData } from "@/components/tournament/
 import { EmptyState } from "@/components/feedback/empty-state";
 import { getPlayer, getTournamentPlayers, matches as allMatches, poolStandings, ratingExports } from "@/lib/mock-data";
 import { generatePools, poolQualifiers, seedPlayers } from "@/lib/tournament-logic";
-import { formatCurrency, formatDate } from "@/lib/format";
+import { formatCurrency, formatEventDates } from "@/lib/format";
 import type { RatingExportStatus, Tournament, TournamentStatus } from "@/lib/types";
+import { usePortalHref } from "@/lib/portal-scope";
+import { useHostName } from "@/lib/host-names";
 
 const nextStatusLabel: Partial<Record<TournamentStatus, string>> = {
   REGISTRATION_OPEN: "Close Registration",
@@ -35,6 +37,8 @@ const statusFlow: TournamentStatus[] = [
 ];
 
 export function TournamentWorkspace({ tournament }: { tournament: Tournament }) {
+  const portalHref = usePortalHref();
+  const hostName = useHostName();
   const [status, setStatus] = useState<TournamentStatus>(tournament.status);
   const [champion, setChampion] = useState<string | undefined>(tournament.champion);
   const [runnerUp, setRunnerUp] = useState<string | undefined>(tournament.runnerUp);
@@ -103,17 +107,17 @@ export function TournamentWorkspace({ tournament }: { tournament: Tournament }) 
             <TournamentStatusBadge status={status} />
             <h2 className="mt-2 font-heading text-2xl font-semibold text-foreground">{tournament.name}</h2>
             <div className="mt-2 flex flex-wrap items-center gap-x-4 gap-y-1 text-sm text-muted-foreground">
-              <span className="flex items-center gap-1.5"><Calendar className="h-3.5 w-3.5" strokeWidth={1.5} /> {formatDate(tournament.date)}</span>
+              <span className="flex items-center gap-1.5"><Calendar className="h-3.5 w-3.5" strokeWidth={1.5} /> {formatEventDates(tournament)}</span>
               <span className="flex items-center gap-1.5"><MapPin className="h-3.5 w-3.5" strokeWidth={1.5} /> {tournament.venue}</span>
-              <span className="flex items-center gap-1.5"><User className="h-3.5 w-3.5" strokeWidth={1.5} /> {tournament.organizer}</span>
+              <span className="flex items-center gap-1.5"><User className="h-3.5 w-3.5" strokeWidth={1.5} /> {hostName(tournament)}</span>
               <span className="flex items-center gap-1.5"><Trophy className="h-3.5 w-3.5" strokeWidth={1.5} /> {tournament.category}</span>
             </div>
           </div>
           {nextStatusLabel[status] && (
             <Button onClick={advance}>{nextStatusLabel[status]}</Button>
           )}
-          <Button variant="outline" render={<Link href={`/tournaments/${tournament.id}`} />}>
-            View Public Page
+          <Button variant="outline" render={<Link href={portalHref(`/tournaments/${tournament.id}`)} />}>
+            View Tournament Page
           </Button>
         </div>
         <div className="mt-5 overflow-x-auto">

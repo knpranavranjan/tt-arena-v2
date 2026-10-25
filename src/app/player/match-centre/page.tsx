@@ -2,7 +2,7 @@
 
 import { useMemo, useState } from "react";
 import { AnimatePresence, motion, useReducedMotion } from "framer-motion";
-import { Calendar, ChevronRight, Clock, ListOrdered, MapPin, Radio, Trophy } from "lucide-react";
+import { Calendar, ChevronRight, Clock, ListOrdered, MapPin, Radio, Trophy, User } from "lucide-react";
 
 import { useCurrentPlayer } from "@/lib/session-data";
 import { useRegistrations } from "@/lib/registrations";
@@ -11,7 +11,8 @@ import { useAllEvents, useAllTournaments } from "@/lib/hosted-tournaments";
 import { useConsoleTournamentIds, useLiveTournaments, type LiveCategory } from "@/lib/live-schedule";
 import { POOLS_STAGE, log2, roundName, roundShortName } from "@/lib/tournament/bracketMath";
 import { gameTally } from "@/lib/tournament/scoring";
-import { formatDate } from "@/lib/format";
+import { formatDateRange } from "@/lib/format";
+import { useHostName } from "@/lib/host-names";
 import { duration, ease, fadeUp, liveDotPulse, staggerChildren } from "@/lib/motion";
 import { cn } from "@/lib/utils";
 import type { GameScore } from "@/lib/tournament/types";
@@ -26,7 +27,10 @@ interface LiveEvent {
   eventId: string;
   name: string;
   date: string;
+  endDate?: string;
   venue: string;
+  /** Name of the account that hosted the event (see lib/host-names). */
+  host: string;
   cats: { key: string; category: LiveCategory }[];
 }
 
@@ -37,6 +41,7 @@ export default function PlayerMatchCentrePage() {
   const { registrations } = useRegistrations();
   const allTournaments = useAllTournaments();
   const allEvents = useAllEvents();
+  const hostName = useHostName();
   const consoleIds = useConsoleTournamentIds(player?.id);
   const reduce = useReducedMotion();
 
@@ -71,17 +76,20 @@ export default function PlayerMatchCentrePage() {
       const t =
         allTournaments.find((x) => x.id === lt.tournamentId) ?? getTournament(lt.tournamentId);
       const eventId = t?.eventId ?? lt.tournamentId;
-      const eventName =
-        allEvents.find((e) => e.id === eventId)?.name ??
-        getEvent(eventId)?.name ??
-        lt.name.split(/\s+[—–-]\s+/)[0];
+      const ev = allEvents.find((e) => e.id === eventId) ?? getEvent(eventId);
+      const eventName = ev?.name ?? lt.name.split(/\s+[—–-]\s+/)[0];
       const entry =
         byEvent.get(eventId) ??
         ({
           eventId,
           name: eventName,
           date: t?.date ?? lt.date,
+          endDate: t?.endDate || ev?.endDate || undefined,
           venue: t?.venue ?? "",
+          host: hostName({
+            organizer: t?.organizer ?? ev?.organizer,
+            organizerId: t?.organizerId ?? ev?.organizerId,
+          }),
           cats: [],
         } satisfies LiveEvent);
       for (const c of lt.categories) {
@@ -92,7 +100,7 @@ export default function PlayerMatchCentrePage() {
     return [...byEvent.values()].sort(
       (a, b) => new Date(b.date).getTime() - new Date(a.date).getTime(),
     );
-  }, [live, allTournaments, allEvents]);
+  }, [live, allTournaments, allEvents, hostName]);
 
   const [selectedId, setSelectedId] = useState<string | null>(null);
   const selected = liveEvents.find((e) => e.eventId === selectedId) ?? liveEvents[0] ?? null;
@@ -148,6 +156,8 @@ export default function PlayerMatchCentrePage() {
                 key={e.eventId}
                 name={e.name}
                 date={e.date}
+                endDate={e.endDate}
+                host={e.host}
                 categoryCount={e.cats.length}
                 active={selected?.eventId === e.eventId}
                 onSelect={() => {
@@ -163,7 +173,7 @@ export default function PlayerMatchCentrePage() {
           <div className="min-w-0">
             {selected && (
               <>
-                <TournamentHead name={selected.name} date={selected.date} venue={selected.venue} />
+                <TournamentHead name={selected.name} date={selected.date} endDate={selected.endDate} venue={selected.venue} host={selected.host} />
 
                 {selected.cats.length > 1 && (
                   <div className="mb-6 inline-flex flex-wrap gap-1 rounded-full border border-white/10 bg-white/[0.03] p-1">
@@ -274,6 +284,8 @@ function shortRound(name: string) {
 function TournamentCard({
   name,
   date,
+  endDate,
+  host,
   categoryCount,
   active,
   onSelect,
@@ -282,6 +294,8 @@ function TournamentCard({
 }: {
   name: string;
   date: string;
+  endDate?: string;
+  host: string;
   categoryCount: number;
   active: boolean;
   onSelect: () => void;
@@ -313,10 +327,18 @@ function TournamentCard({
       <p className="mt-1.5 text-sm font-bold leading-tight text-[#e8e8ee]">{name}</p>
       <p className="mt-1 flex items-center gap-1.5 text-[11px] text-[#8b8b93]">
         <Calendar className="h-3 w-3" strokeWidth={1.75} />
-        {formatDate(date)}
+        {formatDateRange(date, endDate)}
         <span className="text-[#4a4a52]">·</span>
         {categoryCount} categor{categoryCount === 1 ? "y" : "ies"}
       </p>
+      {host && (
+        <p className="mt-1 flex items-center gap-1.5 truncate text-[11px] text-[#8b8b93]">
+          <User className="h-3 w-3 shrink-0" strokeWidth={1.75} />
+          <span className="truncate">
+            Hosted by <span className="font-semibold text-[#c2c6d7]">{host}</span>
+          </span>
+        </p>
+      )}
       <div className="mt-3 flex flex-wrap gap-1">
         {stageChips.map((s, i) => (
           <span
@@ -335,7 +357,19 @@ function TournamentCard({
   );
 }
 
-function TournamentHead({ name, date, venue }: { name: string; date: string; venue: string }) {
+function TournamentHead({
+  name,
+  date,
+  endDate,
+  venue,
+  host,
+}: {
+  name: string;
+  date: string;
+  endDate?: string;
+  venue: string;
+  host: string;
+}) {
   // The title is the event's own name — the category is chosen with the pills
   // below, so it never belongs in the header.
   const title = name;
@@ -354,7 +388,7 @@ function TournamentHead({ name, date, venue }: { name: string; date: string; ven
       <div className="mt-2 flex flex-wrap items-center gap-x-3 gap-y-1 text-xs text-[#8b8b93]">
         <span className="flex items-center gap-1.5">
           <Calendar className="h-3.5 w-3.5 text-[#ff2448]" strokeWidth={1.75} />
-          {formatDate(date)}
+          {formatDateRange(date, endDate)}
         </span>
         {venue && (
           <>
@@ -362,6 +396,15 @@ function TournamentHead({ name, date, venue }: { name: string; date: string; ven
             <span className="flex items-center gap-1.5">
               <MapPin className="h-3.5 w-3.5 text-[#ff2448]" strokeWidth={1.75} />
               {venue}
+            </span>
+          </>
+        )}
+        {host && (
+          <>
+            <span className="text-[#4a4a52]">·</span>
+            <span className="flex items-center gap-1.5">
+              <User className="h-3.5 w-3.5 text-[#ff2448]" strokeWidth={1.75} />
+              Hosted by <span className="font-semibold text-[#e2e2e8]">{host}</span>
             </span>
           </>
         )}

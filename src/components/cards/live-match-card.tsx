@@ -1,10 +1,14 @@
+"use client";
+
 import Link from "next/link";
 import { LiveDot } from "@/components/motion/live-dot";
 import { getPlayer, getTournament } from "@/lib/mock-data";
 import type { Match } from "@/lib/types";
 import { cn } from "@/lib/utils";
+import { usePortalHref } from "@/lib/portal-scope";
 
 export function LiveMatchCard({ match, className }: { match: Match; className?: string }) {
+  const portalHref = usePortalHref();
   const playerA = getPlayer(match.playerAId);
   const playerB = getPlayer(match.playerBId);
   const tournament = getTournament(match.tournamentId);
@@ -13,7 +17,7 @@ export function LiveMatchCard({ match, className }: { match: Match; className?: 
 
   return (
     <Link
-      href={`/tournaments/${match.tournamentId}`}
+      href={portalHref(`/tournaments/${match.tournamentId}`)}
       className={cn(
         "group flex flex-col gap-3 rounded-lg border border-live/30 bg-card p-4 transition-colors hover:border-live/50",
         className,

@@ -71,7 +71,7 @@ export default function AdminPlayersPage() {
                   </td>
                   <td className="px-4 py-3.5 text-right">
                     <Link
-                      href={`/players/${p.id}`}
+                      href={`/admin/players/${p.id}`}
                       className="inline-flex items-center gap-1 text-xs font-semibold uppercase tracking-wide text-[#c2c6d7] transition-colors hover:text-[#ff8f86]"
                       style={mono}
                     >

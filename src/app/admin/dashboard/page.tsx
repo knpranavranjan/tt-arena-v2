@@ -19,9 +19,10 @@ import { SrIdBadge } from "@/components/layout/sr-id-badge";
 import { appUsers, clubs, players, tournamentCode } from "@/lib/mock-data";
 import { useAllEvents, useAllTournaments } from "@/lib/hosted-tournaments";
 import { buildEventGroups, mostActiveStatus } from "@/lib/event-groups";
-import { formatDate } from "@/lib/format";
+import { formatEventDates } from "@/lib/format";
 import { effectiveStatus, useTournamentStatus } from "@/lib/tournament-status";
 import type { TournamentStatus } from "@/lib/types";
+import { useHostName } from "@/lib/host-names";
 
 const mono = { fontFamily: "var(--font-home-mono)" };
 const display = { fontFamily: "var(--font-home-display)" };
@@ -62,6 +63,7 @@ function StatCard({ icon: Icon, label, value, accent }: { icon: LucideIcon; labe
 }
 
 export default function AdminDashboardPage() {
+  const hostName = useHostName();
   const { overrides, approve } = useTournamentStatus();
   const tournaments = useAllTournaments();
   const events = useAllEvents();
@@ -92,10 +94,10 @@ export default function AdminDashboardPage() {
     return eventGroups.filter(
       ({ group: g }) =>
         g.name.toLowerCase().includes(q) ||
-        g.organizer.toLowerCase().includes(q) ||
+        hostName(g).toLowerCase().includes(q) ||
         g.categories.some((c) => c.category.toLowerCase().includes(q)),
     );
-  }, [eventGroups, search]);
+  }, [eventGroups, search, hostName]);
 
   // Events awaiting review — every category approved together.
   const pendingApproval = eventGroups.filter((r) => r.status === "DRAFT");
@@ -134,7 +136,7 @@ export default function AdminDashboardPage() {
 
       <div className="mb-10 grid grid-cols-1 gap-2 sm:grid-cols-3">
         <Link
-          href="/players"
+          href="/admin/players"
           className="flex items-center justify-center gap-1.5 rounded-[2px] bg-[#ff2448] py-3 text-xs font-semibold uppercase tracking-wide text-white transition-all hover:scale-[1.02] hover:shadow-[0_0_16px_-4px_#ff2448] active:scale-95"
           style={mono}
         >
@@ -142,7 +144,7 @@ export default function AdminDashboardPage() {
           View All Players
         </Link>
         <Link
-          href="/clubs"
+          href="/admin/clubs"
           className="flex items-center justify-center gap-1.5 rounded-[2px] border border-white/15 py-3 text-xs font-semibold uppercase tracking-wide text-[#c2c6d7] transition-colors hover:border-white/30 hover:bg-white/5"
           style={mono}
         >
@@ -150,7 +152,7 @@ export default function AdminDashboardPage() {
           View All Clubs
         </Link>
         <Link
-          href="/events"
+          href="/admin/events"
           className="flex items-center justify-center gap-1.5 rounded-[2px] border border-white/15 py-3 text-xs font-semibold uppercase tracking-wide text-[#c2c6d7] transition-colors hover:border-white/30 hover:bg-white/5"
           style={mono}
         >
@@ -183,7 +185,7 @@ export default function AdminDashboardPage() {
                 <div className="min-w-0">
                   <p className="truncate text-sm font-semibold text-[#e2e2e8]">{g.name}</p>
                   <p className="mt-0.5 text-xs text-[#8b8b93]">
-                    #{tournamentCode(g.primary)} &middot; Hosted by {g.organizer} &middot; {formatDate(g.date)}
+                    #{tournamentCode(g.primary)} &middot; Hosted by {hostName(g)} &middot; {formatEventDates(g)}
                     {" "}&middot; {g.categories.length} categor{g.categories.length === 1 ? "y" : "ies"}
                   </p>
                 </div>
@@ -237,7 +239,7 @@ export default function AdminDashboardPage() {
                 return (
                   <Link
                     key={g.eventId}
-                    href={`/tournaments/${g.primary.id}`}
+                    href={`/admin/categories/${g.primary.id}`}
                     className="flex items-center justify-between gap-3 rounded-[6px] border border-white/10 bg-white/[0.03] p-3.5 transition-colors hover:border-white/20"
                   >
                     <div className="min-w-0">
@@ -261,7 +263,7 @@ export default function AdminDashboardPage() {
                       </div>
                       <p className="truncate text-sm font-semibold text-[#e2e2e8]">{g.name}</p>
                       <p className="mt-0.5 text-xs text-[#8b8b93]">
-                        Hosted by {g.organizer} &middot; {formatDate(g.date)}
+                        Hosted by {hostName(g)} &middot; {formatEventDates(g)}
                       </p>
                     </div>
                     <ChevronRight className="h-4 w-4 shrink-0 text-[#5a5a60]" strokeWidth={2} />

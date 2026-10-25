@@ -6,13 +6,15 @@ import { motion, useReducedMotion } from "framer-motion";
 import { ArrowRight, ArrowUp } from "lucide-react";
 import { getWeeklyDelta } from "@/lib/mock-data";
 import { usePlayerRoster } from "@/lib/players-store";
+import { usePortalHref } from "@/lib/portal-scope";
 import type { Player } from "@/lib/types";
 import { abbreviateName, initials } from "@/lib/format";
 
 function RankCard({ rank, player }: { rank: number; player: Player }) {
+  const portalHref = usePortalHref();
   return (
     <Link
-      href={`/players/${player.id}`}
+      href={portalHref(`/players/${player.id}`)}
       className="flex w-64 shrink-0 items-center gap-3 rounded-[4px] border border-white/10 bg-white/[0.04] px-4 py-2.5 backdrop-blur-xl transition-colors hover:border-white/20"
     >
       <span

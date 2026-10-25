@@ -1,8 +1,9 @@
 "use client";
 
-import { useState } from "react";
+import { useEffect, useState } from "react";
 import Link from "next/link";
-import { Check, Lock, Plus, X } from "lucide-react";
+import { useRouter } from "next/navigation";
+import { Check, Plus, X } from "lucide-react";
 import { toast } from "sonner";
 import { Dialog, DialogClose, DialogContent, DialogDescription, DialogTitle } from "@/components/ui/dialog";
 import { useAuth } from "@/lib/auth";
@@ -14,7 +15,9 @@ import { formatCurrency } from "@/lib/format";
 import { PosterUpload } from "@/components/tournaments/poster-upload";
 import { TieBreakRules } from "@/components/tournaments/tie-break-rules";
 import { DEFAULT_TIE_BREAK_ORDER, type TieBreakCriterionId } from "@/lib/tie-break";
-import type { RegistrationQuestion, TTEvent, Tournament, TournamentFormat } from "@/lib/types";
+import type { CategoryType, RegistrationQuestion, TTEvent, Tournament, TournamentFormat } from "@/lib/types";
+import { CategoryLimitSelect, CategoryTypeToggle } from "@/components/tournaments/category-type-fields";
+import { usePortalHref } from "@/lib/portal-scope";
 
 const mono = { fontFamily: "var(--font-home-mono)" };
 const display = { fontFamily: "var(--font-home-display)" };
@@ -46,10 +49,29 @@ function makeId(prefix: string) {
 
 interface CategoryRow {
   id: string;
+  /** Free-text category name (e.g. "Men's Singles Open"). */
   name: string;
+  /** Which restriction applies: age or rating. */
+  type: CategoryType;
+  /** The restriction number — age 1–100 or rating 50–3000; "" = open to all. */
+  limit: string;
   entryFee: string;
   prizePool: string;
 }
+
+const newCategory = (): CategoryRow => ({
+  id: makeId("cat"),
+  name: "",
+  type: "AGE",
+  limit: "",
+  entryFee: "",
+  prizePool: "",
+});
+
+const categoryName = (c: CategoryRow) => c.name.trim();
+const limitFieldStyle = { width: 128, flexShrink: 0 };
+const feeFieldStyle = { width: 132, flexShrink: 0 };
+
 
 type ResponseType = "Multiple Choice" | "Short Answer" | "Yes / No";
 
@@ -72,6 +94,8 @@ const responseTypeOptions: ResponseType[] = ["Multiple Choice", "Short Answer", 
 
 export default function HostTournamentPage() {
   const { user, isLoading } = useAuth();
+  const router = useRouter();
+  const portalHref = usePortalHref();
   const club = useCurrentClub();
   const player = useCurrentPlayer();
   const { plans: hostingPlans } = useHostingPlans();
@@ -79,11 +103,11 @@ export default function HostTournamentPage() {
 
   const [name, setName] = useState("");
   const [date, setDate] = useState("");
+  // Last day of play — blank means a one-day tournament.
+  const [endDate, setEndDate] = useState("");
   const [location, setLocation] = useState("");
   const [venue, setVenue] = useState("");
-  const [categories, setCategories] = useState<CategoryRow[]>([
-    { id: makeId("cat"), name: "", entryFee: "", prizePool: "" },
-  ]);
+  const [categories, setCategories] = useState<CategoryRow[]>(() => [newCategory()]);
   const [format, setFormat] = useState<TournamentFormat>("POOL_KNOCKOUT");
   const [matchFormat, setMatchFormat] = useState(matchFormatOptions[1]);
   const [ballType, setBallType] = useState("");
@@ -102,7 +126,7 @@ export default function HostTournamentPage() {
     setCategories((prev) => prev.map((c) => (c.id === id ? { ...c, ...patch } : c)));
   }
   function addCategory() {
-    setCategories((prev) => [...prev, { id: makeId("cat"), name: "", entryFee: "", prizePool: "" }]);
+    setCategories((prev) => [...prev, newCategory()]);
   }
   function removeCategory(id: string) {
     setCategories((prev) => prev.filter((c) => c.id !== id));
@@ -137,11 +161,15 @@ export default function HostTournamentPage() {
 
   function handleSubmit(e: React.FormEvent) {
     e.preventDefault();
-    const validCategories = categories.filter((c) => c.name.trim());
+    const validCategories = categories.filter((c) => categoryName(c));
     if (!name.trim() || !date || !location.trim() || !venue.trim() || validCategories.length === 0) {
       toast.error("Missing details", {
-        description: "Fill in the tournament name, date, location, venue and at least one category.",
+        description: "Fill in the tournament name, start date, location, venue and at least one category.",
       });
+      return;
+    }
+    if (endDate && endDate < date) {
+      toast.error("Check the dates", { description: "The end date can't be before the start date." });
       return;
     }
     // The details are ready — hosting a tournament costs a fee, so collect that
@@ -150,7 +178,9 @@ export default function HostTournamentPage() {
   }
 
   function submitTournament() {
-    const validCategories = categories.filter((c) => c.name.trim());
+    const validCategories = categories.filter((c) => categoryName(c));
+    // A one-day tournament (or an end date equal to the start) stores no endDate.
+    const lastDay = endDate && endDate > date ? endDate : undefined;
     const organizerName = club?.name ?? player?.name ?? user?.name ?? "Tournament Host";
     // The account's SPINID is the unique owner key — `organizerName` is only a
     // label and can collide between accounts (a player and a club, say).
@@ -180,16 +210,21 @@ export default function HostTournamentPage() {
       return {
         id,
         eventId: sharedEventId,
-        name: `${name} — ${cat.name}`,
+        name: `${name} — ${categoryName(cat)}`,
         venue,
         organizer: organizerName,
         organizerId,
         date,
+        endDate: lastDay,
         registrationDeadline: date,
         maxPlayers: 32,
         registeredPlayerIds: [],
         format,
-        category: cat.name,
+        category: categoryName(cat),
+        categoryType: cat.type,
+        // Entry restriction checked at registration: players must be under it.
+        ratingLimit: cat.type === "RATING" ? Number(cat.limit) || undefined : undefined,
+        ageLimit: cat.type === "AGE" ? Number(cat.limit) || undefined : undefined,
         entryFee: Number(cat.entryFee) || 0,
         description: details,
         status: "DRAFT",
@@ -211,6 +246,7 @@ export default function HostTournamentPage() {
       organizerId,
       venue,
       date,
+      endDate: lastDay,
       location,
       status: "UPCOMING",
       tournamentIds: createdIds,
@@ -228,34 +264,18 @@ export default function HostTournamentPage() {
     setSubmitted(true);
   }
 
-  if (isLoading) {
+  // Logged-out visitors (homepage CTA, footer link, typed URL) go straight to
+  // sign-in; login/register carry `next` so they land back on this form — new
+  // users included, via the Register link on the login page.
+  useEffect(() => {
+    if (!isLoading && !user) router.replace("/login?next=/host-tournament");
+  }, [isLoading, user, router]);
+
+  if (isLoading || !user) {
     return (
       <div className={arenaFontVariables} style={{ fontFamily: "var(--font-home-body)" }}>
         <div className="mx-auto max-w-3xl px-4 py-16 sm:px-12">
           <div className="h-96 w-full animate-pulse rounded-[8px] bg-white/5" />
-        </div>
-      </div>
-    );
-  }
-
-  if (!user) {
-    return (
-      <div className={arenaFontVariables} style={{ fontFamily: "var(--font-home-body)" }}>
-        <div className="mx-auto max-w-xl px-4 py-24 text-center sm:px-12">
-          <h1 className="mb-4 text-3xl font-extrabold uppercase tracking-tight text-[#e2e2e8] sm:text-4xl" style={display}>
-            Host a Tournament
-          </h1>
-          <p className="mb-8 text-sm leading-relaxed text-[#c2c6d7]">
-            Log in as a player or club to submit a tournament for admin approval.
-          </p>
-          <Link
-            href="/login?next=/host-tournament"
-            className="inline-flex items-center justify-center gap-2 rounded-[2px] bg-[#ff2448] px-8 py-3.5 text-sm font-semibold uppercase tracking-wide text-white transition-all hover:scale-[1.02] hover:shadow-[0_0_20px_-5px_#ff2448] active:scale-95"
-            style={mono}
-          >
-            <Lock className="h-4 w-4" strokeWidth={2} />
-            Log In to Continue
-          </Link>
         </div>
       </div>
     );
@@ -276,7 +296,7 @@ export default function HostTournamentPage() {
             live for registration.
           </p>
           <Link
-            href="/tournaments"
+            href={portalHref("/events")}
             className="inline-flex items-center justify-center gap-2 rounded-[2px] border border-white/15 px-8 py-3.5 text-sm font-semibold uppercase tracking-wide text-[#e2e2e8] transition-colors hover:border-white/30 hover:bg-white/5"
             style={mono}
           >
@@ -318,16 +338,36 @@ export default function HostTournamentPage() {
           <div className="grid gap-6 sm:grid-cols-2">
             <div>
               <label htmlFor="date" className={labelClass} style={mono}>
-                Date
+                From Date
               </label>
               <input
                 id="date"
                 type="date"
                 className={dateFieldClass}
                 value={date}
-                onChange={(e) => setDate(e.target.value)}
+                onChange={(e) => {
+                  setDate(e.target.value);
+                  if (endDate && e.target.value > endDate) setEndDate(e.target.value);
+                }}
               />
             </div>
+            <div>
+              <label htmlFor="endDate" className={labelClass} style={mono}>
+                To Date
+              </label>
+              <input
+                id="endDate"
+                type="date"
+                className={dateFieldClass}
+                value={endDate}
+                min={date || undefined}
+                onChange={(e) => setEndDate(e.target.value)}
+              />
+              <p className="mt-1.5 text-[11px] text-[#5a5a60]">Same as From, or leave blank, for a one-day tournament.</p>
+            </div>
+          </div>
+
+          <div>
             <div>
               <label htmlFor="location" className={labelClass} style={mono}>
                 Location
@@ -361,17 +401,28 @@ export default function HostTournamentPage() {
             </h2>
             <div className="space-y-3">
               {categories.map((cat, i) => (
-                <div key={cat.id} className="flex items-center gap-3">
+                <div key={cat.id} className="flex flex-wrap items-center gap-3">
+                  <CategoryTypeToggle
+                    value={cat.type}
+                    // The two limits use different scales — clear the number when switching.
+                    onChange={(type) => updateCategory(cat.id, { type, limit: type === cat.type ? cat.limit : "" })}
+                  />
                   <input
                     className={flexFieldClass}
                     style={flexFieldStyle}
-                    placeholder={`Category ${i + 1} (e.g. Under 15, Open)`}
+                    placeholder={`Category ${i + 1} name`}
                     value={cat.name}
                     onChange={(e) => updateCategory(cat.id, { name: e.target.value })}
                   />
+                  <CategoryLimitSelect
+                    type={cat.type}
+                    style={limitFieldStyle}
+                    value={cat.limit}
+                    onChange={(limit) => updateCategory(cat.id, { limit })}
+                  />
                   <input
                     className={`${fieldClass} w-52 shrink-0`}
-                    style={amountFieldStyle}
+                    style={feeFieldStyle}
                     placeholder="Entry fee ₹"
                     inputMode="numeric"
                     value={cat.entryFee}
@@ -388,6 +439,9 @@ export default function HostTournamentPage() {
                 </div>
               ))}
             </div>
+            <p className="mt-2 text-[11px] text-[#5a5a60]">
+              Name the category, then set who can enter: Age (1–100) or Rating (50–3000). Players must be under the number to register; leave it on &ldquo;any&rdquo; for an open category.
+            </p>
             <button type="button" onClick={addCategory} className={`mt-3 ${dashedButtonClass}`} style={mono}>
               <Plus className="h-3.5 w-3.5" strokeWidth={2.5} />
               Add Category
@@ -497,8 +551,8 @@ export default function HostTournamentPage() {
                   <input
                     className={`${flexFieldClass} cursor-not-allowed text-[#8b8b93]`}
                     style={flexFieldStyle}
-                    placeholder={`Category ${i + 1} (e.g. Under 15, Open)`}
-                    value={cat.name}
+                    placeholder={`Category ${i + 1}`}
+                    value={categoryName(cat)}
                     disabled
                   />
                   <input

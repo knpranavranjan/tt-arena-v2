@@ -32,10 +32,14 @@ export type TournamentEdit = Partial<
     | "name"
     | "venue"
     | "date"
+    | "endDate"
     | "registrationDeadline"
     | "maxPlayers"
     | "format"
     | "category"
+    | "categoryType"
+    | "ratingLimit"
+    | "ageLimit"
     | "entryFee"
     | "description"
     | "matchFormat"
@@ -50,7 +54,7 @@ export type TournamentEdit = Partial<
 >;
 
 /** Event-level fields (shared by every category of the event). */
-export type EventEdit = Partial<Pick<TTEvent, "name" | "venue" | "date" | "location" | "posterUrl">>;
+export type EventEdit = Partial<Pick<TTEvent, "name" | "venue" | "date" | "endDate" | "location" | "posterUrl">>;
 
 interface EditsData {
   tournaments: Record<string, TournamentEdit>;

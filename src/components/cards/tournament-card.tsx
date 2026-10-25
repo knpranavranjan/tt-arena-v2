@@ -1,14 +1,18 @@
+"use client";
+
 import Link from "next/link";
 import { Calendar, MapPin, Trophy, Users } from "lucide-react";
 import { TournamentStatusBadge } from "@/components/ui/status-badge";
-import { formatDate } from "@/lib/format";
+import { formatEventDates } from "@/lib/format";
 import type { Tournament } from "@/lib/types";
 import { cn } from "@/lib/utils";
+import { usePortalHref } from "@/lib/portal-scope";
 
 export function TournamentCard({ tournament, className }: { tournament: Tournament; className?: string }) {
+  const portalHref = usePortalHref();
   return (
     <Link
-      href={`/tournaments/${tournament.id}`}
+      href={portalHref(`/tournaments/${tournament.id}`)}
       className={cn(
         "group flex flex-col gap-3 rounded-lg border border-border bg-card p-4 transition-colors hover:border-primary/40 hover:bg-accent/40",
         className,
@@ -23,7 +27,7 @@ export function TournamentCard({ tournament, className }: { tournament: Tourname
       <div className="grid grid-cols-2 gap-y-1.5 text-sm text-muted-foreground">
         <span className="flex items-center gap-1.5">
           <Calendar className="h-3.5 w-3.5 shrink-0" strokeWidth={1.5} />
-          {formatDate(tournament.date)}
+          {formatEventDates(tournament)}
         </span>
         <span className="flex items-center gap-1.5">
           <MapPin className="h-3.5 w-3.5 shrink-0" strokeWidth={1.5} />

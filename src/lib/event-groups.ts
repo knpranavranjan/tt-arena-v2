@@ -10,8 +10,12 @@ export interface EventGroup {
   event?: TTEvent;
   name: string;
   date: string;
+  /** Last day of play for a multi-day event (absent/"" = one day). */
+  endDate?: string;
   venue: string;
   organizer: string;
+  /** SPINID of the account that hosted the event (absent on seed events). */
+  organizerId?: string;
   format: TournamentFormat;
   categories: Tournament[];
   /** The category to link to (prefers one open for registration). */
@@ -56,8 +60,10 @@ export function buildEventGroups(tournaments: Tournament[], events: TTEvent[]): 
       // `Tournament.name` is "<Event> — <Category>"; fall back to that stem.
       name: event?.name ?? primary.name.split(" — ")[0],
       date: primary.date,
+      endDate: primary.endDate || event?.endDate || undefined,
       venue: primary.venue,
       organizer: primary.organizer,
+      organizerId: primary.organizerId ?? event?.organizerId,
       format: primary.format,
       categories,
       primary,

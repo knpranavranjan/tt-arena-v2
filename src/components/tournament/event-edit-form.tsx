@@ -12,7 +12,10 @@ import {
   normalizeTieBreakOrder,
   type TieBreakCriterionId,
 } from "@/lib/tie-break";
+import { CategoryLimitSelect, CategoryTypeToggle } from "@/components/tournaments/category-type-fields";
+import { categoryTypeOf } from "@/lib/tournament-categories";
 import type {
+  CategoryType,
   QuestionResponseType,
   RegistrationQuestion,
   Tournament,
@@ -57,10 +60,18 @@ interface QuestionRow {
 interface CategoryRow {
   /** The `Tournament` record id this row maps to. */
   id: string;
+  /** Free-text category name. */
   label: string;
+  /** Which restriction applies: age or rating. */
+  type: CategoryType;
+  /** The restriction number — age 1–100 or rating 50–3000; "" = open to all. */
+  limit: string;
   entryFee: string;
   prizePool: string;
 }
+
+const rowName = (r: CategoryRow) => r.label.trim();
+const limitFieldStyle = { width: 128, flexShrink: 0 };
 
 function baseName(eventName: string | undefined, tournamentName: string) {
   if (eventName && tournamentName.startsWith(`${eventName} — `)) return eventName;
@@ -96,6 +107,7 @@ export function EventEditForm({
 
   const [name, setName] = useState(() => baseName(eventName, primary.name));
   const [date, setDate] = useState(() => event?.date ?? primary.date);
+  const [endDate, setEndDate] = useState(() => event?.endDate ?? primary.endDate ?? "");
   const [location, setLocation] = useState(() => event?.location ?? primary.venue);
   const [venue, setVenue] = useState(() => event?.venue ?? primary.venue);
   const [totalPrizePool, setTotalPrizePool] = useState(String(primary.totalPrizePool || ""));
@@ -112,6 +124,8 @@ export function EventEditForm({
     categories.map((c) => ({
       id: c.id,
       label: categoryLabel(eventName, c),
+      type: categoryTypeOf(c),
+      limit: String((categoryTypeOf(c) === "RATING" ? c.ratingLimit : c.ageLimit) ?? ""),
       entryFee: String(c.entryFee || ""),
       prizePool: String(c.prizePool || ""),
     })),
@@ -158,12 +172,19 @@ export function EventEditForm({
 
   function handleSave(e: React.FormEvent) {
     e.preventDefault();
-    if (!name.trim() || !date || !location.trim() || !venue.trim() || rows.some((r) => !r.label.trim())) {
+    if (!name.trim() || !date || !location.trim() || !venue.trim() || rows.some((r) => !rowName(r))) {
       toast.error("Missing details", {
-        description: "Event name, date, location, venue and every category name are required.",
+        description: "Event name, start date, location, venue and every category are required.",
       });
       return;
     }
+    if (endDate && endDate < date) {
+      toast.error("Check the dates", { description: "The end date can't be before the start date." });
+      return;
+    }
+    // "" (not undefined) so clearing the end date survives the JSON patch — every
+    // date helper treats an empty endDate as a one-day tournament.
+    const lastDay = endDate && endDate > date ? endDate : "";
 
     const registrationQuestions: RegistrationQuestion[] = questions
       .filter((q) => q.question.trim())
@@ -186,6 +207,7 @@ export function EventEditForm({
       saveEventEdit(event.id, {
         name: name.trim(),
         date,
+        endDate: lastDay,
         location: location.trim(),
         venue: venue.trim(),
         posterUrl: poster || undefined,
@@ -195,10 +217,15 @@ export function EventEditForm({
     // Fan the event-level + per-category values out to each category record.
     for (const r of rows) {
       saveTournamentEdit(r.id, {
-        name: `${name.trim()} — ${r.label.trim()}`,
+        name: `${name.trim()} — ${rowName(r)}`,
         venue: venue.trim(),
         date,
-        category: r.label.trim(),
+        endDate: lastDay,
+        category: rowName(r),
+        categoryType: r.type,
+        // 0 (not undefined) clears a limit through the JSON patch; 0 reads as "open to all".
+        ratingLimit: r.type === "RATING" ? Number(r.limit) || 0 : 0,
+        ageLimit: r.type === "AGE" ? Number(r.limit) || 0 : 0,
         entryFee: Number(r.entryFee) || 0,
         format,
         matchFormat,
@@ -243,7 +270,7 @@ export function EventEditForm({
             <p className="mt-1.5 text-xs text-[#8b8b93]">
               Categories will show as{" "}
               <span className="text-[#c2c6d7]">
-                {name.trim()} — {rows[0]?.label.trim() || "…"}
+                {name.trim()} — {(rows[0] && rowName(rows[0])) || "…"}
               </span>
             </p>
           ) : null}
@@ -252,16 +279,36 @@ export function EventEditForm({
         <div className="grid gap-6 sm:grid-cols-2">
           <div>
             <label htmlFor="ev-date" className={labelClass} style={mono}>
-              Date
+              From Date
             </label>
             <input
               id="ev-date"
               type="date"
               className={dateFieldClass}
               value={date}
-              onChange={(e) => setDate(e.target.value)}
+              onChange={(e) => {
+                setDate(e.target.value);
+                if (endDate && e.target.value > endDate) setEndDate(e.target.value);
+              }}
             />
           </div>
+          <div>
+            <label htmlFor="ev-end-date" className={labelClass} style={mono}>
+              To Date
+            </label>
+            <input
+              id="ev-end-date"
+              type="date"
+              className={dateFieldClass}
+              value={endDate}
+              min={date || undefined}
+              onChange={(e) => setEndDate(e.target.value)}
+            />
+            <p className="mt-1.5 text-[11px] text-[#5a5a60]">Same as From, or blank, for a one-day tournament.</p>
+          </div>
+        </div>
+
+        <div>
           <div>
             <label htmlFor="ev-location" className={labelClass} style={mono}>
               Location
@@ -292,12 +339,22 @@ export function EventEditForm({
           <div className="space-y-3">
             {rows.map((r) => (
               <div key={r.id} className="flex flex-wrap items-center gap-3">
+                <CategoryTypeToggle
+                  value={r.type}
+                  onChange={(type) => updateRow(r.id, { type, limit: type === r.type ? r.limit : "" })}
+                />
                 <input
                   className={fieldClass}
                   style={flexFieldStyle}
-                  placeholder="Category (e.g. Under 15, Open)"
+                  placeholder="Category name"
                   value={r.label}
                   onChange={(e) => updateRow(r.id, { label: e.target.value })}
+                />
+                <CategoryLimitSelect
+                  type={r.type}
+                  style={limitFieldStyle}
+                  value={r.limit}
+                  onChange={(limit) => updateRow(r.id, { limit })}
                 />
                 <input
                   className={fieldClass}

@@ -21,7 +21,7 @@ import { useTournamentAssistants } from "@/lib/tournament-assistants";
 import { useConsoleTournamentIds, useLiveTournaments, type LiveTournament } from "@/lib/live-schedule";
 import { buildEventGroups } from "@/lib/event-groups";
 import { clubs, getEvent } from "@/lib/mock-data";
-import { formatDate } from "@/lib/format";
+import { formatEventDates } from "@/lib/format";
 import type { Tournament, TTEvent } from "@/lib/types";
 
 export type NotifTone = "info" | "success" | "warn" | "danger";
@@ -200,7 +200,7 @@ function playerNotifications(c: Ctx): AppNotification[] {
       tone: "info",
       category: "reminder",
       title: d <= 1 ? "Tournament starts soon" : `Tournament in ${d} days`,
-      body: `${eventName(t)} — ${t.category} · ${formatDate(t.date)}`,
+      body: `${eventName(t)} — ${t.category} · ${formatEventDates(t)}`,
       href: `/tournaments/${t.id}`,
       ts: new Date(t.date).getTime(),
     });

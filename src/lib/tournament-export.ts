@@ -6,7 +6,7 @@ import {
   getTournamentPlayers,
   tournamentCode,
 } from "@/lib/mock-data";
-import { formatDate } from "@/lib/format";
+import { formatDate, formatEventDates } from "@/lib/format";
 import type { Tournament } from "@/lib/types";
 import type { TournamentRegistration } from "@/lib/registrations";
 
@@ -317,7 +317,7 @@ export async function downloadTournamentPdf(tournamentId: string) {
   doc.setFontSize(10);
   doc.setTextColor(110);
   doc.text(
-    `#${tournamentCode(tournament)}   ·   ${tournament.venue}   ·   ${formatDate(tournament.date)}   ·   ${tournament.status.replace(/_/g, " ")}`,
+    `#${tournamentCode(tournament)}   ·   ${tournament.venue}   ·   ${formatEventDates(tournament)}   ·   ${tournament.status.replace(/_/g, " ")}`,
     M,
     74,
   );

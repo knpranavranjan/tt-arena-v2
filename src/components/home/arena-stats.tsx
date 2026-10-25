@@ -1,18 +1,22 @@
+"use client";
+
 import { Calendar, Trophy, Users } from "lucide-react";
 import { StatCounter } from "@/components/home/stat-counter";
 import { events, players, tournaments } from "@/lib/mock-data";
-
-const stats = [
-  { label: "Tournaments", value: tournaments.length, icon: Trophy },
-  { label: "Rated Players", value: players.length, icon: Users },
-  {
-    label: "Upcoming Events",
-    value: events.filter((e) => e.status === "UPCOMING").length,
-    icon: Calendar,
-  },
-];
+import { calendarPhase, useIstToday } from "@/lib/ist-calendar";
 
 export function ArenaStats() {
+  const today = useIstToday();
+  const stats = [
+    { label: "Tournaments", value: tournaments.length, icon: Trophy },
+    { label: "Rated Players", value: players.length, icon: Users },
+    {
+      // Counted from the IST calendar, not each event's stored status.
+      label: "Upcoming Events",
+      value: events.filter((e) => calendarPhase(e.date, today, e.endDate) === "UPCOMING").length,
+      icon: Calendar,
+    },
+  ];
   return (
     <section className="relative bg-[#111318] py-20">
       <div className="w-full px-6 text-center sm:px-10 lg:px-16 xl:px-20">

@@ -16,7 +16,8 @@ import { Button } from "@/components/ui/button";
 import { Sheet, SheetContent, SheetHeader, SheetTitle, SheetTrigger } from "@/components/ui/sheet";
 import { Wordmark } from "@/components/layout/public-header";
 import { NotificationBell } from "@/components/layout/notification-bell";
-import { useAuth } from "@/lib/auth";
+import { dashboardPathForRole, useAuth } from "@/lib/auth";
+import { PortalScopeProvider } from "@/lib/portal-scope";
 import { initials } from "@/lib/format";
 import { cn } from "@/lib/utils";
 import type { Role } from "@/lib/types";
@@ -66,11 +67,14 @@ export function DashboardShell({
       : [...navItems, { href: "/assist", label: "Assisting", icon: Headset }];
 
   return (
+    // Everything inside a portal — including public page components reused
+    // here — links to this portal's twin pages, never back to the public site.
+    <PortalScopeProvider role={role}>
     <div className="flex min-h-full flex-1 flex-col">
       <header className="sticky top-0 z-40 border-b border-border bg-background/80 backdrop-blur-md">
         <div className="mx-auto flex h-16 max-w-7xl items-center justify-between px-4 sm:px-6">
           <div className="flex shrink-0 items-center gap-3">
-            <Wordmark />
+            <Wordmark href={dashboardPathForRole[role]} />
             <span className="hidden rounded-full border border-border bg-secondary px-2.5 py-1 text-[10px] font-semibold uppercase tracking-widest text-muted-foreground sm:inline-block">
               {roleLabel[role]}
             </span>
@@ -168,6 +172,7 @@ export function DashboardShell({
       </header>
       <main className="flex flex-1 flex-col gap-6 p-4 sm:p-6">{children}</main>
     </div>
+    </PortalScopeProvider>
   );
 }
 

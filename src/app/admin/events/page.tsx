@@ -4,8 +4,9 @@ import { useMemo, useState } from "react";
 import Link from "next/link";
 import { Search } from "lucide-react";
 import { events } from "@/lib/mock-data";
-import { formatDate } from "@/lib/format";
+import { formatEventDates } from "@/lib/format";
 import type { EventStatus } from "@/lib/types";
+import { useHostName } from "@/lib/host-names";
 
 const mono = { fontFamily: "var(--font-home-mono)" };
 const display = { fontFamily: "var(--font-home-display)" };
@@ -22,6 +23,7 @@ function eventStatusMeta(status: EventStatus): { label: string; className: strin
 }
 
 export default function AdminEventsPage() {
+  const hostName = useHostName();
   const [search, setSearch] = useState("");
 
   const filtered = useMemo(
@@ -76,12 +78,12 @@ export default function AdminEventsPage() {
                 return (
                   <tr key={e.id} className="border-b border-white/10 last:border-0 hover:bg-white/[0.03]">
                     <td className="px-4 py-3.5">
-                      <Link href={`/events/${e.id}`} className="font-medium text-[#e2e2e8] hover:text-[#ff8f86]">
+                      <Link href={`/admin/events/${e.id}`} className="font-medium text-[#e2e2e8] hover:text-[#ff8f86]">
                         {e.name}
                       </Link>
                     </td>
-                    <td className="px-4 py-3.5 text-[#8b8b93]">{e.organizer}</td>
-                    <td className="px-4 py-3.5 text-[#8b8b93]">{formatDate(e.date)}</td>
+                    <td className="px-4 py-3.5 text-[#8b8b93]">{hostName(e)}</td>
+                    <td className="px-4 py-3.5 text-[#8b8b93]">{formatEventDates(e)}</td>
                     <td className="px-4 py-3.5 text-[#8b8b93]">{e.location}</td>
                     <td className="px-4 py-3.5 text-right tabular-nums text-[#8b8b93]">{e.tournamentIds.length}</td>
                     <td className="px-4 py-3.5">

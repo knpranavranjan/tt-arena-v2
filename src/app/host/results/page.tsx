@@ -4,7 +4,7 @@ import Link from "next/link";
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from "@/components/ui/table";
 import { EmptyState } from "@/components/feedback/empty-state";
 import { getPlayer, tournaments } from "@/lib/mock-data";
-import { formatDate } from "@/lib/format";
+import { formatEventDates } from "@/lib/format";
 
 export default function HostResultsPage() {
   const completed = tournaments.filter((t) => t.status === "COMPLETED");
@@ -30,7 +30,7 @@ export default function HostResultsPage() {
               <TableCell>
                 <Link href={`/host/tournaments/${t.id}`} className="font-medium text-foreground hover:text-primary">{t.name}</Link>
               </TableCell>
-              <TableCell className="text-muted-foreground">{formatDate(t.date)}</TableCell>
+              <TableCell className="text-muted-foreground">{formatEventDates(t)}</TableCell>
               <TableCell className="text-foreground">{t.champion ? getPlayer(t.champion)?.name : "—"}</TableCell>
               <TableCell className="text-muted-foreground">{t.runnerUp ? getPlayer(t.runnerUp)?.name : "—"}</TableCell>
             </TableRow>

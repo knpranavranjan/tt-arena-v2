@@ -16,8 +16,11 @@ import { RevealGroup, RevealItem } from "@/components/motion/reveal";
 import { ArenaPhotoBackdrop } from "@/components/media/arena-photo-backdrop";
 import { arenaFontVariables } from "@/lib/fonts";
 import { useClubRoster } from "@/lib/clubs-store";
+import { usePortalHref } from "@/lib/portal-scope";
 
-export default function ClubsPage({ basePath = "/clubs" }: { basePath?: string }) {
+export default function ClubsPage({ basePath: basePathProp }: { basePath?: string }) {
+  const portalHref = usePortalHref();
+  const basePath = basePathProp ?? portalHref("/clubs");
   const clubs = useClubRoster();
   const [search, setSearch] = useState("");
   const [state, setState] = useState("all");

@@ -10,7 +10,7 @@ import { ownsTournament } from "@/lib/tournament-owner";
 import { useAllEvents, useAllTournaments } from "@/lib/hosted-tournaments";
 import { buildEventGroups, categoryCountLabel, mostActiveStatus, type EventGroup } from "@/lib/event-groups";
 import { effectiveStatus, useTournamentStatus } from "@/lib/tournament-status";
-import { formatDate } from "@/lib/format";
+import { formatEventDates } from "@/lib/format";
 import type { TournamentStatus } from "@/lib/types";
 
 const mono = { fontFamily: "var(--font-home-mono)" };
@@ -56,7 +56,7 @@ function TournamentHostingCard({ group }: { group: EventGroup & { status: Tourna
       </div>
       <p className="mt-1.5 text-sm font-semibold text-[#e2e2e8]">{group.name}</p>
       <p className="mt-1 text-xs text-[#8b8b93]">
-        {formatDate(group.date)} &middot; {group.venue}
+        {formatEventDates(group)} &middot; {group.venue}
       </p>
     </Link>
   );
@@ -116,7 +116,7 @@ export default function HostDashboardPage() {
         </div>
         <div className="flex shrink-0 gap-2">
           <Link
-            href="/host-tournament"
+            href="/host/host-tournament"
             className="flex items-center gap-1.5 rounded-[2px] border border-white/15 px-4 py-2.5 text-xs font-semibold uppercase tracking-wide text-[#c2c6d7] transition-colors hover:border-white/30 hover:bg-white/5"
             style={mono}
           >
@@ -148,7 +148,7 @@ export default function HostDashboardPage() {
         {activeTournaments.length === 0 ? (
           <p className="text-sm text-[#8b8b93]">
             No active tournaments right now. Get started from{" "}
-            <Link href="/host-tournament" className="text-[#ff8f86] hover:text-[#ff2448]">
+            <Link href="/host/host-tournament" className="text-[#ff8f86] hover:text-[#ff2448]">
               Create Tournament
             </Link>
             .

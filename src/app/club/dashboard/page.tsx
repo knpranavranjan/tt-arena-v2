@@ -13,7 +13,7 @@ import { useJoinRequests } from "@/lib/join-requests";
 import { useClubMembers } from "@/lib/club-membership";
 import { usePlayerRatings } from "@/lib/player-ratings";
 import { LiveRating } from "@/components/players/live-rating";
-import { abbreviateName, formatDate } from "@/lib/format";
+import { abbreviateName, formatEventDates } from "@/lib/format";
 import { getPlayer } from "@/lib/mock-data";
 import { useAllTournaments } from "@/lib/hosted-tournaments";
 import { effectiveStatus, useTournamentStatus } from "@/lib/tournament-status";
@@ -197,7 +197,7 @@ export default function ClubDashboardPage() {
                 Set up a new tournament for {club.name} and open registrations to players across the platform.
               </p>
               <Link
-                href="/host-tournament"
+                href="/club/host-tournament"
                 className="flex w-full items-center justify-center gap-2 rounded-[2px] bg-[#ff2448] py-3.5 text-sm font-semibold uppercase tracking-wide text-white transition-all hover:scale-[1.02] hover:shadow-[0_0_20px_-5px_#ff2448] active:scale-95"
                 style={mono}
               >
@@ -323,7 +323,7 @@ export default function ClubDashboardPage() {
 function RosterRow({ player }: { player: Player }) {
   return (
     <Link
-      href={`/players/${player.id}`}
+      href={`/club/players/${player.id}`}
       className="flex items-center justify-between gap-3 border-b border-white/10 py-3 last:border-0 transition-colors hover:bg-white/[0.02]"
     >
       <div className="min-w-0">
@@ -350,7 +350,7 @@ function TournamentHostingCard({ tournament }: { tournament: Tournament }) {
       </p>
       <p className="mt-1.5 text-sm font-semibold text-[#e2e2e8]">{eventTitle(tournament)}</p>
       <p className="mt-1 text-xs text-[#8b8b93]">
-        {formatDate(tournament.date)} &middot; {tournament.venue}
+        {formatEventDates(tournament)} &middot; {tournament.venue}
       </p>
     </Link>
   );
@@ -360,13 +360,13 @@ function TournamentHistoryRow({ tournament }: { tournament: Tournament }) {
   const champion = tournament.champion ? getPlayer(tournament.champion) : undefined;
   return (
     <Link
-      href={`/tournaments/${tournament.id}`}
+      href={`/club/categories/${tournament.id}`}
       className="flex items-center justify-between gap-3 border-b border-white/10 py-3 last:border-0 transition-colors hover:bg-white/[0.02]"
     >
       <div className="min-w-0">
         <p className="truncate text-sm font-semibold text-[#e2e2e8]">{eventTitle(tournament)}</p>
         <p className="mt-0.5 text-xs text-[#8b8b93]">
-          {formatDate(tournament.date)} &middot; {tournament.venue} &middot; {tournament.registeredPlayerIds.length} players
+          {formatEventDates(tournament)} &middot; {tournament.venue} &middot; {tournament.registeredPlayerIds.length} players
         </p>
       </div>
       {champion && (

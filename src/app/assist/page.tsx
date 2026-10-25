@@ -11,7 +11,7 @@ import { effectiveStatus, useTournamentStatus } from "@/lib/tournament-status";
 import { mostActiveStatus } from "@/lib/event-groups";
 import { eventTitle } from "@/lib/tournament-manage";
 import { getEvent, tournamentCode } from "@/lib/mock-data";
-import { formatDate } from "@/lib/format";
+import { formatEventDates } from "@/lib/format";
 import type { Tournament, TournamentStatus } from "@/lib/types";
 
 const mono = { fontFamily: "var(--font-home-mono)" };
@@ -40,6 +40,7 @@ interface SharedEvent {
   eventId: string;
   name: string;
   date: string;
+  endDate?: string;
   location: string;
   categories: Tournament[];
   status: TournamentStatus;
@@ -73,6 +74,7 @@ export default function AssistIndexPage() {
           eventId,
           name: eventTitle(ordered[0], ev?.name),
           date: ev?.date ?? ordered[0].date,
+          endDate: ev?.endDate || ordered[0].endDate || undefined,
           location: ev?.location ?? getEvent(eventId)?.location ?? ordered[0].venue,
           categories: ordered,
           status: mostActiveStatus(ordered.map((c) => effectiveStatus(c, overrides))),
@@ -142,7 +144,7 @@ export default function AssistIndexPage() {
                   <div className="mt-1.5 flex flex-wrap items-center gap-x-3 gap-y-1 text-xs text-[#8b8b93]">
                     <span className="flex items-center gap-1">
                       <Calendar className="h-3.5 w-3.5" strokeWidth={1.75} />
-                      {formatDate(ev.date)}
+                      {formatEventDates(ev)}
                     </span>
                     <span className="flex items-center gap-1">
                       <MapPin className="h-3.5 w-3.5" strokeWidth={1.75} />

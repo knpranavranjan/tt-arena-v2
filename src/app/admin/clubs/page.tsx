@@ -89,7 +89,7 @@ export default function AdminClubsPage() {
                   </td>
                   <td className="px-4 py-3.5 text-right">
                     <Link
-                      href={`/clubs/${c.id}`}
+                      href={`/admin/clubs/${c.id}`}
                       className="inline-flex items-center gap-1 text-xs font-semibold uppercase tracking-wide text-[#c2c6d7] transition-colors hover:text-[#ff8f86]"
                       style={mono}
                     >

@@ -30,10 +30,12 @@ import { getClub } from "@/lib/mock-data";
 import { useClubRoster, useCreatedClubs } from "@/lib/clubs-store";
 import { useClubMembers } from "@/lib/club-membership";
 import { useAllEvents, useAllTournaments } from "@/lib/hosted-tournaments";
-import { formatDate, initials } from "@/lib/format";
+import { initials, formatEventDates } from "@/lib/format";
 import { JoinClubButton } from "@/components/club/join-club-button";
 import { LiveRating } from "@/components/players/live-rating";
 import type { Player, TTEvent } from "@/lib/types";
+import { usePortalHref } from "@/lib/portal-scope";
+import { calendarPhase, useIstToday } from "@/lib/ist-calendar";
 
 export default function ClubProfilePage({
   params,
@@ -42,6 +44,7 @@ export default function ClubProfilePage({
 }) {
   const { clubId } = use(params);
   const roster = useClubRoster();
+  const portalHref = usePortalHref();
   const { isLoading } = useCreatedClubs();
   const allEvents = useAllEvents();
   const allTournaments = useAllTournaments();
@@ -259,7 +262,7 @@ export default function ClubProfilePage({
                   const evTournaments = allTournaments.filter((t) => e.tournamentIds.includes(t.id));
                   const target =
                     evTournaments.find((t) => t.status === "REGISTRATION_OPEN") ?? evTournaments[0];
-                  const href = target ? `/tournaments/${target.id}` : `/events/${e.id}`;
+                  const href = portalHref(target ? `/tournaments/${target.id}` : `/events/${e.id}`);
                   return <EventRow key={e.id} event={e} href={href} />;
                 })}
               </div>
@@ -339,9 +342,10 @@ function ContactRow({
 }
 
 function PlayerRow({ player }: { player: Player }) {
+  const portalHref = usePortalHref();
   return (
     <Link
-      href={`/players/${player.id}`}
+      href={portalHref(`/players/${player.id}`)}
       className="flex items-center gap-3 rounded-[4px] border border-white/10 bg-white/[0.02] p-3 transition-colors hover:border-white/20"
     >
       <div className="flex h-9 w-9 shrink-0 items-center justify-center rounded-full border border-white/15 bg-[#333539] text-xs font-semibold text-[#c2c6d7]">
@@ -361,13 +365,15 @@ function PlayerRow({ player }: { player: Player }) {
 }
 
 function EventRow({ event, href }: { event: TTEvent; href: string }) {
+  // Live / upcoming / past follow the IST calendar day, not the stored status.
+  const phase = calendarPhase(event.date, useIstToday(), event.endDate);
   const statusClass =
-    event.status === "LIVE"
+    phase === "LIVE"
       ? "bg-[#ff2448] text-white"
-      : event.status === "UPCOMING"
+      : phase === "UPCOMING"
         ? "border border-white/20 text-[#e2e2e8]"
         : "bg-white/10 text-[#8b8b93]";
-  const statusLabel = event.status === "LIVE" ? "Live Now" : event.status === "UPCOMING" ? "Upcoming" : "Completed";
+  const statusLabel = phase === "LIVE" ? "Live Today" : phase === "UPCOMING" ? "Upcoming" : "Completed";
 
   return (
     <Link
@@ -381,7 +387,7 @@ function EventRow({ event, href }: { event: TTEvent; href: string }) {
         >
           {statusLabel}
         </span>
-        <span className="shrink-0 text-[10px] uppercase tracking-wide text-[#8b8b93]">{formatDate(event.date)}</span>
+        <span className="shrink-0 text-[10px] uppercase tracking-wide text-[#8b8b93]">{formatEventDates(event)}</span>
       </div>
       <p className="text-sm font-semibold text-[#e2e2e8]">{event.name}</p>
       <p className="mt-1 flex items-center gap-1 text-xs text-[#8b8b93]">

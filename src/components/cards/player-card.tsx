@@ -1,13 +1,17 @@
+"use client";
+
 import Link from "next/link";
 import { Avatar, AvatarFallback } from "@/components/ui/avatar";
 import { initials } from "@/lib/format";
 import type { Player } from "@/lib/types";
 import { cn } from "@/lib/utils";
+import { usePortalHref } from "@/lib/portal-scope";
 
 export function PlayerCard({ player, className }: { player: Player; className?: string }) {
+  const portalHref = usePortalHref();
   return (
     <Link
-      href={`/players/${player.id}`}
+      href={portalHref(`/players/${player.id}`)}
       className={cn(
         "group flex items-center gap-3 rounded-lg border border-border bg-card p-4 transition-colors hover:border-primary/40 hover:bg-accent/40",
         className,

@@ -1,7 +1,7 @@
 "use client";
 
 import { useMemo, useState } from "react";
-import { ChevronDown, ChevronRight, History } from "lucide-react";
+import { ArrowRight, ChevronDown, ChevronRight, History, TrendingDown, TrendingUp } from "lucide-react";
 import { ScrollArea } from "@/components/ui/scroll-area";
 import {
   Dialog,
@@ -15,7 +15,8 @@ import { getEvent, getPlayer, getTournament, matches } from "@/lib/mock-data";
 import { useAllEvents, useAllTournaments } from "@/lib/hosted-tournaments";
 import { usePlayerRatings, type RatingChangeEntry } from "@/lib/player-ratings";
 import { eventTitle } from "@/lib/tournament-manage";
-import { formatDate } from "@/lib/format";
+import { formatEventDates } from "@/lib/format";
+import { useRatingTimeline, type TournamentRatingChange } from "@/lib/rating-timeline";
 import type { Match, Player, Tournament, TTEvent } from "@/lib/types";
 
 const mono = { fontFamily: "var(--font-home-mono)" };
@@ -36,17 +37,22 @@ interface CategoryGroup {
   losses: number;
   /** Set for published results, where per-match rows aren't recorded. */
   summaryMatches?: number;
+  /** Rating going into / out of this category. */
+  rating?: TournamentRatingChange;
 }
 
 interface EventGroup {
   key: string;
   name: string;
   date: string;
+  endDate?: string;
   venue: string;
   categories: CategoryGroup[];
   wins: number;
   losses: number;
   matchCount: number;
+  /** Rating going into the event's first category / out of its last; delta = sum. */
+  rating?: Omit<TournamentRatingChange, "seq">;
 }
 
 /**
@@ -76,6 +82,7 @@ function buildEventGroups(player: Player): Map<string, EventGroup> {
         key: eventKey,
         name: eventTitle(tournament, event?.name),
         date: event?.date ?? tournament.date,
+        endDate: event?.endDate || tournament.endDate || undefined,
         venue: event?.venue ?? tournament.venue,
         categories: [],
         wins: 0,
@@ -149,6 +156,7 @@ function mergePublishedHistory(
         key,
         name: t ? eventTitle(t, event?.name) : eventTitle({ name: entry.tournamentName }),
         date: event?.date ?? t?.date ?? entry.date,
+        endDate: event?.endDate || t?.endDate || undefined,
         venue: event?.venue ?? t?.venue ?? "",
         categories: [],
         wins: 0,
@@ -179,6 +187,7 @@ export function TournamentHistoryCard({ player }: { player: Player }) {
   const { getHistory } = usePlayerRatings();
   const allTournaments = useAllTournaments();
   const allEvents = useAllEvents();
+  const timeline = useRatingTimeline(player);
 
   const events = useMemo(() => {
     const byEvent = buildEventGroups(player);
@@ -188,10 +197,26 @@ export function TournamentHistoryCard({ player }: { player: Player }) {
       (id) => allTournaments.find((t) => t.id === id),
       (id) => allEvents.find((e) => e.id === id),
     );
+    // Attach the rating change to every category, and roll it up per event.
+    for (const g of byEvent.values()) {
+      let latest: TournamentRatingChange | undefined;
+      let delta = 0;
+      for (const c of g.categories) {
+        c.rating = timeline.get(c.tournament.id);
+        if (!c.rating) continue;
+        delta += c.rating.delta;
+        if (!latest || c.rating.seq > latest.seq) latest = c.rating;
+      }
+      if (latest) g.rating = { before: latest.after - delta, after: latest.after, delta };
+    }
     return [...byEvent.values()].sort(
       (a, b) => new Date(b.date).getTime() - new Date(a.date).getTime(),
     );
-  }, [player, getHistory, allTournaments, allEvents]);
+  }, [player, getHistory, allTournaments, allEvents, timeline]);
+
+  // Improvement across every tournament listed: last rating out − first rating in.
+  const netChange = events.reduce((sum, e) => sum + (e.rating?.delta ?? 0), 0);
+  const hasRatings = events.some((e) => e.rating);
 
   const [expanded, setExpanded] = useState<string | null>(events[0]?.key ?? null);
 
@@ -205,6 +230,12 @@ export function TournamentHistoryCard({ player }: { player: Player }) {
         <span className="rounded bg-[#1a1c20] px-2 py-0.5 text-xs text-[#c2c6d7]" style={mono}>
           {events.length}
         </span>
+        {hasRatings && (
+          <span className="ml-auto flex items-center gap-2 text-[11px] uppercase tracking-wide text-[#7d8795]" style={mono}>
+            <span className="hidden sm:inline">Net rating change</span>
+            <RatingDelta delta={netChange} />
+          </span>
+        )}
       </div>
 
       {events.length === 0 ? (
@@ -231,9 +262,22 @@ export function TournamentHistoryCard({ player }: { player: Player }) {
                     <div className="min-w-0 flex-1">
                       <p className="truncate text-lg font-semibold text-[#e2e2e8]">{event.name}</p>
                       <p className="mt-0.5 text-sm text-[#7d8795]" style={mono}>
-                        {formatDate(event.date)} &middot; {event.venue}
+                        {formatEventDates(event)} &middot; {event.venue}
                       </p>
+                      {event.rating && (
+                        <div className="mt-1.5 md:hidden">
+                          <RatingMove rating={event.rating} />
+                        </div>
+                      )}
                     </div>
+                    {event.rating && (
+                      <div className="hidden shrink-0 text-right md:block">
+                        <p className="mb-1 text-[10px] uppercase tracking-widest text-[#7d8795]" style={mono}>
+                          Rating
+                        </p>
+                        <RatingMove rating={event.rating} />
+                      </div>
+                    )}
                     <div className="shrink-0 text-right">
                       <span className="text-sm font-bold" style={mono}>
                         <span className="text-emerald-400">{event.wins}W</span>{" "}
@@ -284,10 +328,13 @@ function CategorySummary({ category }: { category: CategoryGroup }) {
           {played} match{played === 1 ? "" : "es"}
         </span>
       </span>
-      <span className="shrink-0 text-xs font-bold" style={mono}>
-        <span className="text-emerald-400">{wins}W</span>{" "}
-        <span className="text-[#7d8795]">&middot;</span>{" "}
-        <span className="text-[#ff2448]">{losses}L</span>
+      <span className="flex shrink-0 items-center gap-3">
+        {category.rating && <RatingMove rating={category.rating} compact />}
+        <span className="text-xs font-bold" style={mono}>
+          <span className="text-emerald-400">{wins}W</span>{" "}
+          <span className="text-[#7d8795]">&middot;</span>{" "}
+          <span className="text-[#ff2448]">{losses}L</span>
+        </span>
       </span>
     </div>
   );
@@ -320,6 +367,7 @@ function CategoryDialog({ category }: { category: CategoryGroup }) {
           </span>
         </span>
         <span className="flex shrink-0 items-center gap-2.5">
+          {category.rating && <RatingMove rating={category.rating} compact />}
           <span className="text-xs font-bold" style={mono}>
             <span className="text-emerald-400">{wins}W</span>{" "}
             <span className="text-[#7d8795]">&middot;</span>{" "}
@@ -369,5 +417,50 @@ function CategoryDialog({ category }: { category: CategoryGroup }) {
         </div>
       </DialogContent>
     </Dialog>
+  );
+}
+
+/** Signed rating change: green up, red down, grey when unchanged. */
+function RatingDelta({ delta }: { delta: number }) {
+  const tone =
+    delta > 0
+      ? "border-emerald-500/30 bg-emerald-500/15 text-emerald-400"
+      : delta < 0
+        ? "border-[#ff2448]/30 bg-[#ff2448]/15 text-[#ff2448]"
+        : "border-white/10 bg-white/5 text-[#7d8795]";
+  const Icon = delta > 0 ? TrendingUp : delta < 0 ? TrendingDown : null;
+  return (
+    <span
+      className={`inline-flex items-center gap-1 rounded-full border px-2 py-0.5 text-[11px] font-bold tabular-nums ${tone}`}
+      style={mono}
+    >
+      {Icon && <Icon className="h-3 w-3" strokeWidth={2.5} />}
+      {delta > 0 ? `+${delta}` : delta < 0 ? `−${Math.abs(delta)}` : "±0"}
+    </span>
+  );
+}
+
+/** "1918 → 1934 (+16)": the rating going into a tournament, coming out, and the change. */
+function RatingMove({
+  rating,
+  compact,
+}: {
+  rating: Pick<TournamentRatingChange, "before" | "after" | "delta">;
+  compact?: boolean;
+}) {
+  return (
+    <span
+      className="inline-flex items-center gap-1.5 tabular-nums"
+      title={`Rating ${rating.before} before → ${rating.after} after`}
+    >
+      <span className={`${compact ? "text-[11px]" : "text-sm"} font-semibold text-[#c2c6d7]`} style={mono}>
+        {rating.before}
+      </span>
+      <ArrowRight className="h-3 w-3 text-[#7d8795]" strokeWidth={2} />
+      <span className={`${compact ? "text-[11px]" : "text-sm"} font-bold text-[#e2e2e8]`} style={mono}>
+        {rating.after}
+      </span>
+      <RatingDelta delta={rating.delta} />
+    </span>
   );
 }

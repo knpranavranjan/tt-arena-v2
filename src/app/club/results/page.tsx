@@ -6,7 +6,7 @@ import { EmptyState } from "@/components/feedback/empty-state";
 import { useCurrentClub } from "@/lib/session-data";
 import { useClubMembers } from "@/lib/club-membership";
 import { getPlayer, tournaments } from "@/lib/mock-data";
-import { formatDate } from "@/lib/format";
+import { formatEventDates } from "@/lib/format";
 
 export default function ClubResultsPage() {
   const club = useCurrentClub();
@@ -47,9 +47,9 @@ export default function ClubResultsPage() {
           {completed.map((t) => (
             <TableRow key={t.id}>
               <TableCell>
-                <Link href={`/tournaments/${t.id}`} className="font-medium text-foreground hover:text-primary">{t.name}</Link>
+                <Link href={`/club/categories/${t.id}`} className="font-medium text-foreground hover:text-primary">{t.name}</Link>
               </TableCell>
-              <TableCell className="text-muted-foreground">{formatDate(t.date)}</TableCell>
+              <TableCell className="text-muted-foreground">{formatEventDates(t)}</TableCell>
               <TableCell className="text-muted-foreground">{resultFor(t)}</TableCell>
             </TableRow>
           ))}

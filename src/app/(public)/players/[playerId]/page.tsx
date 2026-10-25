@@ -1,7 +1,7 @@
 "use client";
 
-import { use, useMemo, type ReactNode } from "react";
-import { notFound } from "next/navigation";
+import { use, useEffect, useMemo, type ReactNode } from "react";
+import { notFound, useRouter } from "next/navigation";
 import Image from "next/image";
 import { MapPin, Trophy } from "lucide-react";
 import { LiveRating } from "@/components/players/live-rating";
@@ -12,6 +12,8 @@ import { getPlayer } from "@/lib/mock-data";
 import { useCreatedPlayers, usePlayerRoster } from "@/lib/players-store";
 import { usePlayerRecord } from "@/lib/player-ratings";
 import { formatDate, initials } from "@/lib/format";
+import { loginPathFor } from "@/lib/portal-paths";
+import { usePortalScope } from "@/lib/portal-scope";
 
 const mono = { fontFamily: "var(--font-home-mono)" };
 const display = { fontFamily: "var(--font-home-display)" };
@@ -34,6 +36,16 @@ export default function PlayerProfilePage({
     [player],
   );
   const record = usePlayerRecord(player?.id ?? "", baseline);
+
+  // Player profiles are login-only on the public site (typed / shared URL):
+  // send the visitor to sign in, then on to this profile inside their portal.
+  const isPublic = usePortalScope() === null;
+  const router = useRouter();
+  useEffect(() => {
+    if (isPublic) router.replace(loginPathFor(`/players/${playerId}`));
+  }, [isPublic, playerId, router]);
+
+  if (isPublic) return <div className="min-h-screen bg-[#050a12]" />;
 
   // Don't 404 a real sign-up before the created-players roster has loaded.
   if (!player && rosterLoading) {

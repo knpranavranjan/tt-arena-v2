@@ -18,8 +18,11 @@ import { usePlayerRoster } from "@/lib/players-store";
 import { usePlayerRatings } from "@/lib/player-ratings";
 import { initials } from "@/lib/format";
 import type { Gender, Player } from "@/lib/types";
+import { usePortalHref } from "@/lib/portal-scope";
 
-export default function PlayersPage({ basePath = "/players" }: { basePath?: string }) {
+export default function PlayersPage({ basePath: basePathProp }: { basePath?: string }) {
+  const portalHref = usePortalHref();
+  const profileHref = (id: string) => (basePathProp ? `${basePathProp}/${id}` : portalHref(`/players/${id}`));
   const [search, setSearch] = useState("");
   const [club, setClub] = useState("all");
   const [state, setState] = useState("all");
@@ -207,7 +210,7 @@ export default function PlayersPage({ basePath = "/players" }: { basePath?: stri
                         </span>
                       </td>
                       <td className="px-6 py-5">
-                        <Link href={`${basePath}/${player.id}`} className="flex items-center gap-3">
+                        <Link href={profileHref(player.id)} className="flex items-center gap-3">
                           <div className="flex h-8 w-8 shrink-0 items-center justify-center rounded-full bg-[#333539] text-xs font-semibold text-[#e2e2e8]">
                             {initials(player.name)}
                           </div>
@@ -259,7 +262,7 @@ export default function PlayersPage({ basePath = "/players" }: { basePath?: stri
               {filtered.map((player, i) => (
                 <RevealItem key={player.id}>
                   <Link
-                    href={`${basePath}/${player.id}`}
+                    href={profileHref(player.id)}
                     className="relative flex flex-col gap-4 overflow-hidden rounded-[8px] border border-white/10 bg-white/[0.04] p-5 backdrop-blur-xl"
                   >
                     <span

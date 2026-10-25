@@ -1,9 +1,10 @@
 "use client";
 
-import { useEffect, useRef, useState } from "react";
+import { Suspense, useEffect, useRef, useState } from "react";
 import Link from "next/link";
-import { useRouter } from "next/navigation";
-import { useAuth, dashboardPathForRole } from "@/lib/auth";
+import { useRouter, useSearchParams } from "next/navigation";
+import { useAuth } from "@/lib/auth";
+import { resolveNextPath } from "@/lib/portal-paths";
 import { USE_DB } from "@/lib/data-backend";
 import { useCreatedPlayers } from "@/lib/players-store";
 import { useCreatedClubs } from "@/lib/clubs-store";
@@ -41,7 +42,7 @@ const fieldClass =
   "w-full rounded-none border border-white/10 bg-[#0a0a0a] px-4 py-3 text-white transition-colors focus:border-[#ff2448] focus:outline-none";
 const labelClass = "block text-xs font-semibold uppercase tracking-widest text-[#8b8b93]";
 
-export default function RegisterPage() {
+function RegisterForm() {
   const [role, setRole] = useState<Role>("PLAYER");
   const [name, setName] = useState("");
   const [email, setEmail] = useState("");
@@ -60,6 +61,8 @@ export default function RegisterPage() {
   const { createLocalPlayer } = useCreatedPlayers();
   const { createLocalClub } = useCreatedClubs();
   const router = useRouter();
+  // Arrived from a gated action (e.g. Host a Tournament): go back there once the account exists.
+  const next = useSearchParams().get("next");
 
   // Close the skill-level listbox on outside click / Escape.
   useEffect(() => {
@@ -149,10 +152,10 @@ export default function RegisterPage() {
           </p>
           <button
             type="button"
-            onClick={() => router.push(dashboardPathForRole[done.role])}
+            onClick={() => router.push(resolveNextPath(next, done.role))}
             className="mt-8 flex w-full items-center justify-center gap-2 bg-[#ff2448] py-4 text-sm font-bold uppercase tracking-widest text-white transition-colors hover:bg-[#e01f3f]"
           >
-            Continue to dashboard
+            {next && resolveNextPath(next, done.role) === next ? "Continue" : "Continue to dashboard"}
           </button>
         </div>
       </div>
@@ -358,12 +361,20 @@ export default function RegisterPage() {
         <div className="mt-6 text-center">
           <p className="text-sm text-[#8b8b93]">
             Already have an account?{" "}
-            <Link href="/login" className="ml-1 text-sm font-bold uppercase tracking-widest text-[#ff2448] transition-colors hover:text-[#ff8f86]">
+            <Link href={next ? `/login?next=${encodeURIComponent(next)}` : "/login"} className="ml-1 text-sm font-bold uppercase tracking-widest text-[#ff2448] transition-colors hover:text-[#ff8f86]">
               Log in
             </Link>
           </p>
         </div>
       </div>
     </div>
+  );
+}
+
+export default function RegisterPage() {
+  return (
+    <Suspense>
+      <RegisterForm />
+    </Suspense>
   );
 }

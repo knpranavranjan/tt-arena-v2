@@ -1,17 +1,37 @@
+"use client";
+
 import Link from "next/link";
 import { ArrowRight, MapPin, Users } from "lucide-react";
 import { RevealGroup, RevealItem } from "@/components/motion/reveal";
 import { ArenaPhotoBackdrop } from "@/components/media/arena-photo-backdrop";
 import { tournaments } from "@/lib/mock-data";
-import { formatDate } from "@/lib/format";
+import { formatEventDates } from "@/lib/format";
+import { calendarPhase, useIstToday, type CalendarPhase } from "@/lib/ist-calendar";
+import type { Tournament } from "@/lib/types";
 
-const active = [...tournaments]
-  .filter((t) => t.status !== "COMPLETED")
-  .sort((a) => (a.status === "REGISTRATION_OPEN" ? -1 : 1));
+const PHASE_ORDER: Record<CalendarPhase, number> = { LIVE: 0, UPCOMING: 1, PAST: 2 };
 
-const featuredThree = active.slice(0, 3);
+/** Today's tournaments first, then the next ones, then the most recent past — by IST day. */
+function featured(today: string): { t: Tournament; phase: CalendarPhase }[] {
+  return tournaments
+    .map((t) => ({ t, phase: calendarPhase(t.date, today, t.endDate) }))
+    .sort(
+      (a, b) =>
+        PHASE_ORDER[a.phase] - PHASE_ORDER[b.phase] ||
+        (a.phase === "PAST" ? b.t.date.localeCompare(a.t.date) : a.t.date.localeCompare(b.t.date)),
+    )
+    .slice(0, 3);
+}
+
+function badgeFor(t: Tournament, phase: CalendarPhase): string {
+  if (t.status === "COMPLETED") return "Completed";
+  if (phase === "LIVE") return "Live Today";
+  return phase === "UPCOMING" ? "Upcoming" : "Results Pending";
+}
 
 export function TournamentsShowcase() {
+  const today = useIstToday();
+  const featuredThree = featured(today);
   if (!featuredThree.length) return null;
 
   return (
@@ -42,8 +62,9 @@ export function TournamentsShowcase() {
         </div>
 
         <RevealGroup className="grid grid-cols-1 gap-8 md:grid-cols-3">
-          {featuredThree.map((t) => {
-            const live = t.status === "REGISTRATION_OPEN" || t.status === "SEEDING" || t.status === "POOLS" || t.status === "KNOCKOUT";
+          {featuredThree.map(({ t, phase }) => {
+            // Highlighted while it's on today (IST) or still open for entries.
+            const live = t.status !== "COMPLETED" && (phase === "LIVE" || (phase === "UPCOMING" && t.status === "REGISTRATION_OPEN"));
             return (
               <RevealItem key={t.id}>
                 <div className="group relative flex h-full min-h-[340px] flex-col overflow-hidden rounded-[8px] border border-white/10 bg-white/[0.03] p-6 backdrop-blur-xl transition-colors hover:border-[#ff2448]/50">
@@ -57,12 +78,12 @@ export function TournamentsShowcase() {
                       }`}
                       style={{ fontFamily: "var(--font-home-mono)" }}
                     >
-                      {live ? "Live Now" : "Upcoming"}
+                      {badgeFor(t, phase)}
                     </span>
                     <h3 className="mb-3 text-xl font-bold uppercase text-[#e2e2e8]">{t.name}</h3>
                     <div className="space-y-2">
                       <div className="flex items-center gap-1.5 text-sm uppercase tracking-wide text-[#c2c6d7]">
-                        {formatDate(t.date)}
+                        {formatEventDates(t)}
                       </div>
                       <div className="flex items-center gap-1.5 text-sm uppercase tracking-wide text-[#c2c6d7]">
                         <MapPin className="h-4 w-4 shrink-0" strokeWidth={1.5} /> {t.venue}

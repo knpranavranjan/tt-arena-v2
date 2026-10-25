@@ -9,11 +9,13 @@ import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@
 import { TournamentStatusBadge } from "@/components/ui/status-badge";
 import { useAllEvents, useAllTournaments } from "@/lib/hosted-tournaments";
 import { buildEventGroups, mostActiveStatus } from "@/lib/event-groups";
-import { formatDate } from "@/lib/format";
+import { formatEventDates } from "@/lib/format";
 import { effectiveStatus, useTournamentStatus } from "@/lib/tournament-status";
 import type { TournamentStatus } from "@/lib/types";
+import { useHostName } from "@/lib/host-names";
 
 export default function AdminTournamentsPage() {
+  const hostName = useHostName();
   const [status, setStatus] = useState<TournamentStatus | "all">("all");
   const { overrides, approve, revert } = useTournamentStatus();
   const allTournaments = useAllTournaments();
@@ -80,12 +82,12 @@ export default function AdminTournamentsPage() {
               return (
                 <TableRow key={g.eventId}>
                   <TableCell>
-                    <Link href={`/tournaments/${g.primary.id}`} className="font-medium text-foreground hover:text-primary">
+                    <Link href={`/admin/categories/${g.primary.id}`} className="font-medium text-foreground hover:text-primary">
                       {g.name}
                     </Link>
                   </TableCell>
-                  <TableCell className="text-muted-foreground">{g.organizer}</TableCell>
-                  <TableCell className="text-muted-foreground">{formatDate(g.date)}</TableCell>
+                  <TableCell className="text-muted-foreground">{hostName(g)}</TableCell>
+                  <TableCell className="text-muted-foreground">{formatEventDates(g)}</TableCell>
                   <TableCell className="text-muted-foreground">{g.venue}</TableCell>
                   <TableCell className="text-muted-foreground">
                     {g.categories.map((c) => c.category).join(", ")}

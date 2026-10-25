@@ -14,13 +14,12 @@ const columns = [
       { href: "/players", label: "Players" },
       { href: "/clubs", label: "Clubs" },
       { href: "/events", label: "Events" },
-      { href: "/#rankings", label: "Rankings" },
     ],
   },
   {
     title: "Organizers",
     links: [
-      { href: "/host-tournament", label: "Host a Tournament" },
+      { href: "/login?next=/host-tournament", label: "Host a Tournament" },
       { href: "/tournaments", label: "Tournament Management" },
       { href: "/events", label: "Events" },
     ],

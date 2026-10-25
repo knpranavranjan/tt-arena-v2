@@ -4,6 +4,7 @@ import Link from "next/link";
 import { useJoinRequests } from "@/lib/join-requests";
 import { getClub } from "@/lib/mock-data";
 import type { Player } from "@/lib/types";
+import { usePortalHref } from "@/lib/portal-scope";
 
 /**
  * Every club this player belongs to — their seeded home club (if any) plus
@@ -12,6 +13,7 @@ import type { Player } from "@/lib/types";
  */
 export function PlayerClubsList({ player }: { player: Player }) {
   const { requests } = useJoinRequests();
+  const portalHref = usePortalHref();
 
   const clubIds = new Set(
     requests.filter((r) => r.playerId === player.id && r.status === "ACCEPTED").map((r) => r.clubId),
@@ -31,7 +33,7 @@ export function PlayerClubsList({ player }: { player: Player }) {
       {clubs.map((club) => (
         <Link
           key={club.id}
-          href={`/clubs/${club.id}`}
+          href={portalHref(`/clubs/${club.id}`)}
           className="text-sm font-medium text-[#e2e2e8] hover:text-[#ff8f86]"
         >
           {club.name}

@@ -7,7 +7,7 @@ import { EmptyState } from "@/components/feedback/empty-state";
 import { useCurrentPlayer } from "@/lib/session-data";
 import { tournaments } from "@/lib/mock-data";
 import { eventTitle } from "@/lib/tournament-manage";
-import { formatDate } from "@/lib/format";
+import { formatEventDates } from "@/lib/format";
 import { Gauge, Swords, Trophy } from "lucide-react";
 
 export default function PlayerResultsPage() {
@@ -53,11 +53,11 @@ export default function PlayerResultsPage() {
               {completed.map((t) => (
                 <TableRow key={t.id}>
                   <TableCell>
-                    <Link href={`/tournaments/${t.id}`} className="font-medium text-foreground hover:text-primary">
+                    <Link href={`/player/categories/${t.id}`} className="font-medium text-foreground hover:text-primary">
                       {eventTitle(t)}
                     </Link>
                   </TableCell>
-                  <TableCell className="text-muted-foreground">{formatDate(t.date)}</TableCell>
+                  <TableCell className="text-muted-foreground">{formatEventDates(t)}</TableCell>
                   <TableCell className="text-foreground">{resultFor(t)}</TableCell>
                 </TableRow>
               ))}

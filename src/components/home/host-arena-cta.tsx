@@ -5,8 +5,12 @@ import Image from "next/image";
 import { motion } from "framer-motion";
 import { ArrowRight } from "lucide-react";
 import { fadeUp } from "@/lib/motion";
+import { usePortalHref } from "@/lib/portal-scope";
 
 export function HostArenaCta() {
+  // Public homepage → sign in first; inside a portal (e.g. the player
+  // dashboard) → straight to that portal's host form, no login prompt.
+  const portalHref = usePortalHref();
   return (
     <section className="relative overflow-hidden bg-[#111318] py-16">
       <div className="absolute inset-0 z-0" aria-hidden="true">
@@ -44,7 +48,7 @@ export function HostArenaCta() {
           academies and tournament organizers.
         </p>
         <Link
-          href="/host-tournament"
+          href={portalHref("/host-tournament")}
           className="group inline-flex items-center gap-2 rounded-[2px] bg-[#ff2448] px-8 py-3.5 text-xs font-semibold uppercase tracking-[0.1em] text-[#ffd2cd] transition-all hover:scale-[1.03] hover:shadow-[0_0_20px_-5px_#ff2448] active:scale-95"
           style={{ fontFamily: "var(--font-home-mono)" }}
         >

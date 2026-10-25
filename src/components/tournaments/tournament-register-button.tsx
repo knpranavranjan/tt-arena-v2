@@ -2,9 +2,10 @@
 
 import { useMemo, useState, type ReactNode } from "react";
 import Link from "next/link";
-import { ArrowLeft, ArrowRight, Check, Clock, CreditCard, Lock } from "lucide-react";
+import { ArrowLeft, ArrowRight, Ban, Check, Clock, CreditCard, Lock } from "lucide-react";
 import { toast } from "sonner";
 import { useAuth } from "@/lib/auth";
+import { usePortalScope } from "@/lib/portal-scope";
 import { useCurrentPlayer } from "@/lib/session-data";
 import {
   useRegistrations,
@@ -14,6 +15,9 @@ import {
 import { formatCurrency, formatDate } from "@/lib/format";
 import { cn } from "@/lib/utils";
 import { Checkbox } from "@/components/ui/checkbox";
+import { CategoryTypeTag } from "@/components/tournaments/category-type-tag";
+import { categoryEligibility, type Eligibility } from "@/lib/category-eligibility";
+import { usePlayerRatings } from "@/lib/player-ratings";
 import {
   Dialog,
   DialogContent,
@@ -44,25 +48,32 @@ function effectiveStatus(
 }
 
 /**
- * Registers a player for one or more categories of the same event in a
- * single checkout. `tournament` is the category currently being viewed;
- * `categories` is every sibling category (same eventId, tournament itself
- * included) the player can also opt into from the same dialog.
+ * The event's single Register action: one checkout lists every category still
+ * open for entries and takes one payment for whichever the player picks.
+ * `tournament` is the category record the page was opened on (its
+ * registration questions apply event-wide); `categories` is every open
+ * category of the same event.
  */
 export function TournamentRegisterButton({
   tournament,
   categories,
+  registeredCount,
 }: {
   tournament: Tournament;
   categories: Tournament[];
+  /** Unique players entered across the event. */
+  registeredCount?: number;
 }) {
   const { user, isLoading: authLoading } = useAuth();
   const player = useCurrentPlayer();
   const registrations = useRegistrations();
   const { statusFor, isLoading: registrationsLoading } = registrations;
+  const { getRating } = usePlayerRatings();
   const [open, setOpen] = useState(false);
+  // Public site: always the sign-in CTA — the action itself only happens inside a portal.
+  const inPortal = usePortalScope() !== null;
 
-  if (authLoading || registrationsLoading) {
+  if (inPortal && (authLoading || registrationsLoading)) {
     return (
       <div className="rounded-[8px] border border-white/10 bg-white/[0.03] p-5">
         <div className="h-[50px] w-full animate-pulse rounded-[2px] bg-white/5" />
@@ -70,7 +81,7 @@ export function TournamentRegisterButton({
     );
   }
 
-  if (!user) {
+  if (!inPortal || !user) {
     return (
       <div className="rounded-[8px] border border-white/10 bg-white/[0.03] p-5">
         <Link
@@ -105,48 +116,79 @@ export function TournamentRegisterButton({
     );
   }
 
-  const status = effectiveStatus(tournament, player.id, statusFor);
-  const unregisteredCount = categories.filter((c) => !effectiveStatus(c, player.id, statusFor)).length;
+  // Who can enter what: the host's age / rating limit per category, checked
+  // against this player's current rating and their age on the first day.
+  const rating = getRating(player.id) || player.rating;
+  const eligibility = new Map<string, Eligibility>(
+    categories.map((c) => [c.id, categoryEligibility(c, { rating, dateOfBirth: player.dateOfBirth })]),
+  );
 
-  if (status === "REGISTERED") {
+  // Event-wide: where the player stands across every open category.
+  const statuses = categories.map((c) => effectiveStatus(c, player.id, statusFor));
+  const paidCount = statuses.filter((st) => st === "REGISTERED").length;
+  const pendingPayment = statuses.includes("PENDING_PAYMENT");
+  // Categories this player could still enter (already-registered ones count as theirs).
+  const enterable = categories.filter((c, i) => statuses[i] === "REGISTERED" || eligibility.get(c.id)?.ok);
+
+  if (enterable.length === 0) {
+    const reasons = [...new Set([...eligibility.values()].flatMap((e) => (e.ok ? [] : [e.reason])))];
+    return (
+      <div className="rounded-[8px] border border-white/10 bg-white/[0.03] p-5 text-center">
+        <div className={`${baseButtonClass} cursor-not-allowed bg-white/10 text-[#8b8b93]`} style={mono}>
+          <Ban className="h-4 w-4" strokeWidth={2} />
+          Not Eligible
+        </div>
+        <p className="mt-2 text-xs text-[#8b8b93]">
+          {categories.length === 1 ? "This category" : "None of the open categories"} match{categories.length === 1 ? "es" : ""} your
+          profile.
+        </p>
+        {reasons.map((r) => (
+          <p key={r} className="mt-1 text-xs text-amber-300">
+            {r}
+          </p>
+        ))}
+      </div>
+    );
+  }
+  const entered = registeredCount ?? new Set(categories.flatMap((c) => c.registeredPlayerIds)).size;
+  const closes = categories.map((c) => c.registrationDeadline).filter(Boolean).sort()[0];
+
+  if (paidCount === enterable.length) {
     return (
       <div className="rounded-[8px] border border-emerald-500/40 bg-emerald-500/10 p-5 text-center">
         <div className={`${baseButtonClass} text-emerald-400`} style={mono}>
           <Check className="h-4 w-4" strokeWidth={2.5} />
           Registered
         </div>
-        <p className="mt-2 text-xs text-emerald-400/70">You&apos;re confirmed for this category.</p>
-        {unregisteredCount > 0 && (
-          <CheckoutDialog
-            tournament={tournament}
-            categories={categories}
-            player={player}
-            open={open}
-            onOpenChange={setOpen}
-            triggerClassName="mt-3 text-xs font-semibold uppercase tracking-wide text-[#ff8f86] hover:text-[#ff2448]"
-          >
-            Register for other categories
-          </CheckoutDialog>
-        )}
+        <p className="mt-2 text-xs text-emerald-400/70">
+          You&apos;re confirmed for {enterable.length === 1 ? "your category" : `all ${enterable.length} of your categories`}.
+        </p>
       </div>
     );
   }
 
   return (
     <div className="rounded-[8px] border border-white/10 bg-white/[0.03] p-5">
+      {paidCount > 0 && (
+        <p className="mb-3 flex items-center justify-center gap-1.5 text-xs font-semibold text-emerald-400">
+          <Check className="h-3.5 w-3.5" strokeWidth={2.5} />
+          Registered for {paidCount} of {enterable.length} categories you can enter
+        </p>
+      )}
       <CheckoutDialog
         tournament={tournament}
         categories={categories}
+        eligibility={eligibility}
         player={player}
         open={open}
         onOpenChange={setOpen}
         triggerClassName={`${baseButtonClass} bg-[#ff2448] text-white transition-all hover:scale-[1.02] hover:shadow-[0_0_20px_-5px_#ff2448] active:scale-95`}
       >
-        {status === "PENDING_PAYMENT" ? "Complete Payment" : "Register Now"}
+        {pendingPayment ? "Complete Payment" : paidCount > 0 ? "Register for More" : "Register Now"}
         <ArrowRight className="h-4 w-4" strokeWidth={2} />
       </CheckoutDialog>
       <p className="mt-3 text-center text-xs text-[#8b8b93]">
-        {tournament.registeredPlayerIds.length} registered &middot; closes {formatDate(tournament.registrationDeadline)}
+        {entered} registered{closes ? <> &middot; closes {formatDate(closes)}</> : null}
       </p>
     </div>
   );
@@ -155,6 +197,7 @@ export function TournamentRegisterButton({
 function CheckoutDialog({
   tournament,
   categories,
+  eligibility,
   player,
   open,
   onOpenChange,
@@ -163,6 +206,8 @@ function CheckoutDialog({
 }: {
   tournament: Tournament;
   categories: Tournament[];
+  /** Per-category entry check (age / rating limit). */
+  eligibility: Map<string, Eligibility>;
   player: { id: string; name: string };
   open: boolean;
   onOpenChange: (open: boolean) => void;
@@ -177,13 +222,19 @@ function CheckoutDialog({
     questions.length > 0 ? "questions" : "checkout",
   );
   const [answers, setAnswers] = useState<Record<number, string>>({});
-  const [selected, setSelected] = useState<Set<string>>(() => {
-    const initial = new Set<string>([tournament.id]);
+  // Nothing pre-picked — the player chooses — except unpaid entries, or the
+  // event's only category.
+  const canEnter = (id: string) => eligibility.get(id)?.ok !== false;
+  const initialSelection = () => {
+    const initial = new Set<string>();
     for (const c of categories) {
-      if (effectiveStatus(c, player.id, statusFor) === "PENDING_PAYMENT") initial.add(c.id);
+      if (canEnter(c.id) && effectiveStatus(c, player.id, statusFor) === "PENDING_PAYMENT") initial.add(c.id);
     }
+    const enterable = categories.filter((c) => canEnter(c.id));
+    if (enterable.length === 1) initial.add(enterable[0].id);
     return initial;
-  });
+  };
+  const [selected, setSelected] = useState<Set<string>>(initialSelection);
   const [paying, setPaying] = useState(false);
 
   const allAnswered = questions.every((_, i) => (answers[i] ?? "").trim().length > 0);
@@ -197,6 +248,7 @@ function CheckoutDialog({
     if (v) {
       setStep(questions.length > 0 ? "questions" : "checkout");
       setAnswers({});
+      setSelected(initialSelection());
     }
     onOpenChange(v);
   };
@@ -212,7 +264,7 @@ function CheckoutDialog({
 
   const payableSelected = [...selected].filter((id) => {
     const row = rows.find((r) => r.category.id === id);
-    return row && row.status !== "REGISTERED";
+    return row && row.status !== "REGISTERED" && canEnter(id);
   });
   const total = payableSelected.reduce((sum, id) => {
     const c = categories.find((x) => x.id === id);
@@ -220,7 +272,7 @@ function CheckoutDialog({
   }, 0);
 
   const toggle = (id: string, status: RegistrationStatus | undefined) => {
-    if (status === "REGISTERED") return;
+    if (status === "REGISTERED" || !canEnter(id)) return;
     setSelected((current) => {
       const next = new Set(current);
       if (next.has(id)) next.delete(id);
@@ -323,27 +375,35 @@ function CheckoutDialog({
 
         <div className="flex flex-col gap-2">
           {rows.map(({ category: c, status }) => {
-            const checked = selected.has(c.id) || status === "REGISTERED";
             const locked = status === "REGISTERED";
+            const elig = eligibility.get(c.id);
+            const blocked = !locked && elig?.ok === false;
+            const checked = !blocked && (selected.has(c.id) || locked);
             return (
               <label
                 key={c.id}
                 className={`flex items-center gap-3 rounded-[8px] border p-3.5 transition-colors ${
                   locked
                     ? "cursor-default border-emerald-500/30 bg-emerald-500/[0.06]"
-                    : "cursor-pointer border-white/10 bg-white/[0.03] hover:bg-white/[0.05]"
+                    : blocked
+                      ? "cursor-not-allowed border-white/5 bg-white/[0.015] opacity-70"
+                      : "cursor-pointer border-white/10 bg-white/[0.03] hover:bg-white/[0.05]"
                 }`}
               >
-                <Checkbox checked={checked} disabled={locked} onCheckedChange={() => toggle(c.id, status)} />
+                <Checkbox checked={checked} disabled={locked || blocked} onCheckedChange={() => toggle(c.id, status)} />
                 <div className="min-w-0 flex-1">
-                  <p className="text-sm font-semibold text-[#e2e2e8]">{c.category} Singles</p>
+                  <p className="flex items-center gap-2 text-sm font-semibold text-[#e2e2e8]">
+                    <CategoryTypeTag category={c} />
+                    {c.category} Singles
+                  </p>
                   {status === "PENDING_PAYMENT" && (
                     <p className="text-xs text-amber-300">Payment pending — included below</p>
                   )}
                   {locked && <p className="text-xs text-emerald-400">Already paid</p>}
+                  {blocked && elig && !elig.ok && <p className="text-xs text-amber-300">Not eligible — {elig.reason}</p>}
                 </div>
                 <span className="shrink-0 text-sm font-bold text-[#ff8f86]" style={mono}>
-                  {locked ? "Paid" : formatCurrency(c.entryFee)}
+                  {locked ? "Paid" : blocked ? "—" : formatCurrency(c.entryFee)}
                 </span>
               </label>
             );

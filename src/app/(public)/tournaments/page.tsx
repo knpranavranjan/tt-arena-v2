@@ -3,7 +3,7 @@
 import { useMemo, useState } from "react";
 import Image from "next/image";
 import Link from "next/link";
-import { ArrowRight, Calendar, MapPin, Search, Trophy, Users } from "lucide-react";
+import { ArrowRight, Calendar, MapPin, Search, Trophy, User, Users } from "lucide-react";
 import {
   Select,
   SelectContent,
@@ -18,8 +18,11 @@ import { arenaFontVariables } from "@/lib/fonts";
 import { useAllEvents, useAllTournaments } from "@/lib/hosted-tournaments";
 import { effectiveStatus, useTournamentStatus } from "@/lib/tournament-status";
 import { buildEventGroups, categoryCountLabel, mostActiveStatus, type EventGroup } from "@/lib/event-groups";
-import { formatDate } from "@/lib/format";
+import { formatDate, formatEventDates } from "@/lib/format";
+import { calendarPhase, tournamentDay, useIstToday, type CalendarPhase } from "@/lib/ist-calendar";
 import type { TournamentStatus } from "@/lib/types";
+import { usePortalHref } from "@/lib/portal-scope";
+import { useHostName } from "@/lib/host-names";
 
 const statuses: { value: TournamentStatus | "all"; label: string }[] = [
   { value: "all", label: "Status" },
@@ -42,20 +45,33 @@ const STATUS_TEXT: Record<TournamentStatus, string> = {
   COMPLETED: "Completed",
 };
 
-// "Live" means matches are actually being played right now — the same bar
-// used across the dashboards' status pills — not just registration being open.
-function isLive(status: TournamentStatus) {
-  return status === "POOLS" || status === "KNOCKOUT";
-}
-
 interface DisplayGroup extends EventGroup {
   status: TournamentStatus;
+  /** Where the event's days sit on today's IST calendar. */
+  phase: CalendarPhase;
+  /** Live multi-day event: today's day number, e.g. { day: 2, total: 3 }. */
+  liveDay: { day: number; total: number } | null;
   href: string;
 }
+
+// "Live" follows the IST calendar: an event is live for the whole of its day
+// in IST. Results published early still count as completed; a past day whose
+// results aren't in yet reads "Results Pending".
+function badgeText(g: DisplayGroup): string {
+  if (g.status === "COMPLETED") return STATUS_TEXT.COMPLETED;
+  if (g.phase === "LIVE") return g.liveDay ? `Live · Day ${g.liveDay.day} of ${g.liveDay.total}` : "Live Today";
+  if (g.phase === "PAST") return "Results Pending";
+  return STATUS_TEXT[g.status];
+}
+
+const byDateAsc = (a: DisplayGroup, b: DisplayGroup) => a.date.localeCompare(b.date);
+const byDateDesc = (a: DisplayGroup, b: DisplayGroup) => b.date.localeCompare(a.date);
 
 export default function TournamentsPage() {
   const [search, setSearch] = useState("");
   const [status, setStatus] = useState<TournamentStatus | "all">("all");
+  const portalHref = usePortalHref();
+  const today = useIstToday();
 
   const allTournaments = useAllTournaments();
   const allEvents = useAllEvents();
@@ -66,11 +82,13 @@ export default function TournamentsPage() {
       .map((g) => ({
         ...g,
         status: mostActiveStatus(g.categories.map((c) => effectiveStatus(c, overrides))),
-        href: `/tournaments/${g.primary.id}`,
+        phase: calendarPhase(g.date, today, g.endDate),
+        liveDay: tournamentDay(g.date, today, g.endDate),
+        href: portalHref(`/tournaments/${g.primary.id}`),
       }))
       // A hosted event stays hidden from players until an admin approves it.
       .filter((g) => g.status !== "DRAFT");
-  }, [allTournaments, allEvents, overrides]);
+  }, [allTournaments, allEvents, overrides, portalHref, today]);
 
   const filtered = groups.filter((g) => {
     if (search && !g.name.toLowerCase().includes(search.toLowerCase())) return false;
@@ -78,9 +96,10 @@ export default function TournamentsPage() {
     return true;
   });
 
-  const live = filtered.filter((g) => isLive(g.status));
-  const upcoming = filtered.filter((g) => !isLive(g.status) && g.status !== "COMPLETED");
-  const completed = filtered.filter((g) => g.status === "COMPLETED");
+  const isDone = (g: DisplayGroup) => g.status === "COMPLETED" || g.phase === "PAST";
+  const live = filtered.filter((g) => !isDone(g) && g.phase === "LIVE");
+  const upcoming = filtered.filter((g) => !isDone(g) && g.phase === "UPCOMING").sort(byDateAsc);
+  const completed = filtered.filter(isDone).sort(byDateDesc);
 
   return (
     <div className={arenaFontVariables} style={{ fontFamily: "var(--font-home-body)" }}>
@@ -152,18 +171,20 @@ export default function TournamentsPage() {
         </section>
       ) : (
         <div className="mx-auto w-full max-w-[1280px] px-4 pb-24 sm:px-12">
-          {live.length > 0 && (
-            <section className="mb-16">
-              <SectionHeading dotColor="bg-[#ff2448]" pulse>
-                Live Now
-              </SectionHeading>
+          <section className="mb-16">
+            <SectionHeading dotColor="bg-[#ff2448]" pulse={live.length > 0}>
+              {`Live Now · Today, ${formatDate(today)} (IST)`}
+            </SectionHeading>
+            {live.length === 0 ? (
+              <p className="text-sm text-[#8b8b93]">No tournaments are being held today.</p>
+            ) : (
               <div className="flex flex-col gap-6">
                 {live.map((g) => (
                   <LiveCard key={g.eventId} group={g} />
                 ))}
               </div>
-            </section>
-          )}
+            )}
+          </section>
 
           <section className="mb-16">
             <SectionHeading>Upcoming</SectionHeading>
@@ -181,9 +202,9 @@ export default function TournamentsPage() {
           </section>
 
           <section>
-            <SectionHeading>Completed</SectionHeading>
+            <SectionHeading>Past</SectionHeading>
             {completed.length === 0 ? (
-              <p className="text-sm text-[#8b8b93]">No completed tournaments match your filters.</p>
+              <p className="text-sm text-[#8b8b93]">No past tournaments match your filters.</p>
             ) : (
               <RevealGroup className="grid grid-cols-1 gap-6 md:grid-cols-2 lg:grid-cols-3">
                 {completed.map((g) => (
@@ -221,6 +242,7 @@ function SectionHeading({
 }
 
 function LiveCard({ group: g }: { group: DisplayGroup }) {
+  const hostName = useHostName()(g);
   return (
     <Link
       href={g.href}
@@ -231,7 +253,7 @@ function LiveCard({ group: g }: { group: DisplayGroup }) {
         style={{ fontFamily: "var(--font-home-mono)" }}
       >
         <span className="h-1.5 w-1.5 animate-pulse rounded-full bg-white" />
-        {STATUS_TEXT[g.status]}
+        {badgeText(g)}
       </span>
       <div className="relative h-64 w-full overflow-hidden md:h-auto md:w-3/5">
         <ArenaPhotoBackdrop variant="subtle" />
@@ -241,12 +263,20 @@ function LiveCard({ group: g }: { group: DisplayGroup }) {
         <div className="mb-6 space-y-1.5 text-[#c2c6d7]">
           <p className="flex items-center gap-1.5">
             <Calendar className="h-4 w-4 shrink-0" strokeWidth={1.5} />
-            {formatDate(g.date)}
+            {formatEventDates(g)}
           </p>
           <p className="flex items-center gap-1.5">
             <MapPin className="h-4 w-4 shrink-0" strokeWidth={1.5} />
             {g.venue}
           </p>
+          {hostName && (
+            <p className="flex items-center gap-1.5">
+              <User className="h-4 w-4 shrink-0" strokeWidth={1.5} />
+              <span>
+                Hosted by <span className="font-semibold text-[#e2e2e8]">{hostName}</span>
+              </span>
+            </p>
+          )}
           <p className="flex items-center gap-1.5">
             <Trophy className="h-4 w-4 shrink-0" strokeWidth={1.5} />
             {categoryCountLabel(g)}
@@ -268,6 +298,7 @@ function LiveCard({ group: g }: { group: DisplayGroup }) {
 }
 
 function TournamentCard({ group: g }: { group: DisplayGroup }) {
+  const hostName = useHostName()(g);
   return (
     <Link
       href={g.href}
@@ -279,7 +310,7 @@ function TournamentCard({ group: g }: { group: DisplayGroup }) {
           className="absolute left-3 top-3 inline-flex items-center gap-1.5 rounded-[2px] border border-white/20 bg-[#111318]/80 px-2 py-1 text-[10px] font-semibold uppercase tracking-wide text-[#e2e2e8]"
           style={{ fontFamily: "var(--font-home-mono)" }}
         >
-          {STATUS_TEXT[g.status]}
+          {badgeText(g)}
         </span>
       </div>
       <div className="flex flex-1 flex-col p-6">
@@ -287,12 +318,20 @@ function TournamentCard({ group: g }: { group: DisplayGroup }) {
         <div className="mb-6 space-y-1.5 text-sm text-[#c2c6d7]">
           <p className="flex items-center gap-1.5">
             <Calendar className="h-3.5 w-3.5 shrink-0" strokeWidth={1.5} />
-            {formatDate(g.date)}
+            {formatEventDates(g)}
           </p>
           <p className="flex items-center gap-1.5">
             <MapPin className="h-3.5 w-3.5 shrink-0" strokeWidth={1.5} />
             {g.venue}
           </p>
+          {hostName && (
+            <p className="flex items-center gap-1.5">
+              <User className="h-3.5 w-3.5 shrink-0" strokeWidth={1.5} />
+              <span>
+                Hosted by <span className="font-semibold text-[#e2e2e8]">{hostName}</span>
+              </span>
+            </p>
+          )}
           <p className="flex items-center gap-1.5">
             <Trophy className="h-3.5 w-3.5 shrink-0" strokeWidth={1.5} />
             {categoryCountLabel(g)}

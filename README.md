@@ -1,4 +1,25 @@
-This is a [Next.js](https://nextjs.org) project bootstrapped with [`create-next-app`](https://nextjs.org/docs/app/api-reference/cli/create-next-app).
+                                                                                                                                                                                                                                                                                                                                                             This is a [Next.js](https://nextjs.org) project bootstrapped with [`create-next-app`](https://nextjs.org/docs/app/api-reference/cli/create-next-app).
+
+## Run it (one command)
+
+From the project folder:
+
+```
+run            # Windows (cmd or PowerShell: .\run)
+npm run app    # any OS
+```
+
+This checks Node, installs dependencies if needed, validates `.env.local`, starts the
+app on a free port, confirms the database connection, and opens the browser.
+
+| Flag        | Does                                                        |
+| ----------- | ----------------------------------------------------------- |
+| `--setup`   | sync the DB schema (`drizzle-kit push`) + seed, keeping data |
+| `--prod`    | production build + `next start` instead of the dev server   |
+| `--port N`  | preferred port (default 3000)                               |
+| `--no-open` | don't open the browser                                      |
+
+With npm, pass flags after `--`: `npm run app -- --setup`.
 
 ## Getting Started
 

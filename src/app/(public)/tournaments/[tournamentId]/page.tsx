@@ -4,7 +4,7 @@ import { use, useMemo, useState, type ReactNode } from "react";
 import { notFound } from "next/navigation";
 import Image from "next/image";
 import Link from "next/link";
-import { ArrowRight, Calendar, ChevronDown, ChevronRight, MapPin, Trophy } from "lucide-react";
+import { Calendar, ChevronDown, ChevronRight, MapPin, Trophy } from "lucide-react";
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from "@/components/ui/table";
 import { Avatar, AvatarFallback } from "@/components/ui/avatar";
 import { TournamentRegisterButton } from "@/components/tournaments/tournament-register-button";
@@ -17,13 +17,17 @@ import { usePlayerRoster } from "@/lib/players-store";
 import { usePlayerRatings } from "@/lib/player-ratings";
 import { buildEventRegistrants } from "@/lib/tournament-manage";
 import { effectiveStatus, useTournamentStatus } from "@/lib/tournament-status";
+import { mostActiveStatus } from "@/lib/event-groups";
+import { CategoryTypeTag } from "@/components/tournaments/category-type-tag";
 import {
   usePublishedResults,
   type PublishedCategoryResult,
   type PublishedPlacement,
 } from "@/lib/published-results";
-import { formatCurrency, formatDate, initials } from "@/lib/format";
+import { formatCurrency, formatDate, initials, formatEventDates } from "@/lib/format";
 import type { Tournament, TournamentFormat, TournamentStatus } from "@/lib/types";
+import { usePortalHref } from "@/lib/portal-scope";
+import { useHostName } from "@/lib/host-names";
 
 const mono = { fontFamily: "var(--font-home-mono)" };
 const display = { fontFamily: "var(--font-home-display)" };
@@ -70,6 +74,8 @@ export default function TournamentDetailsPage({
   const allTournaments = useAllTournaments();
   const allEvents = useAllEvents();
   const { isLoading } = useHostedTournaments();
+  const portalHref = usePortalHref();
+  const hostName = useHostName();
   const { overrides } = useTournamentStatus();
   const { registrations } = useRegistrations();
   const roster = usePlayerRoster();
@@ -113,6 +119,16 @@ export default function TournamentDetailsPage({
   if (!tournament) notFound();
 
   const status = effectiveStatus(tournament, overrides);
+  // The page is the whole event: registration is open while ANY category is,
+  // and the event only reads "completed" once every category is.
+  const openCategories = siblingCategories.filter((c) => effectiveStatus(c, overrides) === "REGISTRATION_OPEN");
+  const categoryStatuses = siblingCategories.map((c) => effectiveStatus(c, overrides));
+  const eventStatus: TournamentStatus =
+    openCategories.length > 0
+      ? "REGISTRATION_OPEN"
+      : categoryStatuses.every((st) => st === "COMPLETED")
+        ? "COMPLETED"
+        : mostActiveStatus(categoryStatuses.filter((st) => st !== "COMPLETED"));
   // The hero shows the event's own name — never the "— <category>" suffix that
   // each category record carries.
   const eventName = allEvents.find((e) => e.id === tournament.eventId)?.name ?? tournament.name;
@@ -134,13 +150,13 @@ export default function TournamentDetailsPage({
 
       <div className="mx-auto -mt-20 w-full max-w-[1280px] px-4 pb-24 sm:px-12">
         <span
-          className={`mb-4 inline-flex items-center gap-1.5 rounded-[2px] px-3 py-1 text-[11px] font-semibold uppercase tracking-wide backdrop-blur ${statusBadgeClass(status)}`}
+          className={`mb-4 inline-flex items-center gap-1.5 rounded-[2px] px-3 py-1 text-[11px] font-semibold uppercase tracking-wide backdrop-blur ${statusBadgeClass(eventStatus)}`}
           style={mono}
         >
-          {(status === "POOLS" || status === "KNOCKOUT") && (
+          {(eventStatus === "POOLS" || eventStatus === "KNOCKOUT") && (
             <span className="h-1.5 w-1.5 animate-pulse rounded-full bg-white" />
           )}
-          {statusBadgeLabel[status]}
+          {statusBadgeLabel[eventStatus]}
         </span>
         <h1
           className="mb-3 text-[32px] font-extrabold uppercase leading-[1.05] tracking-tight text-[#e2e2e8] drop-shadow-[0_2px_16px_rgba(0,0,0,0.6)] sm:text-[44px]"
@@ -151,7 +167,7 @@ export default function TournamentDetailsPage({
         <div className="mb-6 flex flex-wrap items-center gap-x-3 gap-y-2 text-sm text-[#c2c6d7]">
           <span className="flex items-center gap-1.5">
             <Calendar className="h-4 w-4 text-[#ff2448]" strokeWidth={1.75} />
-            {formatDate(tournament.date)}
+            {formatEventDates(tournament)}
           </span>
           <span className="text-[#8b8b93]">&middot;</span>
           <span className="flex items-center gap-1.5">
@@ -159,7 +175,7 @@ export default function TournamentDetailsPage({
             {tournament.venue}
           </span>
           <span className="text-[#8b8b93]">&middot;</span>
-          <span>hosted by {tournament.organizer}</span>
+          <span>hosted by {hostName(tournament)}</span>
         </div>
 
         <div className="grid gap-10 lg:grid-cols-[1fr_360px]">
@@ -175,22 +191,20 @@ export default function TournamentDetailsPage({
             <section>
               <SectionLabel accent>Categories &amp; Entry Fees</SectionLabel>
               <div className="overflow-hidden rounded-[8px] border border-white/10">
+                {/* Information only — entering categories happens through Register. */}
                 {siblingCategories.map((t) => (
-                  <Link
+                  <div
                     key={t.id}
-                    href={`/tournaments/${t.id}`}
-                    className={`flex items-center justify-between gap-3 border-b border-white/10 p-4 last:border-0 transition-colors ${
-                      t.id === tournament.id ? "bg-[#ff2448]/[0.08]" : "bg-white/[0.03] hover:bg-white/[0.05]"
-                    }`}
+                    className="flex items-center justify-between gap-3 border-b border-white/10 bg-white/[0.03] p-4 last:border-0"
                   >
-                    <span className="text-sm font-semibold text-[#e2e2e8]">{t.category} Singles</span>
-                    <span className="flex items-center gap-2">
-                      <span className="text-lg font-extrabold text-[#ff8f86]" style={display}>
-                        {formatCurrency(t.entryFee)}
-                      </span>
-                      <ChevronRight className="h-4 w-4 text-[#8b8b93]" strokeWidth={2} />
+                    <span className="flex min-w-0 items-center gap-2">
+                      <CategoryTypeTag category={t} />
+                      <span className="truncate text-sm font-semibold text-[#e2e2e8]">{t.category} Singles</span>
                     </span>
-                  </Link>
+                    <span className="text-lg font-extrabold text-[#ff8f86]" style={display}>
+                      {formatCurrency(t.entryFee)}
+                    </span>
+                  </div>
                 ))}
               </div>
             </section>
@@ -254,13 +268,13 @@ export default function TournamentDetailsPage({
 
             <RegisterCta
               tournament={tournament}
-              status={status}
-              categories={siblingCategories}
+              status={eventStatus}
+              categories={openCategories}
               registeredCount={registeredRows.length}
             />
 
             <Link
-              href="/events"
+              href={portalHref("/events")}
               className="flex w-full items-center justify-center rounded-[2px] border border-white/15 py-3 text-xs font-semibold uppercase tracking-wide text-[#e2e2e8] transition-colors hover:border-white/30 hover:bg-white/5"
               style={mono}
             >
@@ -309,7 +323,7 @@ export default function TournamentDetailsPage({
                     {registeredRows.map((p) => (
                       <TableRow key={p.playerId} className="border-white/10 hover:bg-white/[0.03]">
                         <TableCell>
-                          <Link href={`/players/${p.playerId}`} className="flex items-center gap-2 font-medium text-[#e2e2e8] hover:text-[#ff8f86]">
+                          <Link href={portalHref(`/players/${p.playerId}`)} className="flex items-center gap-2 font-medium text-[#e2e2e8] hover:text-[#ff8f86]">
                             <Avatar className="h-7 w-7 border border-white/15">
                               <AvatarFallback className="bg-white/10 text-xs text-[#c2c6d7]">{initials(p.name)}</AvatarFallback>
                             </Avatar>
@@ -399,7 +413,7 @@ function RegisterCta({
   registeredCount: number;
 }) {
   if (status === "REGISTRATION_OPEN") {
-    return <TournamentRegisterButton tournament={tournament} categories={categories} />;
+    return <TournamentRegisterButton tournament={tournament} categories={categories} registeredCount={registeredCount} />;
   }
 
   return (
@@ -407,18 +421,7 @@ function RegisterCta({
       <p className="text-sm font-semibold uppercase tracking-wide text-[#8b8b93]" style={mono}>
         {closedStatusLabel[status]}
       </p>
-      {status === "COMPLETED" ? (
-        <a
-          href="#champion"
-          className="mt-3 inline-flex items-center gap-1.5 text-xs font-semibold uppercase text-[#ff8f86] transition-colors hover:text-[#ff2448]"
-          style={mono}
-        >
-          View Results
-          <ArrowRight className="h-3.5 w-3.5" strokeWidth={2} />
-        </a>
-      ) : (
-        <p className="mt-2 text-xs text-[#8b8b93]">{registeredCount} registered</p>
-      )}
+      {status !== "COMPLETED" && <p className="mt-2 text-xs text-[#8b8b93]">{registeredCount} registered</p>}
     </div>
   );
 }

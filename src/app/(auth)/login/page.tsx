@@ -3,17 +3,8 @@
 import { Suspense, useState } from "react";
 import Link from "next/link";
 import { useRouter, useSearchParams } from "next/navigation";
-import { useAuth, dashboardPathForRole } from "@/lib/auth";
-import type { Role } from "@/lib/types";
-
-// "next" is only honoured when it belongs to the role the account signs in as,
-// otherwise RequireRole would bounce straight back here.
-const rolePathPrefix: Record<Role, string> = {
-  PLAYER: "/player",
-  CLUB: "/club",
-  HOST: "/host",
-  ADMIN: "/admin",
-};
+import { useAuth } from "@/lib/auth";
+import { resolveNextPath } from "@/lib/portal-paths";
 
 const fieldClass =
   "w-full rounded-none border border-white/10 bg-[#0a0a0a] px-4 py-3 text-white transition-colors focus:border-[#ff2448] focus:outline-none";
@@ -26,6 +17,8 @@ function LoginForm() {
   const { signIn } = useAuth();
   const router = useRouter();
   const searchParams = useSearchParams();
+  // Keep the destination across a detour to Register (e.g. Host a Tournament → new user).
+  const next = searchParams.get("next");
 
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
@@ -35,12 +28,7 @@ function LoginForm() {
       setError(res.error);
       return;
     }
-    const requestedNext = searchParams.get("next");
-    const next =
-      requestedNext && requestedNext.startsWith(rolePathPrefix[res.role])
-        ? requestedNext
-        : dashboardPathForRole[res.role];
-    router.push(next);
+    router.push(resolveNextPath(next, res.role));
   };
 
   return (
@@ -107,7 +95,7 @@ function LoginForm() {
         <div className="mt-6 text-center">
           <p className="text-sm text-[#8b8b93]">
             Don&apos;t have an account?{" "}
-            <Link href="/register" className="ml-1 text-sm font-bold uppercase tracking-widest text-[#ff2448] transition-colors hover:text-[#ff8f86]">
+            <Link href={next ? `/register?next=${encodeURIComponent(next)}` : "/register"} className="ml-1 text-sm font-bold uppercase tracking-widest text-[#ff2448] transition-colors hover:text-[#ff8f86]">
               Register
             </Link>
           </p>

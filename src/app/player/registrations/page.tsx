@@ -10,7 +10,7 @@ import { useAllEvents, useAllTournaments } from "@/lib/hosted-tournaments";
 import { useRegistrations } from "@/lib/registrations";
 import { effectiveStatus, useTournamentStatus } from "@/lib/tournament-status";
 import { categoryLabel, eventTitle } from "@/lib/tournament-manage";
-import { formatDate } from "@/lib/format";
+import { formatEventDates } from "@/lib/format";
 import type { RegistrationStatus, Tournament, TournamentStatus } from "@/lib/types";
 
 const statusMap: Record<TournamentStatus, RegistrationStatus> = {
@@ -27,6 +27,7 @@ interface Row {
   eventId: string;
   name: string;
   date: string;
+  endDate?: string;
   categories: string[];
   primaryId: string;
   status: RegistrationStatus;
@@ -68,6 +69,7 @@ export default function PlayerRegistrationsPage() {
         eventId: t.eventId,
         name: eventTitle(t, ev?.name),
         date: ev?.date ?? t.date,
+        endDate: ev?.endDate || t.endDate || undefined,
         categories: [div],
         primaryId: t.id,
         status: statusMap[effectiveStatus(t, overrides)],
@@ -103,13 +105,13 @@ export default function PlayerRegistrationsPage() {
             <TableRow key={r.eventId}>
               <TableCell>
                 <Link
-                  href={`/tournaments/${r.primaryId}`}
+                  href={`/player/categories/${r.primaryId}`}
                   className="font-medium text-foreground hover:text-primary"
                 >
                   {r.name}
                 </Link>
               </TableCell>
-              <TableCell className="text-muted-foreground">{formatDate(r.date)}</TableCell>
+              <TableCell className="text-muted-foreground">{formatEventDates(r)}</TableCell>
               <TableCell className="text-muted-foreground">{r.categories.join(", ")}</TableCell>
               <TableCell>
                 <RegistrationStatusBadge status={r.status} />

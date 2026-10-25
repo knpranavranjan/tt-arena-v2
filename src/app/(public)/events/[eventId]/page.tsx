@@ -13,7 +13,9 @@ import { TieBreakRules } from "@/components/tournaments/tie-break-rules";
 import { getClub } from "@/lib/mock-data";
 import { useAllEvents, useAllTournaments, useHostedTournaments } from "@/lib/hosted-tournaments";
 import { effectiveStatus, useTournamentStatus } from "@/lib/tournament-status";
-import { formatDate } from "@/lib/format";
+import { formatEventDates } from "@/lib/format";
+import { usePortalHref } from "@/lib/portal-scope";
+import { useHostName } from "@/lib/host-names";
 
 export default function EventDetailsPage({
   params,
@@ -21,6 +23,8 @@ export default function EventDetailsPage({
   params: Promise<{ eventId: string }>;
 }) {
   const { eventId } = use(params);
+  const portalHref = usePortalHref();
+  const hostName = useHostName();
   const allEvents = useAllEvents();
   const allTournaments = useAllTournaments();
   const { isLoading } = useHostedTournaments();
@@ -55,13 +59,13 @@ export default function EventDetailsPage({
                 <h1 className="mt-2 font-heading text-3xl font-semibold text-foreground">{event.name}</h1>
               </div>
               {openCategory && (
-                <Button render={<Link href={`/tournaments/${openCategory.id}`} />}>Register Now</Button>
+                <Button render={<Link href={portalHref(`/tournaments/${openCategory.id}`)} />}>Register Now</Button>
               )}
             </div>
             <div className="mt-4 grid gap-3 text-sm text-muted-foreground sm:grid-cols-3">
-              <span className="flex items-center gap-1.5"><Calendar className="h-4 w-4" strokeWidth={1.5} /> {formatDate(event.date)}</span>
+              <span className="flex items-center gap-1.5"><Calendar className="h-4 w-4" strokeWidth={1.5} /> {formatEventDates(event)}</span>
               <span className="flex items-center gap-1.5"><MapPin className="h-4 w-4" strokeWidth={1.5} /> {event.venue}, {event.location}</span>
-              <span className="flex items-center gap-1.5"><User className="h-4 w-4" strokeWidth={1.5} /> {event.organizer}</span>
+              <span className="flex items-center gap-1.5"><User className="h-4 w-4" strokeWidth={1.5} /> {hostName(event)}</span>
             </div>
           </div>
         </div>

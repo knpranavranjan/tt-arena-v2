@@ -11,7 +11,7 @@ import { useAllEvents, useAllTournaments } from "@/lib/hosted-tournaments";
 import { applyEventEdit, applyTournamentEdit, useTournamentEdits } from "@/lib/tournament-edits";
 import { effectiveStatus, useTournamentStatus } from "@/lib/tournament-status";
 import { buildEventGroups, categoryCountLabel, mostActiveStatus } from "@/lib/event-groups";
-import { formatDate } from "@/lib/format";
+import { formatEventDates } from "@/lib/format";
 import type { TournamentStatus } from "@/lib/types";
 
 const mono = { fontFamily: "var(--font-home-mono)" };
@@ -131,7 +131,7 @@ export default function PlayerTournamentsPage() {
             {groups.length === 0 ? (
               <>
                 Set one up from{" "}
-                <Link href="/host-tournament" className="text-[#ff8f86] hover:text-[#ff2448]">
+                <Link href="/player/host-tournament" className="text-[#ff8f86] hover:text-[#ff2448]">
                   Host a Tournament
                 </Link>
                 .
@@ -175,7 +175,7 @@ export default function PlayerTournamentsPage() {
                   <div className="mt-1.5 flex flex-wrap items-center gap-x-3 gap-y-1 text-xs text-[#8b8b93]">
                     <span className="flex items-center gap-1">
                       <Calendar className="h-3.5 w-3.5" strokeWidth={1.75} />
-                      {formatDate(g.date)}
+                      {formatEventDates(g)}
                     </span>
                     <span className="flex items-center gap-1">
                       <MapPin className="h-3.5 w-3.5" strokeWidth={1.75} />

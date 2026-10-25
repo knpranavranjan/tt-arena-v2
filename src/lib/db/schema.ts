@@ -130,6 +130,8 @@ export const events = pgTable("events", {
   organizerId: text(),
   venue: text().notNull(),
   date: text().notNull(),
+  /** Last day of a multi-day event; null = single day. */
+  endDate: text(),
   location: text().notNull(),
   status: text().notNull(),
   tournamentIds: jsonb().$type<string[]>().notNull().default([]),
@@ -149,11 +151,19 @@ export const tournaments = pgTable("tournaments", {
   /** SPINID of the creating account — the unique owner identity. */
   organizerId: text(),
   date: text().notNull(),
+  /** Last day of a multi-day tournament; null = single day. */
+  endDate: text(),
   registrationDeadline: text().notNull(),
   maxPlayers: integer().notNull().default(32),
   registeredPlayerIds: jsonb().$type<string[]>().notNull().default([]),
   format: text().notNull(),
   category: text().notNull(),
+  /** `AGE` | `RATING` — how the host divided this category; null = AGE. */
+  categoryType: text(),
+  /** RATING categories: entrants' rating must be under this. */
+  ratingLimit: integer(),
+  /** AGE categories: entrants must be under this age on the first day. */
+  ageLimit: integer(),
   entryFee: integer().notNull().default(0),
   description: text().notNull().default(""),
   status: text().notNull(),

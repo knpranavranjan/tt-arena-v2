@@ -4,6 +4,7 @@ import Link from "next/link";
 import { ArrowRight, Check, Lock, UserCheck } from "lucide-react";
 import { toast } from "sonner";
 import { useAuth } from "@/lib/auth";
+import { usePortalScope } from "@/lib/portal-scope";
 import { useCurrentPlayer } from "@/lib/session-data";
 import { useJoinRequests } from "@/lib/join-requests";
 
@@ -15,12 +16,14 @@ export function JoinClubButton({ clubId, clubName }: { clubId: string; clubName:
   const { user, isLoading: authLoading } = useAuth();
   const player = useCurrentPlayer();
   const { sendRequest, hasPendingRequest, requests, isLoading: requestsLoading } = useJoinRequests();
+  // Public site: always the sign-in CTA — the action itself only happens inside a portal.
+  const inPortal = usePortalScope() !== null;
 
-  if (authLoading || requestsLoading) {
+  if (inPortal && (authLoading || requestsLoading)) {
     return <div className="mt-4 h-[50px] w-full animate-pulse rounded-[2px] bg-white/5" />;
   }
 
-  if (!user) {
+  if (!inPortal || !user) {
     return (
       <>
         <Link

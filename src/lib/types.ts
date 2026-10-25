@@ -94,7 +94,10 @@ export interface Tournament {
   /** SPINID of the account that created this via "Host a Tournament" — the
    *  canonical, unique owner identity. Absent on the seed catalogue. */
   organizerId?: string;
+  /** First day of play ("YYYY-MM-DD", IST calendar day). */
   date: string;
+  /** Last day of play for a multi-day tournament; absent = single day (`date`). */
+  endDate?: string;
   registrationDeadline: string;
   maxPlayers: number;
   registeredPlayerIds: string[];
@@ -102,6 +105,12 @@ export interface Tournament {
   // Freeform, unlike Player.category — hosts can name a division anything
   // ("Under 15", "Open", "Veterans 45+"), not just the fixed player brackets.
   category: string;
+  /** How the host restricts entry: by age or by rating. Absent = AGE. */
+  categoryType?: CategoryType;
+  /** RATING categories: entrants' rating must be under this (50–3000, steps of 50). */
+  ratingLimit?: number;
+  /** AGE categories: entrants must be under this age (1–100) on the first day of play. */
+  ageLimit?: number;
   entryFee: number;
   description: string;
   status: TournamentStatus;
@@ -127,6 +136,8 @@ export interface Tournament {
 
 export type EventStatus = "UPCOMING" | "LIVE" | "COMPLETED";
 
+export type CategoryType = "AGE" | "RATING";
+
 export interface TTEvent {
   id: string;
   name: string;
@@ -135,7 +146,10 @@ export interface TTEvent {
   /** SPINID of the account that created this. Absent on the seed catalogue. */
   organizerId?: string;
   venue: string;
+  /** First day of play ("YYYY-MM-DD", IST calendar day). */
   date: string;
+  /** Last day of play for a multi-day event; absent = single day. */
+  endDate?: string;
   location: string;
   status: EventStatus;
   tournamentIds: string[];

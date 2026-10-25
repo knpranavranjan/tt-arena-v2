@@ -29,7 +29,7 @@ import { useAllEvents, useAllTournaments } from "@/lib/hosted-tournaments";
 import { buildEventGroups, categoryCountLabel, mostActiveStatus } from "@/lib/event-groups";
 import { eventTitle } from "@/lib/tournament-manage";
 import { effectiveStatus, useTournamentStatus } from "@/lib/tournament-status";
-import { formatDate } from "@/lib/format";
+import { formatDateRange, formatEventDates } from "@/lib/format";
 import type { Tournament, TournamentStatus } from "@/lib/types";
 import { ScrollArea } from "@/components/ui/scroll-area";
 import { TournamentHistoryCard } from "@/components/player/tournament-history-card";
@@ -59,6 +59,7 @@ function TournamentHostingCard({
   name,
   status,
   date,
+  endDate,
   venue,
   categoryLabel,
 }: {
@@ -66,6 +67,7 @@ function TournamentHostingCard({
   name: string;
   status: TournamentStatus;
   date: string;
+  endDate?: string;
   venue: string;
   categoryLabel: string;
 }) {
@@ -86,7 +88,7 @@ function TournamentHostingCard({
       </div>
       <p className="mt-1.5 text-sm font-semibold text-[#e2e2e8]">{name}</p>
       <p className="mt-1 text-xs text-[#8b8b93]">
-        {formatDate(date)} &middot; {venue}
+        {formatDateRange(date, endDate)} &middot; {venue}
       </p>
     </Link>
   );
@@ -134,7 +136,7 @@ export default function PlayerDashboardPage() {
     .filter((r) => r.playerId === player.id && r.status === "REGISTERED" && !rosterRegisteredIds.has(r.tournamentId))
     .map((r) => allTournaments.find((t) => t.id === r.tournamentId))
     .filter((t): t is Tournament => Boolean(t));
-  const registeredByEvent = new Map<string, { key: string; name: string; date: string; venue: string }>();
+  const registeredByEvent = new Map<string, { key: string; name: string; date: string; endDate?: string; venue: string }>();
   for (const t of [...rosterRegistered, ...liveRegistered]) {
     if (registeredByEvent.has(t.eventId)) continue;
     const ev = allEvents.find((e) => e.id === t.eventId);
@@ -142,6 +144,7 @@ export default function PlayerDashboardPage() {
       key: t.eventId,
       name: eventTitle(t, ev?.name),
       date: ev?.date ?? t.date,
+      endDate: ev?.endDate || t.endDate || undefined,
       venue: ev?.venue ?? t.venue,
     });
   }
@@ -290,7 +293,7 @@ export default function PlayerDashboardPage() {
                 {myClubs.map(({ club, memberCount }, i) => (
                   <Link
                     key={club.id}
-                    href={`/clubs/${club.id}`}
+                    href={`/player/clubs/${club.id}`}
                     className={`group flex items-center gap-4 p-5 transition-colors hover:bg-white/[0.02] ${
                       i !== myClubs.length - 1 ? "border-b border-white/5" : ""
                     }`}
@@ -313,7 +316,7 @@ export default function PlayerDashboardPage() {
             )}
 
             <Link
-              href="/clubs"
+              href="/player/clubs"
               className="border-t border-white/5 py-3 text-center text-xs font-semibold uppercase tracking-widest text-[#c2c6d7] transition-colors hover:bg-white/[0.02] hover:text-[#e2e2e8]"
               style={{ fontFamily: "var(--font-home-mono)" }}
             >
@@ -349,7 +352,7 @@ export default function PlayerDashboardPage() {
                       <div className="min-w-0 flex-1">
                         <h3 className="text-lg font-semibold text-[#e2e2e8]">{t.name}</h3>
                         <p className="mt-1 text-sm text-[#c2c6d7]" style={{ fontFamily: "var(--font-home-mono)" }}>
-                          {new Date(t.date).toLocaleDateString("en-IN", { day: "numeric", month: "short", year: "numeric" })} • {t.venue}
+                          {formatEventDates(t)} • {t.venue}
                         </p>
                       </div>
                       <span className="shrink-0 rounded-full border border-[#0ea5ff]/20 bg-[#0ea5ff]/10 px-3 py-1 text-xs font-semibold uppercase tracking-wide text-[#0ea5ff]" style={{ fontFamily: "var(--font-home-mono)" }}>
@@ -369,7 +372,7 @@ export default function PlayerDashboardPage() {
             {hostedGroups.length === 0 ? (
               <p className="text-sm text-[#8b8b93]">
                 No tournaments right now. Get started from{" "}
-                <Link href="/host-tournament" className="text-[#ff8f86] hover:text-[#ff2448]">
+                <Link href="/player/host-tournament" className="text-[#ff8f86] hover:text-[#ff2448]">
                   Host a Tournament
                 </Link>
                 .
@@ -383,6 +386,7 @@ export default function PlayerDashboardPage() {
                     name={g.name}
                     status={g.status}
                     date={g.date}
+                    endDate={g.endDate}
                     venue={g.venue}
                     categoryLabel={categoryCountLabel(g)}
                   />

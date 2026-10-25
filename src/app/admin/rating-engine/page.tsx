@@ -51,7 +51,7 @@ export default function AdminRatingEnginePage() {
               {ratingExports.map((r) => (
                 <TableRow key={r.tournamentId}>
                   <TableCell>
-                    <Link href={`/tournaments/${r.tournamentId}`} className="font-medium text-foreground hover:text-primary">
+                    <Link href={`/admin/categories/${r.tournamentId}`} className="font-medium text-foreground hover:text-primary">
                       {getTournament(r.tournamentId)?.name}
                     </Link>
                   </TableCell>

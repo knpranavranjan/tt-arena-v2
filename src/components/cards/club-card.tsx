@@ -1,8 +1,11 @@
+"use client";
+
 import Link from "next/link";
 import { Building2, MapPin, Users } from "lucide-react";
 import { Avatar, AvatarFallback } from "@/components/ui/avatar";
 import type { Club } from "@/lib/types";
 import { cn } from "@/lib/utils";
+import { usePortalHref } from "@/lib/portal-scope";
 
 export function ClubCard({
   club,
@@ -15,9 +18,10 @@ export function ClubCard({
   upcomingEvents: number;
   className?: string;
 }) {
+  const portalHref = usePortalHref();
   return (
     <Link
-      href={`/clubs/${club.id}`}
+      href={portalHref(`/clubs/${club.id}`)}
       className={cn(
         "group flex flex-col gap-3 rounded-lg border border-border bg-card p-4 transition-colors hover:border-primary/40 hover:bg-accent/40",
         className,
